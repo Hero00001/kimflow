@@ -1,0 +1,460 @@
+:root {
+  --bg:             #0b0b0e;
+  --surface:        #141418;
+  --surface-hover:  #1c1c22;
+  --surface-active: #22222a;
+  --text:           #e8e8ed;
+  --text-secondary: #72727a;
+  --text-tertiary:  #404048;
+  --accent:         #6875f5;
+  --accent-hover:   #7f8bf7;
+  --accent-subtle:  rgba(104, 117, 245, 0.12);
+  --red:            #f43f5e;
+  --green:          #22c55e;
+  --yellow:         #f59e0b;
+  --border:         rgba(255, 255, 255, 0.07);
+  --border-strong:  rgba(255, 255, 255, 0.12);
+  --radius:         8px;
+  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --transition:     150ms ease;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+#app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+#titlebar { height: 36px; width: 100%; flex-shrink: 0; -webkit-app-region: drag; }
+
+main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 32px;
+  gap: 24px;
+}
+
+/* ── Recording Button ────────────────────────────────── */
+
+#recording-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 20px;
+}
+
+#status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  min-height: 20px;
+}
+
+#status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+
+#status-dot.recording {
+  background: var(--red);
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.6);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+#status-dot.transcribing {
+  background: var(--yellow);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+#status-error {
+  color: var(--red);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+#record-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  outline: none;
+}
+
+#record-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+  box-shadow: 0 0 20px rgba(139, 143, 245, 0.15);
+}
+
+#record-btn.recording {
+  border-color: var(--red);
+  background: rgba(244, 63, 94, 0.1);
+  animation: btn-pulse 1.2s ease-in-out infinite;
+}
+
+#record-btn.recording:hover {
+  border-color: var(--red);
+  box-shadow: 0 0 24px rgba(244, 63, 94, 0.2);
+}
+
+#record-btn.transcribing {
+  border-color: var(--yellow);
+  cursor: wait;
+}
+
+@keyframes btn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(244, 63, 94, 0); }
+}
+
+#hotkey-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Transcript ──────────────────────────────────────── */
+
+#transcript-area {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+#transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+#transcript-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.text-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition: background var(--transition);
+}
+
+.text-btn:hover { background: var(--accent-subtle); }
+
+#transcript-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#transcript-text:empty::after {
+  content: 'Transcribed text will appear here...';
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* ── Settings ────────────────────────────────────────── */
+
+#settings-area {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+#settings-summary {
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+#settings-summary::-webkit-details-marker { display: none; }
+
+#settings-summary::after {
+  content: '▾';
+  float: right;
+  font-size: 10px;
+  transition: transform 0.2s;
+}
+
+details[open] #settings-summary::after { transform: rotate(180deg); }
+
+#settings-grid {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.s-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+
+.s-row:last-of-type { border-bottom: none; }
+
+.s-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 90px;
+}
+
+/* ── Form Controls ──────────────────────────────────── */
+
+select, input[type="password"], input[type="text"] {
+  padding: 6px 12px;
+  background: var(--surface-active);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition);
+  min-width: 180px;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2372727a' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+select:focus, input[type="password"]:focus, input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
+input[type="password"], input[type="text"] { flex: 1; }
+input[type="password"]::placeholder, input[type="text"]::placeholder { color: var(--text-tertiary); }
+
+input[type="color"] {
+  width: 42px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-active);
+  cursor: pointer;
+}
+
+.hotkey-editor { display: flex; align-items: center; gap: 8px; }
+.hotkey-editor input { min-width: 150px; }
+.hotkey-editor input.recording { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-subtle); }
+#hotkey-text { display: none; }
+
+/* ── Toggle Groups ────────────────────────────────────── */
+
+.toggle-group {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--surface-active);
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid var(--border);
+}
+
+.toggle-btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.toggle-btn:hover { color: var(--text); }
+
+.toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+
+.btn-primary {
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Model Row ───────────────────────────────────────── */
+
+.model-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.model-row select { min-width: auto; }
+
+/* ── Progress Bar ─────────────────────────────────────── */
+
+#download-progress { padding: 0; }
+
+#progress-bar {
+  height: 4px;
+  background: var(--surface-active);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+/* ── Kbd ──────────────────────────────────────────────── */
+
+kbd {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--surface-active);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* ── Utility ─────────────────────────────────────────── */
+
+.hidden { display: none !important; }
+
+/* ── Scrollbar ────────────────────────────────────────── */
+
+main::-webkit-scrollbar, #transcript-text::-webkit-scrollbar {
+  width: 5px;
+}
+
+main::-webkit-scrollbar-track, #transcript-text::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+main::-webkit-scrollbar-thumb, #transcript-text::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+main::-webkit-scrollbar-thumb:hover, #transcript-text::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+::selection {
+  background: var(--accent-subtle);
+  color: var(--text);
+}
+
+/* ── Copy Toast ──────────────────────────────────────── */
+
+#copy-toast {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#copy-toast.show {
+  opacity: 1;
+}

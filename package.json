@@ -1,0 +1,62 @@
+{
+  "name": "kimflow",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A dictation app powered by Whisper and Deepgram",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "start": "npm run build && electron .",
+    "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:1420 && electron . --dev\"",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "^3.2.0",
+    "axios": "^1.7.0",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.kimflow.app",
+    "productName": "KimFlow",
+    "icon": "app icon/icon.png",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "backend/**/*",
+      "dist/**/*",
+      "index.html",
+      "src/**/*",
+      "app icon/**/*"
+    ],
+    "asarUnpack": [
+      "backend/bin/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "app icon/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "app icon/icon.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "app icon/icon.png"
+    }
+  }
+}

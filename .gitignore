@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-electron/
+target/
+src-tauri/binaries/
+whisper.cpp/
+src-tauri/
+*.local
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
