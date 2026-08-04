@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS = {
   groqApiKey: '',
   recordingMode: 'toggle',
   hotkey: 'CmdOrCtrl+Shift+Space',
-  accentColor: '#6875f5',
+  accentColor: '#8b5cf6',
 };
 
 function stringValue(value, fallback) {

@@ -10,6 +10,9 @@ let mediaStream: MediaStream | null = null;
 let recordingChunks: Blob[] = [];
 let currentState = 'ready';
 let isToggling = false;
+let recordingHotkey = false;
+let historyData: HistoryData = { sessions: [] };
+let historyQuery = '';
 
 const statusDot = document.getElementById('status-dot')!;
 const statusText = document.getElementById('status-text')!;
@@ -18,9 +21,12 @@ const recordBtn = document.getElementById('record-btn') as HTMLButtonElement;
 const recordIconMic = document.getElementById('record-icon-mic')!;
 const recordIconStop = document.getElementById('record-icon-stop')!;
 const hotkeyDisplay = document.getElementById('hotkey-display')!;
-const transcriptArea = document.getElementById('transcript-area')!;
 const transcriptText = document.getElementById('transcript-text')!;
 const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
+const micBtn = document.getElementById('mic-btn') as HTMLButtonElement;
+const pauseBtn = document.getElementById('pause-btn') as HTMLButtonElement;
+const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
+const endBtn = document.getElementById('end-btn') as HTMLButtonElement;
 const micSelect = document.getElementById('mic-select') as HTMLSelectElement;
 const engineGroup = document.getElementById('engine-group')!;
 const localRow = document.getElementById('local-row')!;
@@ -33,11 +39,13 @@ const progressFill = document.getElementById('progress-fill')!;
 const groqKey = document.getElementById('groq-key') as HTMLInputElement;
 const deepgramKey = document.getElementById('deepgram-key') as HTMLInputElement;
 const modeGroup = document.getElementById('mode-group')!;
-const hotkeyText = document.getElementById('hotkey-text')!;
 const hotkeyInput = document.getElementById('hotkey-input') as HTMLInputElement;
 const hotkeyRecord = document.getElementById('hotkey-record') as HTMLButtonElement;
 const accentColor = document.getElementById('accent-color') as HTMLInputElement;
-let recordingHotkey = false;
+const historySearch = document.getElementById('history-search') as HTMLInputElement;
+const historyList = document.getElementById('history-list')!;
+const historyEmpty = document.getElementById('history-empty')!;
+const clearHistoryBtn = document.getElementById('clear-history-btn') as HTMLButtonElement;
 
 const STATES = {
   READY: 'ready',
@@ -45,6 +53,27 @@ const STATES = {
   PAUSED: 'paused',
   TRANSCRIBING: 'transcribing',
 } as const;
+
+const PAGES = {
+  transcribe: document.getElementById('page-transcribe')!,
+  history: document.getElementById('page-history')!,
+  settings: document.getElementById('page-settings')!,
+};
+const navButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.nav-item'));
+
+function goToPage(page: string) {
+  (Object.keys(PAGES) as Array<keyof typeof PAGES>).forEach((name) => {
+    PAGES[name].classList.toggle('hidden', name !== page);
+  });
+  navButtons.forEach((button) => {
+    button.classList.toggle('active', button.dataset.page === page);
+  });
+  if (page === 'history') refreshHistory();
+}
+
+navButtons.forEach((button) => {
+  button.addEventListener('click', () => goToPage(button.dataset.page || 'transcribe'));
+});
 
 function setState(state: string) {
   currentState = state;
@@ -54,29 +83,38 @@ function setState(state: string) {
   statusDot.className = '';
   statusError.classList.add('hidden');
 
+  const interactive = state !== STATES.TRANSCRIBING;
+  const active = state === STATES.RECORDING || state === STATES.PAUSED;
+
   if (state === STATES.RECORDING) {
     recordBtn.classList.add('recording');
     recordIconMic.style.display = 'none';
     recordIconStop.style.display = 'block';
     statusDot.classList.add('recording');
-    statusText.textContent = 'Recording...';
+    statusText.textContent = 'Recording';
+    pauseBtn.textContent = 'Pause';
   } else if (state === STATES.PAUSED) {
     recordBtn.classList.add('recording');
     recordIconMic.style.display = 'none';
     recordIconStop.style.display = 'block';
-    statusDot.classList.add('transcribing');
+    statusDot.classList.add('recording');
     statusText.textContent = 'Paused';
+    pauseBtn.textContent = 'Resume';
   } else if (state === STATES.TRANSCRIBING) {
     recordBtn.classList.add('transcribing');
     statusDot.classList.add('transcribing');
-    statusText.textContent = 'Transcribing...';
+    statusText.textContent = 'Transcribing…';
   } else {
     statusDot.classList.add('ready');
     statusText.textContent = 'Ready';
   }
 
-  recordBtn.disabled = state === STATES.TRANSCRIBING;
+  recordBtn.disabled = !interactive;
   recordBtn.setAttribute('aria-label', state === STATES.RECORDING ? 'Stop Recording' : 'Start Recording');
+  micBtn.disabled = !interactive;
+  pauseBtn.disabled = !active;
+  stopBtn.disabled = !active;
+  endBtn.disabled = !interactive;
 }
 
 function showError(message: string) {
@@ -296,38 +334,66 @@ async function handleTrigger(pressed: boolean) {
   } else if (pressed) {
     if (currentState === STATES.READY) await beginRecording();
     else if (currentState === STATES.RECORDING) await finishRecording();
+    else if (currentState === STATES.PAUSED) await resumeFromOverlay();
   }
 }
 
-recordBtn.addEventListener('click', () => {
-  if (currentSettings?.recordingMode === 'toggle') void handleTrigger(true);
+function wireToggle(button: HTMLButtonElement) {
+  button.addEventListener('click', () => {
+    if (currentSettings?.recordingMode === 'toggle') void handleTrigger(true);
+  });
+  button.addEventListener('pointerdown', (event) => {
+    if (currentSettings?.recordingMode === 'push-to-talk') {
+      event.preventDefault();
+      void handleTrigger(true);
+    }
+  });
+  button.addEventListener('pointerup', (event) => {
+    if (currentSettings?.recordingMode === 'push-to-talk') {
+      event.preventDefault();
+      void handleTrigger(false);
+    }
+  });
+  button.addEventListener('pointerleave', () => {
+    if (currentSettings?.recordingMode === 'push-to-talk') void handleTrigger(false);
+  });
+}
+
+wireToggle(recordBtn);
+wireToggle(micBtn);
+
+pauseBtn.addEventListener('click', () => {
+  if (currentState === STATES.RECORDING) void pauseFromOverlay();
+  else if (currentState === STATES.PAUSED) void resumeFromOverlay();
 });
-recordBtn.addEventListener('pointerdown', (event) => {
-  if (currentSettings?.recordingMode === 'push-to-talk') {
-    event.preventDefault();
-    void handleTrigger(true);
+
+stopBtn.addEventListener('click', () => void finishRecording());
+
+endBtn.addEventListener('click', () => {
+  if (currentState !== STATES.READY) {
+    void cancelFromOverlay();
   }
+  transcriptText.textContent = '';
 });
-recordBtn.addEventListener('pointerup', (event) => {
-  if (currentSettings?.recordingMode === 'push-to-talk') {
-    event.preventDefault();
-    void handleTrigger(false);
+
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT')) return;
+  if (currentState === STATES.RECORDING || currentState === STATES.PAUSED) {
+    void finishRecording();
   }
-});
-recordBtn.addEventListener('pointerleave', () => {
-  if (currentSettings?.recordingMode === 'push-to-talk') void handleTrigger(false);
 });
 
 function showTranscript(text: string) {
-  transcriptArea.classList.remove('hidden');
-  transcriptText.textContent = text;
+  transcriptText.textContent = text || '';
 }
 
 copyBtn.addEventListener('click', async () => {
   const text = transcriptText.textContent || '';
   if (!text) return;
   try {
-    await navigator.clipboard.writeText(text);
+    await window.api.copyText(text);
     showToast('Copied!');
   } catch {
     showError('Unable to copy transcript');
@@ -443,7 +509,7 @@ function applyAccentColor(color: string) {
   if (!/^#[0-9a-f]{6}$/i.test(color)) return;
   document.documentElement.style.setProperty('--accent', color);
   document.documentElement.style.setProperty('--accent-hover', color);
-  document.documentElement.style.setProperty('--accent-subtle', hexToRgba(color, 0.12));
+  document.documentElement.style.setProperty('--accent-subtle', hexToRgba(color, 0.14));
 }
 
 async function persist() {
@@ -494,6 +560,82 @@ function formatHotkey(hotkey: string) {
   return hotkey.replace(/CmdOrCtrl|CommandOrControl/g, isWindows ? 'Ctrl' : 'Cmd');
 }
 
+// ── Window controls ─────────────────────────────────────
+
+if (/mac/i.test(navigator.platform || navigator.userAgent)) {
+  document.body.classList.add('platform-mac');
+}
+
+document.getElementById('win-min')!.addEventListener('click', () => void window.api.windowControl('minimize'));
+document.getElementById('win-max')!.addEventListener('click', () => void window.api.windowControl('toggle-maximize'));
+document.getElementById('win-close')!.addEventListener('click', () => void window.api.windowControl('close'));
+
+// ── History ─────────────────────────────────────────────
+
+function formatDuration(ms: number) {
+  const totalSeconds = Math.max(1, Math.round(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds} sec`;
+  return seconds ? `${minutes} min ${seconds} sec` : `${minutes} min`;
+}
+
+function formatRelativeTime(timestamp: number) {
+  const diff = Date.now() - timestamp;
+  const day = 24 * 60 * 60 * 1000;
+  if (diff < day) return 'Today';
+  if (diff < 2 * day) return 'Yesterday';
+  if (diff < 7 * day) return `${Math.floor(diff / day)} days ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
+
+function renderHistory() {
+  const query = historyQuery.trim().toLowerCase();
+  const filtered = query
+    ? historyData.sessions.filter((session) => {
+        return session.title.toLowerCase().includes(query) || session.text.toLowerCase().includes(query);
+      })
+    : historyData.sessions;
+  historyList.replaceChildren();
+  historyEmpty.classList.toggle('hidden', filtered.length > 0);
+  for (const entry of filtered) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'history-item';
+    const title = document.createElement('span');
+    title.className = 'history-item-title';
+    title.textContent = entry.title;
+    const meta = document.createElement('span');
+    meta.className = 'history-item-meta';
+    meta.textContent = `${formatRelativeTime(entry.createdAt)} • ${formatDuration(entry.durationMs)}`;
+    item.append(title, meta);
+    item.addEventListener('click', () => {
+      showTranscript(entry.text);
+      goToPage('transcribe');
+    });
+    historyList.appendChild(item);
+  }
+}
+
+function refreshHistory() {
+  void window.api.getHistory().then((data) => {
+    historyData = data;
+    renderHistory();
+  }).catch(() => undefined);
+}
+
+historySearch.addEventListener('input', () => {
+  historyQuery = historySearch.value;
+  renderHistory();
+});
+
+clearHistoryBtn.addEventListener('click', () => {
+  void window.api.clearHistory().then((data) => {
+    historyData = data;
+    renderHistory();
+  }).catch(() => undefined);
+});
+
 async function init() {
   const unsubscribers = [
     window.api.onOverlayAction((action) => {
@@ -508,7 +650,6 @@ async function init() {
       accentColor.value = settings.accentColor;
       applyAccentColor(settings.accentColor);
       hotkeyInput.value = settings.hotkey;
-      hotkeyText.textContent = formatHotkey(settings.hotkey);
       hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
     }),
     // Electron globalShortcut reports key-down, not key-up. Treat the global
@@ -524,6 +665,10 @@ async function init() {
     window.api.onDownloadProgress((progress: DownloadProgress) => {
       progressFill.style.width = `${Math.max(0, Math.min(100, progress.percent))}%`;
     }),
+    window.api.onHistoryUpdated((data) => {
+      historyData = data;
+      renderHistory();
+    }),
   ];
   window.addEventListener('beforeunload', () => unsubscribers.forEach((unsubscribe) => unsubscribe()), { once: true });
 
@@ -536,7 +681,6 @@ async function init() {
     modeGroup.querySelectorAll('.toggle-btn').forEach((button) => {
       button.classList.toggle('active', (button as HTMLElement).dataset.mode === currentSettings.recordingMode);
     });
-    hotkeyText.textContent = formatHotkey(currentSettings.hotkey);
     hotkeyInput.value = currentSettings.hotkey;
     hotkeyDisplay.textContent = formatHotkey(currentSettings.hotkey);
     accentColor.value = currentSettings.accentColor;
@@ -556,11 +700,12 @@ async function init() {
     }
     await Promise.all([populateMics(), checkModelStatus()]);
     setState(await window.api.getRecordingState());
+    refreshHistory();
   } catch (error) {
     currentSettings = {
       microphone: 'default', engine: 'local', whisperModel: 'small',
       deepgramApiKey: '', groqApiKey: '', recordingMode: 'toggle',
-      hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#6875f5',
+      hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
     };
     setState(STATES.READY);
     showError(errorMessage(error, 'Unable to load settings'));

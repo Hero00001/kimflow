@@ -11,40 +11,112 @@
   </head>
   <body>
     <div id="app">
-      <div id="titlebar"></div>
-      <main id="main">
-        <div id="recording-area">
-          <div id="status-row">
-            <span id="status-dot"></span>
-            <span id="status-text">Ready</span>
-            <span id="status-error" class="hidden"></span>
-          </div>
-          <button id="record-btn" aria-label="Start Recording">
-            <svg id="record-icon-mic" width="28" height="28" viewBox="0 0 24 24" fill="none">
-              <rect x="8" y="1" width="8" height="14" rx="4" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
-              <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-            <svg id="record-icon-stop" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="display:none">
-              <rect x="4" y="4" width="16" height="16" rx="3"/>
-            </svg>
-          </button>
-          <div id="hotkey-hint">
-            Shortcut: <kbd id="hotkey-display">Ctrl+Shift+Space</kbd>
-          </div>
+      <div id="titlebar">
+        <div id="titlebar-drag"></div>
+        <div id="window-controls">
+          <button id="win-min" class="win-btn" title="Minimize" aria-label="Minimize window">&#x2212;</button>
+          <button id="win-max" class="win-btn" title="Maximize" aria-label="Maximize window">&#x25A1;</button>
+          <button id="win-close" class="win-btn win-close" title="Close" aria-label="Close window">&#x2715;</button>
         </div>
-
-        <div id="transcript-area" class="hidden">
-          <div id="transcript-header">
-            <span id="transcript-label">Transcription</span>
-            <button id="copy-btn" class="text-btn">Copy</button>
+      </div>
+      <div id="layout">
+        <aside id="sidebar">
+          <div id="brand">
+            <div id="logo">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="8" y="1" width="8" height="14" rx="4" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+                <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <span id="brand-name">KimFlow</span>
           </div>
-          <div id="transcript-text"></div>
-        </div>
+          <nav id="nav">
+            <button class="nav-item active" data-page="transcribe">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="8" y="1" width="8" height="14" rx="4" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+                <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              Transcribe
+            </button>
+            <button class="nav-item" data-page="history">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              History
+            </button>
+            <button class="nav-item" data-page="settings">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+                <path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1m0-14.2-2.1 2.1m-10 10-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              Settings
+            </button>
+          </nav>
+        </aside>
 
-        <div id="settings-area">
-          <details id="settings-details" open>
-            <summary id="settings-summary">Settings</summary>
-            <div id="settings-grid">
+        <main id="main">
+          <section id="page-transcribe" class="page">
+            <div id="status-row">
+              <span id="status-dot"></span>
+              <span id="status-text">Ready</span>
+              <span id="status-error" class="hidden"></span>
+            </div>
+
+            <button id="record-btn" aria-label="Start Recording">
+              <svg id="record-icon-mic" viewBox="0 0 24 24" fill="none">
+                <rect x="8" y="1" width="8" height="14" rx="4" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
+                <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <svg id="record-icon-stop" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                <rect x="4" y="4" width="16" height="16" rx="3"/>
+              </svg>
+            </button>
+
+            <div id="transcript-area">
+              <div id="transcript-toolbar">
+                <span id="transcript-label">Transcript</span>
+                <button id="copy-btn" class="text-btn" type="button">Copy</button>
+              </div>
+              <div id="transcript-text" aria-live="polite"></div>
+            </div>
+
+            <div id="controls-bar">
+              <button id="pause-btn" class="ctrl-btn" type="button" disabled>Pause</button>
+              <button id="mic-btn" class="ctrl-btn primary" type="button">Mic</button>
+              <button id="stop-btn" class="ctrl-btn" type="button" disabled>Stop</button>
+              <button id="end-btn" class="ctrl-btn danger" type="button">End Session</button>
+            </div>
+
+            <div id="hint">
+              <kbd id="hotkey-display">Ctrl+Shift+Space</kbd> to start
+              <span class="hint-sep">·</span>
+              <kbd>Esc</kbd> to stop
+            </div>
+          </section>
+
+          <section id="page-history" class="page hidden">
+            <div id="history-header">
+              <div id="history-title">History</div>
+              <div id="history-actions">
+                <input id="history-search" type="text" placeholder="Search history…" aria-label="Search history" />
+                <button id="clear-history-btn" class="text-btn" type="button">Clear</button>
+              </div>
+            </div>
+            <div id="history-empty" class="hidden">
+              <div id="history-empty-title">No recordings yet</div>
+              <div id="history-empty-sub">Finished transcripts will appear here.</div>
+            </div>
+            <div id="history-list"></div>
+          </section>
+
+          <section id="page-settings" class="page hidden">
+            <div id="settings-heading">Settings</div>
+            <div class="settings-panel">
+              <div class="s-row" id="mic-row">
+                <span class="s-label">Microphone</span>
+                <select id="mic-select"></select>
+              </div>
 
               <div class="s-row" id="engine-row">
                 <span class="s-label">Engine</span>
@@ -55,38 +127,8 @@
                 </div>
               </div>
 
-              <div class="s-row" id="mic-row">
-                <span class="s-label">Microphone</span>
-                <select id="mic-select"></select>
-              </div>
-
-              <div class="s-row" id="local-row">
-                <span class="s-label">Model</span>
-                <div class="model-row">
-                  <select id="model-select">
-                    <option value="small">Small (~466 MB)</option>
-                    <option value="medium">Medium (~1.5 GB)</option>
-                  </select>
-                  <button id="download-btn" class="btn-primary">Download</button>
-                </div>
-              </div>
-
-              <div id="download-progress" class="hidden">
-                <div id="progress-bar"><div id="progress-fill"></div></div>
-              </div>
-
-              <div class="s-row" id="groq-row">
-                <span class="s-label">Groq API Key</span>
-                <input type="password" id="groq-key" placeholder="gsk_..." />
-              </div>
-
-              <div class="s-row" id="deepgram-row">
-                <span class="s-label">Deepgram API Key</span>
-                <input type="password" id="deepgram-key" placeholder="key-..." />
-              </div>
-
               <div class="s-row" id="mode-row">
-                <span class="s-label">Mode</span>
+                <span class="s-label">Recording Mode</span>
                 <div class="toggle-group" id="mode-group">
                   <button class="toggle-btn active" data-mode="toggle">Toggle</button>
                   <button class="toggle-btn" data-mode="push-to-talk">Push-to-Talk</button>
@@ -94,23 +136,51 @@
               </div>
 
               <div class="s-row" id="accent-row">
-                <span class="s-label">Accent color</span>
-                <input type="color" id="accent-color" value="#6875f5" aria-label="Choose accent color" />
+                <span class="s-label">Accent Color</span>
+                <input type="color" id="accent-color" value="#8b5cf6" aria-label="Choose accent color" />
               </div>
 
               <div class="s-row" id="hotkey-row">
-                <span class="s-label">Capture hotkey</span>
+                <span class="s-label">Capture Hotkey</span>
                 <div class="hotkey-editor">
                   <input id="hotkey-input" type="text" value="Ctrl+Shift+Space" aria-label="Capture hotkey" placeholder="Ctrl+Shift+Space" />
                   <button id="hotkey-record" class="text-btn" type="button">Record</button>
                 </div>
-                <kbd id="hotkey-text"></kbd>
               </div>
-
             </div>
-          </details>
-        </div>
-      </main>
+
+            <details id="advanced-details">
+              <summary id="advanced-summary">Advanced</summary>
+              <div class="settings-panel">
+                <div class="s-row" id="groq-row">
+                  <span class="s-label">Groq API Key</span>
+                  <input type="password" id="groq-key" placeholder="gsk_..." />
+                </div>
+
+                <div class="s-row" id="deepgram-row">
+                  <span class="s-label">Deepgram API Key</span>
+                  <input type="password" id="deepgram-key" placeholder="key-..." />
+                </div>
+
+                <div class="s-row" id="local-row">
+                  <span class="s-label">Local Model</span>
+                  <div class="model-row">
+                    <select id="model-select">
+                      <option value="small">Small (~466 MB)</option>
+                      <option value="medium">Medium (~1.5 GB)</option>
+                    </select>
+                    <button id="download-btn" class="btn-primary" type="button">Download</button>
+                  </div>
+                </div>
+
+                <div id="download-progress" class="hidden">
+                  <div id="progress-bar"><div id="progress-fill"></div></div>
+                </div>
+              </div>
+            </details>
+          </section>
+        </main>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

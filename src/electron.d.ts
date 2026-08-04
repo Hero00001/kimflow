@@ -19,6 +19,18 @@ interface DownloadProgress {
   percent: number;
 }
 
+interface HistoryEntry {
+  id: string;
+  text: string;
+  title: string;
+  createdAt: number;
+  durationMs: number;
+}
+
+interface HistoryData {
+  sessions: HistoryEntry[];
+}
+
 interface Window {
   api: {
     getSettings: () => Promise<Settings>;
@@ -34,11 +46,16 @@ interface Window {
     pauseRecording: () => Promise<void>;
     resumeRecording: () => Promise<void>;
     overlayAction: (action: string) => Promise<void>;
+    copyText: (text: string) => Promise<boolean>;
+    windowControl: (action: 'minimize' | 'toggle-maximize' | 'close') => Promise<void>;
+    getHistory: () => Promise<HistoryData>;
+    clearHistory: () => Promise<HistoryData>;
     onHotkeyPressed: (callback: (event: HotkeyEvent) => void) => () => void;
     onRecordingState: (callback: (state: string) => void) => () => void;
     onTranscriptionResult: (callback: (result: string) => void) => () => void;
     onDownloadProgress: (callback: (progress: DownloadProgress) => void) => () => void;
     onOverlayAction: (callback: (action: string) => void) => () => void;
     onSettingsUpdated: (callback: (settings: Settings) => void) => () => void;
+    onHistoryUpdated: (callback: (history: HistoryData) => void) => () => void;
   };
 }

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, clipboard } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,6 +13,7 @@ const {
   STATE,
 } = require('./backend/recorder.cjs');
 const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
+const history = require('./backend/history.cjs');
 
 let mainWindow;
 let overlayWindow;
@@ -21,7 +22,7 @@ let rendererReady = false;
 let pendingHotkey = null;
 let pendingOverlayActions = [];
 const APP_NAME = 'KimFlow';
-const ICON_PATH = path.join(__dirname, 'app icon', 'icon.png');
+const ICON_PATH = path.join(__dirname, 'app icon', 'icon.ico');
 app.setName(APP_NAME);
 
 function sendToWindows(channel, value) {
@@ -57,20 +58,30 @@ async function loadEntry(window, entry) {
 }
 
 function createWindows() {
+  const isMac = process.platform === 'darwin';
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
-    minWidth: 560,
-    minHeight: 500,
+    width: 1200,
+    height: 760,
+    minWidth: 880,
+    minHeight: 600,
     resizable: true,
     title: APP_NAME,
     icon: ICON_PATH,
+    frame: isMac,
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset' }
+      : { frame: false }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  if (!isMac) {
+    mainWindow.setMenuBarVisibility(false);
+    mainWindow.setAutoHideMenuBar(true);
+  }
 
   mainWindow.webContents.on('did-start-loading', () => {
     rendererReady = false;
@@ -173,6 +184,42 @@ function registerIpc() {
     assertTrustedSender(event);
     return [];
   });
+  ipcMain.handle('write-clipboard', (event, text) => {
+    assertTrustedSender(event);
+    if (typeof text !== 'string') throw new Error('Clipboard text must be a string');
+    clipboard.writeText(text);
+    return true;
+  });
+  ipcMain.handle('window-control', (event, action) => {
+    assertTrustedSender(event);
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Main window is unavailable');
+    switch (action) {
+      case 'minimize':
+        mainWindow.minimize();
+        break;
+      case 'toggle-maximize':
+        if (mainWindow.isMaximized()) mainWindow.unmaximize();
+        else mainWindow.maximize();
+        break;
+      case 'close':
+        mainWindow.close();
+        break;
+      default:
+        throw new Error(`Unknown window control: ${action}`);
+    }
+  });
+  ipcMain.handle('get-history', (event) => {
+    assertTrustedSender(event);
+    return history.load();
+  });
+  ipcMain.handle('clear-history', (event) => {
+    assertTrustedSender(event);
+    const cleared = history.clear();
+    for (const window of [mainWindow, overlayWindow]) {
+      if (window && !window.isDestroyed()) window.webContents.send('history-updated', cleared);
+    }
+    return cleared;
+  });
   ipcMain.handle('get-recording-state', (event) => {
     assertTrustedSender(event);
     return getState();
@@ -267,6 +314,7 @@ app.whenReady().then(() => {
   });
 
   registerIpc();
+  Menu.setApplicationMenu(null);
   createWindows();
 
   const settings = loadSettings();

@@ -30,7 +30,7 @@
   "build": {
     "appId": "com.kimflow.app",
     "productName": "KimFlow",
-    "icon": "app icon/icon.png",
+    "icon": "app icon/icon.ico",
     "directories": {
       "output": "dist-electron"
     },
@@ -48,7 +48,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "app icon/icon.png"
+      "icon": "app icon/icon.ico"
     },
     "mac": {
       "target": "dmg",

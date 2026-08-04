@@ -6,6 +6,7 @@ const { cleanupText } = require('./cleanup.cjs');
 const { pasteText } = require('./paste.cjs');
 const { transcribeDeepgram, transcribeGroq, transcribeLocal } = require('./transcribe.cjs');
 const { CONFIG_DIR } = require('./settings.cjs');
+const history = require('./history.cjs');
 
 const STATE = {
   READY: 'ready',
@@ -17,6 +18,7 @@ const STATE = {
 let currentState = STATE.READY;
 let audioRecorder = null;
 let operationId = 0;
+let recordingStartedAt = null;
 
 function windowsFrom(target) {
   if (!target) return [];
@@ -27,6 +29,14 @@ function notify(target, state) {
   for (const window of windowsFrom(target)) {
     if (!window.isDestroyed?.()) {
       window.webContents.send('recording-state', state);
+    }
+  }
+}
+
+function notifyHistory(target) {
+  for (const window of windowsFrom(target)) {
+    if (!window.isDestroyed?.()) {
+      window.webContents.send('history-updated', history.load());
     }
   }
 }
@@ -45,6 +55,7 @@ async function startRecording(settings, windows) {
     await recorder.start();
     audioRecorder = recorder;
     operationId += 1;
+    recordingStartedAt = Date.now();
     currentState = STATE.RECORDING;
     notify(windows, STATE.RECORDING);
   } catch (error) {
@@ -74,6 +85,7 @@ async function resumeRecording(windows) {
 
 async function cancelRecording(windows) {
   operationId += 1;
+  recordingStartedAt = null;
   if (audioRecorder) {
     try { await audioRecorder.stop(); } catch { /* already stopped */ }
   }
@@ -90,6 +102,8 @@ async function stopRecording(settings, windows, audioBuffer) {
   }
 
   const currentOperation = operationId;
+  const startedAt = recordingStartedAt;
+  recordingStartedAt = null;
   currentState = STATE.TRANSCRIBING;
   notify(windows, STATE.TRANSCRIBING);
 
@@ -121,7 +135,18 @@ async function stopRecording(settings, windows, audioBuffer) {
     // but it must prevent a late result from being pasted or shown.
     if (currentOperation !== operationId) return '';
     const cleaned = cleanupText(rawText || '');
-    if (cleaned) pasteText(cleaned);
+    if (cleaned) {
+      pasteText(cleaned);
+      try {
+        history.addSession({
+          text: cleaned,
+          durationMs: startedAt ? Date.now() - startedAt : 0,
+        });
+        notifyHistory(windows);
+      } catch (error) {
+        console.error('[KimFlow] Failed to save history:', error.message);
+      }
+    }
     return cleaned;
   } finally {
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
