@@ -25,6 +25,13 @@ const APP_NAME = 'KimFlow';
 const ICON_PATH = path.join(__dirname, 'app icon', 'icon.ico');
 app.setName(APP_NAME);
 
+function destroyOverlayWindow() {
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.destroy();
+  }
+  overlayWindow = null;
+}
+
 function sendToWindows(channel, value) {
   for (const window of [mainWindow, overlayWindow]) {
     if (window && !window.isDestroyed()) window.webContents.send(channel, value);
@@ -109,10 +116,10 @@ function createWindows() {
   });
 
   overlayWindow = new BrowserWindow({
-    width: 240,
-    height: 92,
-    minWidth: 200,
-    minHeight: 78,
+    width: 200,
+    height: 46,
+    minWidth: 140,
+    minHeight: 42,
     resizable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
@@ -137,6 +144,7 @@ function createWindows() {
   mainWindow.on('closed', () => {
     rendererReady = false;
     void cancelRecording([mainWindow, overlayWindow]);
+    destroyOverlayWindow();
     mainWindow = null;
   });
   overlayWindow.on('closed', () => { overlayWindow = null; });
@@ -339,6 +347,7 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   unregisterHotkeys();
+  destroyOverlayWindow();
 });
 
 app.on('window-all-closed', () => {
