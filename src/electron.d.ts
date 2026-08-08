@@ -7,6 +7,28 @@ interface Settings {
   recordingMode: string;
   hotkey: string;
   accentColor: string;
+  translationEnabled: boolean;
+  translationProvider: string;
+  geminiApiKey: string;
+  geminiModel: string;
+  inputLanguage: string;
+  translationTarget: string;
+}
+
+interface LanguageOption {
+  value: string;
+  label: string;
+}
+
+interface LanguagesData {
+  input: LanguageOption[];
+  target: LanguageOption[];
+}
+
+interface TranscriptionResult {
+  text: string;
+  translation: string | null;
+  translationError: string | null;
 }
 
 interface HotkeyEvent {
@@ -36,12 +58,13 @@ interface Window {
     getSettings: () => Promise<Settings>;
     saveSettings: (settings: Settings) => Promise<Settings>;
     listMicrophones: () => Promise<MediaDeviceInfo[]>;
+    getLanguages: () => Promise<LanguagesData>;
     getRecordingState: () => Promise<string>;
     checkModelDownloaded: (modelSize: string) => Promise<boolean>;
     downloadModel: (modelSize: string) => Promise<void>;
     toggleRecording: () => Promise<string>;
     startRecording: () => Promise<void>;
-    stopRecording: (audioBuffer: ArrayBuffer) => Promise<string>;
+    stopRecording: (audioBuffer: ArrayBuffer) => Promise<TranscriptionResult>;
     cancelRecording: () => Promise<void>;
     pauseRecording: () => Promise<void>;
     resumeRecording: () => Promise<void>;
@@ -52,7 +75,7 @@ interface Window {
     clearHistory: () => Promise<HistoryData>;
     onHotkeyPressed: (callback: (event: HotkeyEvent) => void) => () => void;
     onRecordingState: (callback: (state: string) => void) => () => void;
-    onTranscriptionResult: (callback: (result: string) => void) => () => void;
+    onTranscriptionResult: (callback: (result: TranscriptionResult) => void) => () => void;
     onDownloadProgress: (callback: (progress: DownloadProgress) => void) => () => void;
     onOverlayAction: (callback: (action: string) => void) => () => void;
     onSettingsUpdated: (callback: (settings: Settings) => void) => () => void;

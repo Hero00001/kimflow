@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   listMicrophones: () => ipcRenderer.invoke('list-microphones'),
+  getLanguages: () => ipcRenderer.invoke('list-translation-languages'),
   getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
   checkModelDownloaded: (modelSize) => ipcRenderer.invoke('check-model-downloaded', modelSize),
   downloadModel: (modelSize) => ipcRenderer.invoke('download-model', modelSize),

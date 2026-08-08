@@ -12,7 +12,8 @@
     "start": "npm run build && electron .",
     "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:1420 && electron . --dev\"",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "test:gemini": "node scripts/gemini-smoke.cjs"
   },
   "dependencies": {
     "@deepgram/sdk": "^3.2.0",

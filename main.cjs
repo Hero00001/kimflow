@@ -184,6 +184,11 @@ function registerIpc() {
     assertTrustedSender(event);
     return [];
   });
+  ipcMain.handle('list-translation-languages', (event) => {
+    assertTrustedSender(event);
+    const { inputLanguages, targetLanguages } = require('./backend/languages.cjs');
+    return { input: inputLanguages(), target: targetLanguages() };
+  });
   ipcMain.handle('write-clipboard', (event, text) => {
     assertTrustedSender(event);
     if (typeof text !== 'string') throw new Error('Clipboard text must be a string');

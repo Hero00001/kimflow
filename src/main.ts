@@ -46,6 +46,19 @@ const historySearch = document.getElementById('history-search') as HTMLInputElem
 const historyList = document.getElementById('history-list')!;
 const historyEmpty = document.getElementById('history-empty')!;
 const clearHistoryBtn = document.getElementById('clear-history-btn') as HTMLButtonElement;
+const translationGroup = document.getElementById('translation-group')!;
+const providerSelect = document.getElementById('provider-select') as HTMLSelectElement;
+const inputLanguageSelect = document.getElementById('input-language-select') as HTMLSelectElement;
+const translateToSelect = document.getElementById('translate-to-select') as HTMLSelectElement;
+const geminiKey = document.getElementById('gemini-key') as HTMLInputElement;
+const geminiModel = document.getElementById('gemini-model') as HTMLInputElement;
+const translationArea = document.getElementById('translation-area')!;
+const translationText = document.getElementById('translation-text')!;
+const translationError = document.getElementById('translation-error')!;
+const copyTranslationBtn = document.getElementById('copy-translation-btn') as HTMLButtonElement;
+const providerRow = document.getElementById('provider-row')!;
+const inputLanguageRow = document.getElementById('input-language-row')!;
+const translateToRow = document.getElementById('translate-to-row')!;
 
 const STATES = {
   READY: 'ready',
@@ -308,7 +321,10 @@ async function finishRecording() {
   try {
     const wav = await stopAudioCapture();
     const result = await window.api.stopRecording(wav);
-    if (result) showTranscript(result);
+    if (result) {
+      showTranscript(result.text);
+      showTranslation(result.translation, result.translationError);
+    }
   } catch (error) {
     abortAudioCapture();
     await window.api.cancelRecording().catch(() => undefined);
@@ -374,6 +390,7 @@ endBtn.addEventListener('click', () => {
     void cancelFromOverlay();
   }
   transcriptText.textContent = '';
+  clearTranslation();
 });
 
 window.addEventListener('keydown', (event) => {
@@ -389,6 +406,60 @@ function showTranscript(text: string) {
   transcriptText.textContent = text || '';
 }
 
+function showTranslation(translation: string | null, error: string | null = null) {
+  translationText.textContent = translation || '';
+  if (error) {
+    translationError.textContent = `Translation failed: ${error}`;
+    translationError.classList.remove('hidden');
+  } else {
+    translationError.classList.add('hidden');
+  }
+  translationArea.classList.toggle('hidden', !(currentSettings && currentSettings.translationEnabled && (translation || error)));
+}
+
+function clearTranslation() {
+  translationText.textContent = '';
+  translationError.textContent = '';
+  translationError.classList.add('hidden');
+  translationArea.classList.add('hidden');
+}
+
+function setTranslationUi(enabled: boolean) {
+  providerRow.classList.toggle('hidden', !enabled);
+  inputLanguageRow.classList.toggle('hidden', !enabled);
+  translateToRow.classList.toggle('hidden', !enabled);
+}
+
+function syncTranslationControls() {
+  if (!currentSettings) return;
+  providerSelect.value = currentSettings.translationProvider || 'gemini';
+  inputLanguageSelect.value = currentSettings.inputLanguage || 'auto';
+  translateToSelect.value = currentSettings.translationTarget || 'en';
+  geminiKey.value = currentSettings.geminiApiKey || '';
+  geminiModel.value = currentSettings.geminiModel || '';
+  translationGroup.querySelectorAll('.toggle-btn').forEach((button) => {
+    button.classList.toggle('active', (button as HTMLElement).dataset.value === (currentSettings.translationEnabled ? 'on' : 'off'));
+  });
+  setTranslationUi(currentSettings.translationEnabled);
+}
+
+async function populateLanguages() {
+  try {
+    const data = await window.api.getLanguages();
+    inputLanguageSelect.replaceChildren();
+    for (const option of data.input) {
+      inputLanguageSelect.appendChild(new Option(option.label, option.value));
+    }
+    translateToSelect.replaceChildren();
+    for (const option of data.target) {
+      translateToSelect.appendChild(new Option(option.label, option.value));
+    }
+  } catch {
+    inputLanguageSelect.replaceChildren(new Option('Auto Detect', 'auto'));
+    translateToSelect.replaceChildren(new Option('English', 'en'));
+  }
+}
+
 copyBtn.addEventListener('click', async () => {
   const text = transcriptText.textContent || '';
   if (!text) return;
@@ -399,6 +470,36 @@ copyBtn.addEventListener('click', async () => {
     showError('Unable to copy transcript');
   }
 });
+
+copyTranslationBtn.addEventListener('click', async () => {
+  const text = translationText.textContent || '';
+  if (!text) return;
+  try {
+    await window.api.copyText(text);
+    showToast('Copied!');
+  } catch {
+    showError('Unable to copy translation');
+  }
+});
+
+translationGroup.addEventListener('click', (event) => {
+  const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
+  if (!button?.dataset.value || !currentSettings) return;
+  const enabled = button.dataset.value === 'on';
+  currentSettings.translationEnabled = enabled;
+  translationGroup.querySelectorAll('.toggle-btn').forEach((item) => {
+    item.classList.toggle('active', (item as HTMLElement).dataset.value === (enabled ? 'on' : 'off'));
+  });
+  setTranslationUi(enabled);
+  if (!enabled) clearTranslation();
+  void persist();
+});
+
+providerSelect.addEventListener('change', () => { void persist(); });
+inputLanguageSelect.addEventListener('change', () => { void persist(); });
+translateToSelect.addEventListener('change', () => { void persist(); });
+geminiKey.addEventListener('change', () => { void persist(); });
+geminiModel.addEventListener('change', () => { void persist(); });
 
 function showToast(message: string) {
   document.getElementById('copy-toast')?.remove();
@@ -518,6 +619,11 @@ async function persist() {
   currentSettings.whisperModel = modelSelect.value;
   currentSettings.groqApiKey = groqKey.value;
   currentSettings.deepgramApiKey = deepgramKey.value;
+  currentSettings.translationProvider = providerSelect.value || 'gemini';
+  currentSettings.inputLanguage = inputLanguageSelect.value || 'auto';
+  currentSettings.translationTarget = translateToSelect.value || 'en';
+  currentSettings.geminiApiKey = geminiKey.value;
+  currentSettings.geminiModel = geminiModel.value.trim();
   currentSettings.hotkey = hotkeyInput.value.trim() || currentSettings.hotkey;
   currentSettings.accentColor = accentColor.value;
   applyAccentColor(currentSettings.accentColor);
@@ -651,6 +757,7 @@ async function init() {
       applyAccentColor(settings.accentColor);
       hotkeyInput.value = settings.hotkey;
       hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
+      syncTranslationControls();
     }),
     // Electron globalShortcut reports key-down, not key-up. Treat the global
     // shortcut as a safe toggle even when the UI is configured for push-to-talk;
@@ -661,7 +768,12 @@ async function init() {
       }
     }),
     window.api.onRecordingState((state) => setState(state)),
-    window.api.onTranscriptionResult((result) => { if (result) showTranscript(result); }),
+    window.api.onTranscriptionResult((result) => {
+      if (result) {
+        showTranscript(result.text);
+        showTranslation(result.translation, result.translationError);
+      }
+    }),
     window.api.onDownloadProgress((progress: DownloadProgress) => {
       progressFill.style.width = `${Math.max(0, Math.min(100, progress.percent))}%`;
     }),
@@ -685,6 +797,8 @@ async function init() {
     hotkeyDisplay.textContent = formatHotkey(currentSettings.hotkey);
     accentColor.value = currentSettings.accentColor;
     applyAccentColor(currentSettings.accentColor);
+    await populateLanguages();
+    syncTranslationControls();
     // Request permission once during setup so enumerateDevices returns usable
     // labels and stable device IDs for the selector. Tracks are stopped
     // immediately; recording requests a fresh stream later.
@@ -706,6 +820,8 @@ async function init() {
       microphone: 'default', engine: 'local', whisperModel: 'small',
       deepgramApiKey: '', groqApiKey: '', recordingMode: 'toggle',
       hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
+      translationEnabled: false, translationProvider: 'gemini',
+      geminiApiKey: '', geminiModel: '', inputLanguage: 'auto', translationTarget: 'en',
     };
     setState(STATES.READY);
     showError(errorMessage(error, 'Unable to load settings'));

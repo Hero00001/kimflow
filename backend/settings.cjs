@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { AUTO, isKnownLanguage } = require('./languages.cjs');
 
 const CONFIG_DIR = path.join(os.homedir(), '.kimflow');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
@@ -17,6 +18,12 @@ const DEFAULT_SETTINGS = {
   recordingMode: 'toggle',
   hotkey: 'CmdOrCtrl+Shift+Space',
   accentColor: '#8b5cf6',
+  translationEnabled: false,
+  translationProvider: 'gemini',
+  geminiApiKey: '',
+  geminiModel: '',
+  inputLanguage: AUTO,
+  translationTarget: 'en',
 };
 
 function stringValue(value, fallback) {
@@ -25,6 +32,9 @@ function stringValue(value, fallback) {
 
 function normalizeSettings(settings) {
   const merged = { ...DEFAULT_SETTINGS, ...(settings && typeof settings === 'object' ? settings : {}) };
+  const targetLanguage = isKnownLanguage(merged.translationTarget) && merged.translationTarget !== AUTO
+    ? merged.translationTarget
+    : DEFAULT_SETTINGS.translationTarget;
   return {
     microphone: stringValue(merged.microphone, DEFAULT_SETTINGS.microphone),
     engine: ['local', 'groq', 'deepgram'].includes(merged.engine) ? merged.engine : DEFAULT_SETTINGS.engine,
@@ -34,6 +44,12 @@ function normalizeSettings(settings) {
     recordingMode: ['toggle', 'push-to-talk'].includes(merged.recordingMode) ? merged.recordingMode : DEFAULT_SETTINGS.recordingMode,
     hotkey: stringValue(merged.hotkey, DEFAULT_SETTINGS.hotkey).trim() || DEFAULT_SETTINGS.hotkey,
     accentColor: HEX_COLOR.test(merged.accentColor) ? merged.accentColor.toLowerCase() : DEFAULT_SETTINGS.accentColor,
+    translationEnabled: merged.translationEnabled === true,
+    translationProvider: ['gemini'].includes(merged.translationProvider) ? merged.translationProvider : DEFAULT_SETTINGS.translationProvider,
+    geminiApiKey: stringValue(merged.geminiApiKey, ''),
+    geminiModel: stringValue(merged.geminiModel, '').trim(),
+    inputLanguage: isKnownLanguage(merged.inputLanguage) ? merged.inputLanguage : DEFAULT_SETTINGS.inputLanguage,
+    translationTarget: targetLanguage,
   };
 }
 

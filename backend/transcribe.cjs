@@ -21,7 +21,11 @@ function validateModelSize(modelSize) {
   return modelSize;
 }
 
-async function transcribeDeepgram(apiKey, audioPath) {
+function languageOptions(language) {
+  return language && language !== 'auto' ? { language } : {};
+}
+
+async function transcribeDeepgram(apiKey, audioPath, language) {
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set. Please enter your API key in settings.');
 
@@ -30,7 +34,8 @@ async function transcribeDeepgram(apiKey, audioPath) {
   const deepgram = createClient(key);
   const response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, {
     model: 'nova-2',
-    language: 'en',
+    ...languageOptions(language),
+    detect_language: !language || language === 'auto' ? true : undefined,
     smart_format: true,
     mimetype: 'audio/wav',
   });
@@ -38,20 +43,23 @@ async function transcribeDeepgram(apiKey, audioPath) {
   if (response?.error) {
     throw new Error(`Deepgram error: ${response.error.message || response.error}`);
   }
-  const transcript = response?.result?.results?.channels?.[0]?.alternatives?.[0]?.transcript;
+  const channel = response?.result?.results?.channels?.[0];
+  const transcript = channel?.alternatives?.[0]?.transcript;
   if (!transcript) throw new Error('No transcription result from Deepgram');
-  return cleanupText(transcript);
+  const detectedLanguage = channel?.detected_language || channel?.detectedLanguage || null;
+  return { text: cleanupText(transcript), detectedLanguage };
 }
 
-async function transcribeGroq(apiKey, audioPath) {
+async function transcribeGroq(apiKey, audioPath, language) {
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Groq API key not set. Please enter your API key in settings.');
 
   const FormData = require('form-data');
   const form = new FormData();
   form.append('model', 'whisper-large-v3-turbo');
-  form.append('language', 'en');
-  form.append('response_format', 'json');
+  const languageOptionsFields = languageOptions(language);
+  if (languageOptionsFields.language) form.append('language', languageOptionsFields.language);
+  form.append('response_format', 'verbose_json');
   form.append('file', fs.createReadStream(audioPath), {
     filename: 'audio.wav',
     contentType: 'audio/wav',
@@ -74,7 +82,8 @@ async function transcribeGroq(apiKey, audioPath) {
     }
     const text = response.data?.text;
     if (typeof text !== 'string' || !text.trim()) throw new Error('No transcription result from Groq');
-    return cleanupText(text);
+    const detectedLanguage = typeof response.data?.language === 'string' ? response.data.language : null;
+    return { text: cleanupText(text), detectedLanguage };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.startsWith('Groq API error') || message.startsWith('No transcription')) throw error;
@@ -82,7 +91,7 @@ async function transcribeGroq(apiKey, audioPath) {
   }
 }
 
-async function transcribeLocal(modelSize, audioPath) {
+async function transcribeLocal(modelSize, audioPath, language) {
   validateModelSize(modelSize);
   const modelPath = path.join(CONFIG_DIR, modelFilename(modelSize));
   if (!fs.existsSync(modelPath)) throw new Error('Whisper model not found. Please download a model first.');
@@ -98,14 +107,22 @@ async function transcribeLocal(modelSize, audioPath) {
     throw new Error('Whisper binary not found. Add whisper-cpp to the app backend or choose a cloud engine.');
   }
 
+  const langFlag = language && language !== 'auto' ? language : 'auto';
   try {
-    const { stdout } = await execFileAsync(whisperBinary, [
-      '-m', modelPath, '-f', audioPath, '--no-timestamps', '-l', 'en',
+    const { stdout, stderr } = await execFileAsync(whisperBinary, [
+      '-m', modelPath, '-f', audioPath, '--no-timestamps', '-l', langFlag,
     ], { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
-    return cleanupText(stdout.trim());
+    const detectedLanguage = detectedLanguageFromOutput(stderr) || detectedLanguageFromOutput(stdout);
+    return { text: cleanupText(stdout.trim()), detectedLanguage };
   } catch (error) {
     throw new Error(`whisper.cpp failed: ${errorText(error)}`);
   }
+}
+
+function detectedLanguageFromOutput(output) {
+  const text = String(output || '');
+  const match = text.match(/detected language[:\s]+([a-z]{2,3})/i) || text.match(/\blanguage[:\s]+([a-z]{2,3})\b/i);
+  return match ? match[1].toLowerCase() : null;
 }
 
 function modelFilename(modelSize) {

@@ -11,6 +11,8 @@ KimFlow is designed for fast, keyboard-driven dictation without requiring a brow
 - **Cloud transcription** through:
   - Deepgram prerecorded transcription.
   - Groq's OpenAI-compatible Whisper transcription endpoint.
+- **Multilingual speech-to-text** with a configurable input language or automatic language detection.
+- **Optional Gemini translation** that translates the finalized transcript into a user-selected target language.
 - **Microphone selection** using the Electron renderer's media-device API.
 - **Recording controls** for start, pause, resume, stop/transcribe, and cancel.
 - **Floating control widget** that can be dragged around the desktop.
@@ -112,9 +114,26 @@ KimFlow uses Deepgram's prerecorded transcription API with the `nova-2` model.
 
 KimFlow sends the WAV file to Groq's audio transcription endpoint using the `whisper-large-v3-turbo` model.
 
+### Input language
+
+The **Input Language** setting (default: **Auto Detect**) controls which language the selected engine expects or asks the engine to detect automatically. Non-English speech (e.g., Arabic, Chinese, Japanese, French, Spanish, German) is transcribed in its own language rather than forced through an English model.
+
+### Gemini Translation (optional)
+
+Translation is a separate, optional layer that runs **after** transcription. It never replaces the Local Whisper, Groq, or Deepgram engines, and microphone audio is never sent to Gemini — only the finalized transcript text.
+
+1. Open **Settings**.
+2. Set **Translation** to **On** (the default is **Off**, which leaves KimFlow behaving exactly as before and makes no Gemini requests).
+3. Paste a Gemini API key from Google AI Studio into **Gemini API Key** (in Advanced).
+4. Choose an **Input Language** (Auto Detect by default) and a **Translate To** target language (English by default).
+
+When enabled, the transcript is displayed as usual and the translated text appears in the **Translation** panel. Translation runs once per finished transcript, avoiding duplicate requests and unstable partial results. If the Gemini request fails, the transcript is still shown, pasted, and saved; only a translation status is reported.
+
+The translation implementation is isolated in `TranslationService` with a `GeminiTranslationProvider`, so additional providers can be added without touching the transcription pipeline.
+
 ### API key storage
 
-API keys are saved in the KimFlow settings file as part of the local configuration. Treat the configuration directory as sensitive and do not commit or share it.
+API keys (Deepgram, Groq, and Gemini) are saved in the KimFlow settings file as part of the local configuration. Treat the configuration directory as sensitive and do not commit or share it.
 
 - Windows/macOS/Linux: `~/.kimflow/config.json`
 
@@ -202,11 +221,15 @@ The application icon is sourced from `app icon/icon.png` and included in the pac
 │   ├── audio.cjs          WAV validation and audio-buffer handling
 │   ├── bin/               Local whisper.cpp executable location
 │   ├── cleanup.cjs        Transcript cleanup helpers
+│   ├── gemini.cjs         Gemini translation provider
+│   ├── history.cjs        Session history storage
 │   ├── hotkeys.cjs        Global shortcut registration
+│   ├── languages.cjs      Supported language codes for input and translation
 │   ├── paste.cjs          Clipboard and platform paste behavior
 │   ├── recorder.cjs       Recording state and transcription orchestration
 │   ├── settings.cjs       Settings persistence and migration
-│   └── transcribe.cjs     Local, Deepgram, Groq, and model-download logic
+│   ├── transcribe.cjs     Local, Deepgram, Groq, and model-download logic
+│   └── translation.service.cjs  Optional transcript translation facade
 ├── app icon/
 │   └── icon.png           KimFlow application icon
 ├── src/

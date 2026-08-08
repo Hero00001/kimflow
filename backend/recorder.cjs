@@ -5,6 +5,7 @@ const { AudioRecorder } = require('./audio.cjs');
 const { cleanupText } = require('./cleanup.cjs');
 const { pasteText } = require('./paste.cjs');
 const { transcribeDeepgram, transcribeGroq, transcribeLocal } = require('./transcribe.cjs');
+const translationService = require('./translation.service.cjs');
 const { CONFIG_DIR } = require('./settings.cjs');
 const history = require('./history.cjs');
 
@@ -116,16 +117,17 @@ async function stopRecording(settings, windows, audioBuffer) {
     await recorder.stop(audioBuffer);
     await recorder.saveWav(tempPath);
 
-    let rawText;
+    const language = settings.inputLanguage || 'auto';
+    let transcription;
     switch (settings.engine) {
       case 'local':
-        rawText = await transcribeLocal(settings.whisperModel, tempPath);
+        transcription = await transcribeLocal(settings.whisperModel, tempPath, language);
         break;
       case 'deepgram':
-        rawText = await transcribeDeepgram(settings.deepgramApiKey, tempPath);
+        transcription = await transcribeDeepgram(settings.deepgramApiKey, tempPath, language);
         break;
       case 'groq':
-        rawText = await transcribeGroq(settings.groqApiKey, tempPath);
+        transcription = await transcribeGroq(settings.groqApiKey, tempPath, language);
         break;
       default:
         throw new Error(`Unknown engine: ${settings.engine}`);
@@ -134,20 +136,38 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Cancellation cannot always abort a provider's in-flight HTTP request,
     // but it must prevent a late result from being pasted or shown.
     if (currentOperation !== operationId) return '';
-    const cleaned = cleanupText(rawText || '');
-    if (cleaned) {
-      pasteText(cleaned);
+    const cleaned = cleanupText(transcription?.text || '');
+    if (!cleaned) return '';
+    pasteText(cleaned);
+    try {
+      history.addSession({
+        text: cleaned,
+        durationMs: startedAt ? Date.now() - startedAt : 0,
+      });
+      notifyHistory(windows);
+    } catch (error) {
+      console.error('[KimFlow] Failed to save history:', error.message);
+    }
+
+    // Translation is a best-effort add-on. A provider failure must never
+    // break the transcription result, so it is isolated and reported softly.
+    let translation = null;
+    let translationError = null;
+    if (settings.translationEnabled) {
       try {
-        history.addSession({
+        translation = await translationService.translate({
           text: cleaned,
-          durationMs: startedAt ? Date.now() - startedAt : 0,
+          sourceLanguage: transcription?.detectedLanguage || language,
+          targetLanguage: settings.translationTarget,
+          provider: settings.translationProvider,
+          apiKey: settings.geminiApiKey,
+          model: settings.geminiModel || undefined,
         });
-        notifyHistory(windows);
       } catch (error) {
-        console.error('[KimFlow] Failed to save history:', error.message);
+        translationError = error instanceof Error && error.message ? error.message : String(error);
       }
     }
-    return cleaned;
+    return { text: cleaned, translation, translationError };
   } finally {
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
     currentState = STATE.READY;
