@@ -25,6 +25,10 @@ function languageOptions(language) {
   return language && language !== 'auto' ? { language } : {};
 }
 
+function deepgramLanguage(language) {
+  return !language || language === 'auto' ? 'multi' : language;
+}
+
 async function transcribeDeepgram(apiKey, audioPath, language) {
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set. Please enter your API key in settings.');
@@ -32,13 +36,21 @@ async function transcribeDeepgram(apiKey, audioPath, language) {
   const audioBuffer = fs.readFileSync(audioPath);
   const { createClient } = require('@deepgram/sdk');
   const deepgram = createClient(key);
-  const response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, {
-    model: 'nova-2',
-    ...languageOptions(language),
-    detect_language: !language || language === 'auto' ? true : undefined,
+  const options = {
+    model: 'nova-3',
+    language: deepgramLanguage(language),
     smart_format: true,
-    mimetype: 'audio/wav',
-  });
+  };
+
+  // The SDK appends every non-empty option as a query parameter. Log the exact
+  // query string so request/parameter mismatches are visible before the call.
+  if (process.env.KIMFLOW_DEBUG === '1') {
+    const query = new URL('https://api.deepgram.com/v1/listen');
+    Object.keys(options).forEach((keyName) => query.searchParams.append(keyName, String(options[keyName])));
+    console.log(`[KimFlow] Deepgram request URL: ${query.toString()}`);
+  }
+
+  const response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, options);
 
   if (response?.error) {
     throw new Error(`Deepgram error: ${response.error.message || response.error}`);

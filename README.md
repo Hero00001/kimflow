@@ -103,7 +103,7 @@ Local Whisper runs on the device and does not require an API key. It requires:
 4. Paste the key into **Deepgram API Key**.
 5. Record and stop the recording to submit the WAV file for transcription.
 
-KimFlow uses Deepgram's prerecorded transcription API with the `nova-2` model.
+KimFlow uses Deepgram's prerecorded transcription API with the multilingual `nova-3` model. For **Auto Detect**, the request uses `language=multi` so the dominant spoken language is transcribed in that language; a specific selected language is sent on its own. Language detection is only applied through `nova-3` multilingual — `detect_language` is not used with streaming connections.
 
 ### Groq
 
