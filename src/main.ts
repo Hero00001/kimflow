@@ -58,7 +58,6 @@ const translationText = document.getElementById('translation-text')!;
 const translationError = document.getElementById('translation-error')!;
 const copyTranslationBtn = document.getElementById('copy-translation-btn') as HTMLButtonElement;
 const providerRow = document.getElementById('provider-row')!;
-const inputLanguageRow = document.getElementById('input-language-row')!;
 const translateToRow = document.getElementById('translate-to-row')!;
 
 const STATES = {
@@ -427,7 +426,6 @@ function clearTranslation() {
 
 function setTranslationUi(enabled: boolean) {
   providerRow.classList.toggle('hidden', !enabled);
-  inputLanguageRow.classList.toggle('hidden', !enabled);
   translateToRow.classList.toggle('hidden', !enabled);
 }
 

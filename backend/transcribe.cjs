@@ -29,36 +29,88 @@ function deepgramLanguage(language) {
   return !language || language === 'auto' ? 'multi' : language;
 }
 
+function deepgramOptions(language) {
+  return { model: 'nova-3', language: deepgramLanguage(language), smart_format: true };
+}
+
+function debugLog(message, payload) {
+  if (process.env.KIMFLOW_DEBUG !== '1') return;
+  if (typeof payload === 'object') {
+    console.log(`[KimFlow] ${message}`, JSON.stringify(payload, null, 2));
+  } else {
+    console.log(`[KimFlow] ${message}`, payload);
+  }
+}
+
 async function transcribeDeepgram(apiKey, audioPath, language) {
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set. Please enter your API key in settings.');
 
   const audioBuffer = fs.readFileSync(audioPath);
+  debugLog('Deepgram: audio loaded', { bytes: audioBuffer.length, file: audioPath });
   const { createClient } = require('@deepgram/sdk');
   const deepgram = createClient(key);
-  const options = {
-    model: 'nova-3',
-    language: deepgramLanguage(language),
-    smart_format: true,
-  };
+  const options = deepgramOptions(language);
 
-  // The SDK appends every non-empty option as a query parameter. Log the exact
-  // query string so request/parameter mismatches are visible before the call.
-  if (process.env.KIMFLOW_DEBUG === '1') {
-    const query = new URL('https://api.deepgram.com/v1/listen');
-    Object.keys(options).forEach((keyName) => query.searchParams.append(keyName, String(options[keyName])));
-    console.log(`[KimFlow] Deepgram request URL: ${query.toString()}`);
+  const query = new URL('https://api.deepgram.com/v1/listen');
+  Object.keys(options).forEach((keyName) => query.searchParams.append(keyName, String(options[keyName])));
+  debugLog('Deepgram: request URL', query.toString());
+
+  let response;
+  try {
+    response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, options);
+  } catch (error) {
+    throw new Error(`Deepgram request failed: ${error?.message || error}`);
   }
-
-  const response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, options);
+  debugLog('Deepgram: response received', response?.result ? {
+    duration: response.result?.metadata?.duration,
+    channels: response.result?.metadata?.channels,
+    models: response.result?.metadata?.models,
+    warnings: response.result?.metadata?.warnings,
+    error: response?.error?.message || response?.error,
+  } : response);
 
   if (response?.error) {
     throw new Error(`Deepgram error: ${response.error.message || response.error}`);
   }
-  const channel = response?.result?.results?.channels?.[0];
-  const transcript = channel?.alternatives?.[0]?.transcript;
-  if (!transcript) throw new Error('No transcription result from Deepgram');
-  const detectedLanguage = channel?.detected_language || channel?.detectedLanguage || null;
+
+  const result = response?.result;
+  const metadata = result?.metadata || {};
+  const channel = result?.results?.channels?.[0];
+  const alternative = channel?.alternatives?.[0];
+  const transcript = typeof alternative?.transcript === 'string' ? alternative.transcript.trim() : '';
+  const requestedLanguage = options.language;
+  const detectedLanguage = alternative?.languages?.[0]
+    || channel?.detected_language
+    || channel?.detectedLanguage
+    || null;
+
+  if (!transcript) {
+    // Deepgram returns a HTTP 200 with an empty transcript when the audio
+    // contains nothing it can transcribe for the requested language. This is
+    // a DIFFERENT failure than an HTTP error, so say why instead of throwing a
+    // bare "No transcription result".
+    const diagnostics = {
+      requestedLanguage,
+      detectedLanguage,
+      audioDurationSeconds: metadata.duration ?? null,
+      channels: result?.results?.channels?.length ?? 0,
+      alternatives: channel?.alternatives?.length ?? 0,
+      words: alternative?.words?.length ?? 0,
+      url: query.toString(),
+    };
+    debugLog('Deepgram: empty transcript', diagnostics);
+    const hint = requestedLanguage === 'multi'
+      ? 'Deepgram found no speech in its multilingual set. If a specific input language is selected, try setting Input Language to Auto Detect so matched-language speech can be transcribed.'
+      : `Deepgram found no speech in the requested language "${requestedLanguage}". If you are speaking a different language, set Input Language to Auto Detect so KimFlow asks Deepgram to transcribe multilingual audio.`;
+    throw new Error(`Deepgram produced no transcript${metadata.duration ? ` (audio length ${metadata.duration.toFixed(1)}s)` : ''}. ${hint}`);
+  }
+
+  debugLog('Deepgram: transcript parsed', {
+    detectedLanguage,
+    words: alternative?.words?.length ?? 0,
+    length: transcript.length,
+  });
   return { text: cleanupText(transcript), detectedLanguage };
 }
 

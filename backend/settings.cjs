@@ -69,6 +69,16 @@ function migrateLegacyData() {
   }
 }
 
+function migrateInputLanguageToAuto(settings) {
+  // Older Saved configs forced 'en' as the input/STT language, which made
+  // Deepgram reject non-English speech. Reset such a stored value to Auto
+  // Detect once; a user selecting English explicitly afterwards is preserved.
+  if (settings && typeof settings === 'object' && settings.inputLanguage === 'en') {
+    settings.inputLanguage = AUTO;
+  }
+  return settings;
+}
+
 function load() {
   try {
     migrateLegacyData();
@@ -76,7 +86,8 @@ function load() {
       ? CONFIG_PATH
       : fs.existsSync(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH : null;
     if (sourcePath) {
-      return normalizeSettings(JSON.parse(fs.readFileSync(sourcePath, 'utf8')));
+      const raw = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+      return normalizeSettings(migrateInputLanguageToAuto(raw));
     }
   } catch {
     // Fall back to safe defaults when the file is missing or malformed.
