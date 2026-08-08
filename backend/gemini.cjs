@@ -15,11 +15,123 @@ const MODEL_PREFERENCE = [
 const TIMEOUT_MS = 30000;
 const MAX_TEXT_LENGTH = 40000;
 const resolvedModels = new Map();
+const inspectedModels = new Map();
 
 function translationError(message) {
   const error = new Error(message);
   error.name = 'TranslationError';
   return error;
+}
+
+function normalizeModelId(input) {
+  if (typeof input !== 'string') return null;
+  let value = input.trim();
+  if (!value) return null;
+
+  const urlMatch = value.match(/^https?:\/\/[^\s]+\/v1(?:beta)?\/models\/([^:?]+)/i);
+  if (urlMatch) value = urlMatch[1];
+
+  value = value
+    .replace(/^models\//i, '')
+    .replace(/^\/+/, '')
+    .replace(/:\w+\s*$/, '')
+    .split(/[/?#]/)[0]
+    .trim();
+
+  if (!value || !/^[A-Za-z0-9._-]+$/.test(value)) return null;
+  return value;
+}
+
+async function inspectModel(apiKey, modelId) {
+  const key = String(apiKey || '').trim();
+  const normalized = normalizeModelId(modelId);
+  if (!normalized) return { found: false, methods: [], error: 'Invalid model id' };
+
+  const cacheKey = `${key}|${normalized}`;
+  if (inspectedModels.has(cacheKey)) return inspectedModels.get(cacheKey);
+
+  let result;
+  try {
+    const response = await axios.get(`${API_BASE}/models/${encodeURIComponent(normalized)}`, {
+      params: { key },
+      timeout: 15000,
+      validateStatus: () => true,
+    });
+    if (response.status === 404) {
+      result = { found: false, methods: [], error: 'not_found' };
+    } else if (response.status < 200 || response.status >= 300) {
+      const detail = describeError(response.data) || String(response.data || '');
+      result = { found: false, methods: [], error: `http_${response.status}`, detail };
+    } else {
+      result = {
+        found: true,
+        methods: Array.isArray(response.data?.supportedGenerationMethods)
+          ? response.data.supportedGenerationMethods
+          : [],
+        displayName: typeof response.data?.displayName === 'string' ? response.data.displayName : '',
+      };
+    }
+  } catch (error) {
+    result = { found: false, methods: [], error: 'network' };
+  }
+  inspectedModels.set(cacheKey, result);
+  return result;
+}
+
+function textModelList() {
+  return MODEL_PREFERENCE.slice(0, 4).join(', ');
+}
+
+async function validateModel(apiKey, modelId) {
+  const key = String(apiKey || '').trim();
+  const raw = String(modelId || '').trim();
+  if (!raw) return { ok: false, reason: 'empty' };
+
+  const normalized = normalizeModelId(raw);
+  if (!normalized) {
+    return {
+      ok: false,
+      found: false,
+      message: `Invalid model id "${raw}". Use the short id (e.g. gemini-3.6-flash) without "models/", slashes, or a URL.`,
+    };
+  }
+
+  let info;
+  try {
+    info = await inspectModel(key, normalized);
+  } catch {
+    info = { found: false, methods: [], error: 'network' };
+  }
+
+  if (!info.found) {
+    return {
+      ok: false,
+      found: false,
+      model: normalized,
+      message: `Gemini model "${normalized}" was not found for this API key. Current text models include ${textModelList()}, or leave the Gemini Model field empty for automatic selection.`,
+    };
+  }
+
+  const supports = Array.isArray(info.methods) && info.methods.includes('generateContent');
+  if (!supports) {
+    return {
+      ok: false,
+      found: true,
+      supportsGenerateContent: false,
+      methods: info.methods,
+      model: normalized,
+      message: `Gemini model "${normalized}" (${info.displayName || 'available'}) does not support text generation (generateContent). It supports: ${info.methods.join(', ') || 'none'}. Live-translate models are audio-only. Use a text model such as gemini-3.6-flash or leave the field for automatic selection.`,
+    };
+  }
+
+  return {
+    ok: true,
+    found: true,
+    supportsGenerateContent: true,
+    methods: info.methods,
+    model: normalized,
+    message: `${normalized} supports text generation.`,
+  };
 }
 
 function buildPrompt(text, sourceLanguage, targetLanguage) {
@@ -105,7 +217,15 @@ async function translate({ text, sourceLanguage, targetLanguage, apiKey, model }
     throw translationError('Transcript is too long to translate in one request.');
   }
 
-  const activeModel = String(model || '').trim() || await resolveModel(key);
+  const rawModel = String(model || '').trim();
+  let activeModel;
+  if (rawModel) {
+    const validation = await validateModel(key, rawModel);
+    if (!validation.ok) throw translationError(validation.message);
+    activeModel = validation.model;
+  } else {
+    activeModel = await resolveModel(key);
+  }
   const endpoint = `${API_BASE}/models/${encodeURIComponent(activeModel)}:generateContent`;
   let response;
   try {
@@ -147,4 +267,7 @@ module.exports = {
   MODEL_PREFERENCE,
   translate,
   resolveModel,
+  validateModel,
+  inspectModel,
+  normalizeModelId,
 };

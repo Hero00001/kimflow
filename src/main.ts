@@ -52,6 +52,7 @@ const inputLanguageSelect = document.getElementById('input-language-select') as 
 const translateToSelect = document.getElementById('translate-to-select') as HTMLSelectElement;
 const geminiKey = document.getElementById('gemini-key') as HTMLInputElement;
 const geminiModel = document.getElementById('gemini-model') as HTMLInputElement;
+const geminiModelStatus = document.getElementById('gemini-model-status')!;
 const translationArea = document.getElementById('translation-area')!;
 const translationText = document.getElementById('translation-text')!;
 const translationError = document.getElementById('translation-error')!;
@@ -441,6 +442,37 @@ function syncTranslationControls() {
     button.classList.toggle('active', (button as HTMLElement).dataset.value === (currentSettings.translationEnabled ? 'on' : 'off'));
   });
   setTranslationUi(currentSettings.translationEnabled);
+  if (!currentSettings.geminiModel) {
+    setModelStatus('neutral', 'Leave empty for automatic model selection.');
+  } else {
+    void validateModelField();
+  }
+}
+
+function setModelStatus(status: 'neutral' | 'ok' | 'err', text: string) {
+  geminiModelStatus.className = `model-status ${status}`;
+  geminiModelStatus.textContent = text;
+}
+
+async function validateModelField() {
+  const value = geminiModel.value.trim();
+  if (!value) {
+    setModelStatus('neutral', 'Leave empty for automatic model selection.');
+    return;
+  }
+  setModelStatus('neutral', 'Checking…');
+  try {
+    const status = await window.api.validateGeminiModel(value);
+    setModelStatus(status.ok ? 'ok' : 'err', status.message);
+  } catch {
+    setModelStatus('neutral', 'Could not validate model right now. It will be checked before translating.');
+  }
+}
+
+let modelValidateTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleModelValidation() {
+  if (modelValidateTimer) clearTimeout(modelValidateTimer);
+  modelValidateTimer = setTimeout(() => { void validateModelField(); }, 400);
 }
 
 async function populateLanguages() {
@@ -500,6 +532,8 @@ inputLanguageSelect.addEventListener('change', () => { void persist(); });
 translateToSelect.addEventListener('change', () => { void persist(); });
 geminiKey.addEventListener('change', () => { void persist(); });
 geminiModel.addEventListener('change', () => { void persist(); });
+geminiModel.addEventListener('input', scheduleModelValidation);
+geminiModel.addEventListener('blur', () => { void validateModelField(); });
 
 function showToast(message: string) {
   document.getElementById('copy-toast')?.remove();

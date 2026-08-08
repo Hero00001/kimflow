@@ -203,7 +203,10 @@
 
                 <div class="s-row" id="gemini-model-row">
                   <span class="s-label">Gemini Model</span>
-                  <input type="text" id="gemini-model" placeholder="gemini-3.6-flash (empty = automatic)" aria-label="Gemini model" />
+                  <div class="model-field">
+                    <input type="text" id="gemini-model" placeholder="gemini-3.6-flash (empty = automatic)" aria-label="Gemini model" />
+                    <div id="gemini-model-status" class="model-status neutral" aria-live="polite"></div>
+                  </div>
                 </div>
 
                 <div class="s-row" id="local-row">

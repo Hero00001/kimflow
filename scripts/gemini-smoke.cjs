@@ -19,10 +19,28 @@ const text = argValue('--text', 'Hello, how are you?');
 const source = argValue('--source', 'auto');
 const target = argValue('--target', 'ar');
 const model = argValue('--model', '');
+const info = argValue('--info', '');
 
 function fail(message) {
   console.error(message);
   process.exit(2);
+}
+
+function printModel(info) {
+  console.log(`Model          : ${info.model || '(malformed / no model)'}`);
+  if (info.found === false) {
+    console.log('Status         : NOT VALID');
+    console.log(`Message        : ${info.message}`);
+    process.exit(1);
+  }
+  console.log(`Found          : yes`);
+  console.log(`Methods        : ${(info.methods || []).join(', ') || 'none'}`);
+  console.log(`Supports text  : ${info.supportsGenerateContent ? 'yes' : 'no'}`);
+  console.log(`Status         : ${info.ok ? 'OK' : 'INVALID'}`);
+  if (!info.ok) {
+    console.log(`Message        : ${info.message}`);
+    process.exit(1);
+  }
 }
 
 (async () => {
@@ -30,6 +48,11 @@ function fail(message) {
   const apiKey = process.env.GEMINI_API_KEY || stored.geminiApiKey;
   if (!apiKey) {
     fail('No Gemini API key found. Enter one in KimFlow Advanced > Gemini API Key, or set GEMINI_API_KEY.');
+  }
+  if (info) {
+    const infoResult = await gemini.validateModel(apiKey, info);
+    printModel(infoResult);
+    process.exit(0);
   }
   if (!model) {
     const preferred = await gemini.resolveModel(apiKey);

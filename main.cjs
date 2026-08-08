@@ -189,6 +189,13 @@ function registerIpc() {
     const { inputLanguages, targetLanguages } = require('./backend/languages.cjs');
     return { input: inputLanguages(), target: targetLanguages() };
   });
+  ipcMain.handle('validate-gemini-model', async (event, model) => {
+    assertTrustedSender(event);
+    if (typeof model !== 'string') throw new Error('Gemini model must be a string');
+    const gemini = require('./backend/gemini.cjs');
+    const settings = loadSettings();
+    return gemini.validateModel(settings.geminiApiKey, model);
+  });
   ipcMain.handle('write-clipboard', (event, text) => {
     assertTrustedSender(event);
     if (typeof text !== 'string') throw new Error('Clipboard text must be a string');

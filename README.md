@@ -127,6 +127,8 @@ Translation is a separate, optional layer that runs **after** transcription. It 
 3. Paste a Gemini API key from Google AI Studio into **Gemini API Key** (in Advanced).
 4. Choose an **Input Language** (Auto Detect by default) and a **Translate To** target language (English by default).
 
+The optional **Gemini Model** field (in Advanced) accepts a text-capable model id such as `gemini-3.6-flash`. Leave it empty to use the best available text model automatically. The field validates the entered model against the Gemini API as you type: a ✓/error appears under it. Audio-only Live Translate models (e.g. `gemini-3.5-live-translate-preview`) are **not** supported for transcript translation because they do not accept text input.
+
 When enabled, the transcript is displayed as usual and the translated text appears in the **Translation** panel. Translation runs once per finished transcript, avoiding duplicate requests and unstable partial results. If the Gemini request fails, the transcript is still shown, pasted, and saved; only a translation status is reported.
 
 The translation implementation is isolated in `TranslationService` with a `GeminiTranslationProvider`, so additional providers can be added without touching the transcription pipeline.

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   listMicrophones: () => ipcRenderer.invoke('list-microphones'),
   getLanguages: () => ipcRenderer.invoke('list-translation-languages'),
+  validateGeminiModel: (model) => ipcRenderer.invoke('validate-gemini-model', model),
   getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
   checkModelDownloaded: (modelSize) => ipcRenderer.invoke('check-model-downloaded', modelSize),
   downloadModel: (modelSize) => ipcRenderer.invoke('download-model', modelSize),

@@ -600,6 +600,23 @@ kbd {
 
 #advanced-details[open] #advanced-summary { color: var(--text); }
 
+.model-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  max-width: 320px;
+}
+
+.model-status {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.model-status.neutral { color: var(--text-secondary); }
+.model-status.ok { color: var(--success); }
+.model-status.err { color: var(--danger); }
+
 /* ── Form controls ────────────────────────────────────── */
 
 select, input[type="password"], input[type="text"] {

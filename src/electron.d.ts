@@ -20,6 +20,15 @@ interface LanguageOption {
   label: string;
 }
 
+interface GeminiModelStatus {
+  ok: boolean;
+  found?: boolean;
+  supportsGenerateContent?: boolean;
+  methods?: string[];
+  model?: string;
+  message: string;
+}
+
 interface LanguagesData {
   input: LanguageOption[];
   target: LanguageOption[];
@@ -59,6 +68,7 @@ interface Window {
     saveSettings: (settings: Settings) => Promise<Settings>;
     listMicrophones: () => Promise<MediaDeviceInfo[]>;
     getLanguages: () => Promise<LanguagesData>;
+    validateGeminiModel: (model: string) => Promise<GeminiModelStatus>;
     getRecordingState: () => Promise<string>;
     checkModelDownloaded: (modelSize: string) => Promise<boolean>;
     downloadModel: (modelSize: string) => Promise<void>;
