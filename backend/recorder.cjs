@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { AudioRecorder } = require('./audio.cjs');
 const { cleanupText } = require('./cleanup.cjs');
 const { pasteText } = require('./paste.cjs');
-const { transcribeDeepgram, transcribeGroq, transcribeLocal } = require('./transcribe.cjs');
+const { transcribeDeepgram, transcribeSpeechmatics, transcribeLocal } = require('./transcribe.cjs');
 const translationService = require('./translation.service.cjs');
 const { CONFIG_DIR } = require('./settings.cjs');
 const history = require('./history.cjs');
@@ -121,13 +121,13 @@ async function stopRecording(settings, windows, audioBuffer) {
     let transcription;
     switch (settings.engine) {
       case 'local':
-        transcription = await transcribeLocal(settings.whisperModel, tempPath, language);
+        transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '');
         break;
       case 'deepgram':
-        transcription = await transcribeDeepgram(settings.deepgramApiKey, tempPath, language);
+        transcription = await transcribeDeepgram(settings.deepgramApiKey, tempPath, language, settings.deepgramModel);
         break;
-      case 'groq':
-        transcription = await transcribeGroq(settings.groqApiKey, tempPath, language);
+      case 'speechmatics':
+        transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey, tempPath, language);
         break;
       default:
         throw new Error(`Unknown engine: ${settings.engine}`);

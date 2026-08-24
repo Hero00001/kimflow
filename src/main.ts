@@ -70,9 +70,6 @@ async function init() {
   const unsubscribers = [
     window.api.onOverlayAction((action) => handleOverlayAction(action)),
     window.api.onSettingsUpdated((settings) => applySettingsToUi(settings)),
-    // Electron globalShortcut reports key-down, not key-up. Treat the global
-    // shortcut as a safe toggle even when the UI is configured for push-to-talk;
-    // the on-screen button still provides true press/release behavior.
     window.api.onHotkeyPressed((event) => handleHotkeyPressed(event)),
     window.api.onRecordingState((state) => setState(state)),
     window.api.onTranscriptionResult((result) => handleTranscriptionResult(result)),
@@ -90,7 +87,8 @@ async function init() {
   } catch (error) {
     setSettings({
       microphone: 'default', engine: 'local', whisperModel: 'small',
-      deepgramApiKey: '', groqApiKey: '', recordingMode: 'toggle',
+      whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
+      deepgramApiKey: '', deepgramModel: 'nova-3', speechmaticsApiKey: '', recordingMode: 'toggle',
       hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
       translationEnabled: false, translationProvider: 'gemini',
       geminiApiKey: '', geminiModel: '', inputLanguage: 'auto', translationTarget: 'en',

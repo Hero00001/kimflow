@@ -2,8 +2,11 @@ interface Settings {
   microphone: string;
   engine: string;
   whisperModel: string;
+  whisperRuntime: string;
+  whisperBinaryPath: string;
   deepgramApiKey: string;
-  groqApiKey: string;
+  deepgramModel: string;
+  speechmaticsApiKey: string;
   recordingMode: string;
   hotkey: string;
   accentColor: string;
@@ -72,6 +75,10 @@ interface Window {
     getRecordingState: () => Promise<string>;
     checkModelDownloaded: (modelSize: string) => Promise<boolean>;
     downloadModel: (modelSize: string) => Promise<void>;
+    selectWhisperBinary: () => Promise<string | null>;
+    checkWhisperBinary: (binaryPath: string) => Promise<boolean>;
+    testDeepgramConnection: (apiKey: string) => Promise<{ ok: boolean; message: string }>;
+    testSpeechmaticsConnection: (apiKey: string) => Promise<{ ok: boolean; message: string }>;
     toggleRecording: () => Promise<string>;
     startRecording: () => Promise<void>;
     stopRecording: (audioBuffer: ArrayBuffer) => Promise<TranscriptionResult>;

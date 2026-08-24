@@ -1,8 +1,17 @@
 import {
   micSelect,
   modelSelect,
-  groqKey,
+  whisperRuntimeSelect,
+  binaryPathDisplay,
+  selectBinaryBtn,
+  recheckBinaryBtn,
   deepgramKey,
+  deepgramRemoveKey,
+  deepgramModelSelect,
+  deepgramTestBtn,
+  speechmaticsKey,
+  speechmaticsRemoveKey,
+  speechmaticsTestBtn,
   providerSelect,
   inputLanguageSelect,
   translateToSelect,
@@ -13,10 +22,12 @@ import {
   accentColor,
   engineGroup,
   localRow,
-  groqRow,
+  speechmaticsRow,
   deepgramRow,
   modeGroup,
   translationGroup,
+  geminiRow,
+  geminiModelRow,
   downloadBtn,
   downloadProgress,
   progressFill,
@@ -24,7 +35,7 @@ import {
 } from './dom';
 import { getSettings, setSettings } from './store';
 import { applyAccentColor } from './theme';
-import { showError } from './status';
+import { showError, showToast } from './status';
 import { errorMessage } from './utils';
 import {
   clearTranslation,
@@ -53,24 +64,34 @@ function setEngine(engine: string) {
   if (!settings) return;
   settings.engine = engine;
   localRow.classList.toggle('hidden', engine !== 'local');
-  groqRow.classList.toggle('hidden', engine !== 'groq');
+  speechmaticsRow.classList.toggle('hidden', engine !== 'speechmatics');
   deepgramRow.classList.toggle('hidden', engine !== 'deepgram');
   engineGroup.querySelectorAll('.toggle-btn').forEach((button) => {
     button.classList.toggle('active', (button as HTMLElement).dataset.value === engine);
   });
 }
 
+function setTranslationUiFromSettings(enabled: boolean) {
+  setTranslationUi(enabled);
+  geminiRow.classList.toggle('hidden', !enabled);
+  geminiModelRow.classList.toggle('hidden', !enabled);
+}
+
 export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setSettings(settings);
   setEngine(settings.engine);
-  modelSelect.value = settings.whisperModel;
-  groqKey.value = settings.groqApiKey || '';
+  modelSelect.value = settings.whisperModel || 'small';
+  whisperRuntimeSelect.value = settings.whisperRuntime || 'whisper-cpp';
+  binaryPathDisplay.textContent = settings.whisperBinaryPath || 'Not selected';
   deepgramKey.value = settings.deepgramApiKey || '';
+  deepgramModelSelect.value = settings.deepgramModel || 'nova-3';
+  speechmaticsKey.value = settings.speechmaticsApiKey || '';
   setModeActive(settings.recordingMode);
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   accentColor.value = settings.accentColor;
   applyAccentColor(settings.accentColor);
+  setTranslationUiFromSettings(settings.translationEnabled);
   await populateLanguages();
   syncTranslationControls();
 }
@@ -81,6 +102,7 @@ export function applySettingsToUi(settings: Settings): void {
   applyAccentColor(settings.accentColor);
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
+  setTranslationUiFromSettings(settings.translationEnabled);
   syncTranslationControls();
 }
 
@@ -89,8 +111,10 @@ async function persist() {
   if (!settings) return;
   settings.microphone = micSelect.value || 'default';
   settings.whisperModel = modelSelect.value;
-  settings.groqApiKey = groqKey.value;
+  settings.whisperRuntime = whisperRuntimeSelect.value;
   settings.deepgramApiKey = deepgramKey.value;
+  settings.deepgramModel = deepgramModelSelect.value;
+  settings.speechmaticsApiKey = speechmaticsKey.value;
   settings.translationProvider = providerSelect.value || 'gemini';
   settings.inputLanguage = inputLanguageSelect.value || 'auto';
   settings.translationTarget = translateToSelect.value || 'en';
@@ -107,6 +131,8 @@ async function persist() {
 }
 
 export async function checkModelStatus() {
+  const settings = getSettings();
+  if (!settings || settings.engine !== 'local') return;
   try {
     const downloaded = await window.api.checkModelDownloaded(modelSelect.value);
     downloadBtn.textContent = downloaded ? '✓' : 'Download';
@@ -139,12 +165,26 @@ function wireDownload() {
   });
 }
 
+async function updateBinaryStatus(binaryPath: string) {
+  if (!binaryPath) {
+    binaryPathDisplay.textContent = 'Not selected';
+    return;
+  }
+  try {
+    const ok = await window.api.checkWhisperBinary(binaryPath);
+    binaryPathDisplay.textContent = ok ? binaryPath.split(/[/\\]/).pop()! + ' ✓' : binaryPath.split(/[/\\]/).pop()! + ' ✗';
+  } catch {
+    binaryPathDisplay.textContent = binaryPath.split(/[/\\]/).pop()!;
+  }
+}
+
 export function wireSettingsControls() {
   engineGroup.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
     if (!button?.dataset.value) return;
     setEngine(button.dataset.value);
     void persist();
+    void checkModelStatus();
   });
 
   modeGroup.addEventListener('click', (event) => {
@@ -167,7 +207,7 @@ export function wireSettingsControls() {
     translationGroup.querySelectorAll('.toggle-btn').forEach((item) => {
       item.classList.toggle('active', (item as HTMLElement).dataset.value === (enabled ? 'on' : 'off'));
     });
-    setTranslationUi(enabled);
+    setTranslationUiFromSettings(enabled);
     if (!enabled) clearTranslation();
     void persist();
   });
@@ -182,8 +222,85 @@ export function wireSettingsControls() {
 
   micSelect.addEventListener('change', () => { void persist(); });
   modelSelect.addEventListener('change', () => { void checkModelStatus(); void persist(); });
-  groqKey.addEventListener('change', () => { void persist(); });
   deepgramKey.addEventListener('change', () => { void persist(); });
+  deepgramModelSelect.addEventListener('change', () => { void persist(); });
+  speechmaticsKey.addEventListener('change', () => { void persist(); });
+
+  // Deepgram test connection
+  deepgramTestBtn.addEventListener('click', async () => {
+    const key = deepgramKey.value.trim();
+    if (!key) { showError('Enter a Deepgram API key first.'); return; }
+    deepgramTestBtn.disabled = true;
+    deepgramTestBtn.textContent = 'Testing…';
+    try {
+      const result = await window.api.testDeepgramConnection(key);
+      showToast(result.message);
+      deepgramTestBtn.textContent = '✓ Connected';
+      setTimeout(() => { deepgramTestBtn.textContent = 'Test Connection'; }, 2500);
+    } catch (error) {
+      showError(errorMessage(error, 'Connection failed'));
+      deepgramTestBtn.textContent = 'Test Connection';
+    } finally {
+      deepgramTestBtn.disabled = false;
+    }
+  });
+
+  // Speechmatics test connection
+  speechmaticsTestBtn.addEventListener('click', async () => {
+    const key = speechmaticsKey.value.trim();
+    if (!key) { showError('Enter a Speechmatics API key first.'); return; }
+    speechmaticsTestBtn.disabled = true;
+    speechmaticsTestBtn.textContent = 'Testing…';
+    try {
+      const result = await window.api.testSpeechmaticsConnection(key);
+      showToast(result.message);
+      speechmaticsTestBtn.textContent = '✓ Connected';
+      setTimeout(() => { speechmaticsTestBtn.textContent = 'Test Connection'; }, 2500);
+    } catch (error) {
+      showError(errorMessage(error, 'Connection failed'));
+      speechmaticsTestBtn.textContent = 'Test Connection';
+    } finally {
+      speechmaticsTestBtn.disabled = false;
+    }
+  });
+
+  // Remove API keys
+  deepgramRemoveKey.addEventListener('click', () => {
+    deepgramKey.value = '';
+    void persist();
+    showToast('Deepgram key removed');
+  });
+
+  speechmaticsRemoveKey.addEventListener('click', () => {
+    speechmaticsKey.value = '';
+    void persist();
+    showToast('Speechmatics key removed');
+  });
+
+  selectBinaryBtn.addEventListener('click', async () => {
+    try {
+      const binaryPath = await window.api.selectWhisperBinary();
+      if (binaryPath) {
+        const settings = getSettings();
+        if (settings) {
+          settings.whisperBinaryPath = binaryPath;
+          void persist();
+        }
+        binaryPathDisplay.textContent = binaryPath.split(/[/\\]/).pop()!;
+      }
+    } catch (error) {
+      showError(errorMessage(error, 'Unable to select binary'));
+    }
+  });
+
+  recheckBinaryBtn.addEventListener('click', async () => {
+    const settings = getSettings();
+    if (settings?.whisperBinaryPath) {
+      await updateBinaryStatus(settings.whisperBinaryPath);
+    } else {
+      showError('No binary selected. Use Select Binary first.');
+    }
+  });
 
   accentColor.addEventListener('input', () => { void persist(); });
   hotkeyInput.addEventListener('change', () => { void persist(); });

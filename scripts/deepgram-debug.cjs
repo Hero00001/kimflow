@@ -24,7 +24,7 @@ function argValue(name, fallback) {
     process.exit(2);
   }
   if (!key) {
-    console.error('No Deepgram API key found. Enter one in KimFlow Advanced, or set DEEPGRAM_API_KEY.');
+    console.error('No Deepgram API key found. Enter one in KimFlow Settings, or set DEEPGRAM_API_KEY.');
     process.exit(2);
   }
   if (!fs.existsSync(wavPath)) {

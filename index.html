@@ -130,9 +130,108 @@
               <div class="s-row" id="engine-row">
                 <span class="s-label">Engine</span>
                 <div class="toggle-group" id="engine-group">
-                  <button class="toggle-btn active" data-value="local">Local</button>
-                  <button class="toggle-btn" data-value="groq">Groq</button>
+                  <button class="toggle-btn active" data-value="local">Local Whisper</button>
+                  <button class="toggle-btn" data-value="speechmatics">Speechmatics</button>
                   <button class="toggle-btn" data-value="deepgram">Deepgram</button>
+                </div>
+              </div>
+
+              <!-- Local Whisper Settings -->
+              <div class="engine-settings hidden" id="local-row">
+                <div class="engine-settings-header">Local Whisper</div>
+                <div class="s-row">
+                  <span class="s-label">Whisper Model</span>
+                  <select id="model-select">
+                    <option value="tiny">Tiny (~75 MB)</option>
+                    <option value="base">Base (~142 MB)</option>
+                    <option value="small">Small (~466 MB)</option>
+                    <option value="medium">Medium (~1.5 GB)</option>
+                  </select>
+                </div>
+                <div class="s-row">
+                  <span class="s-label">Whisper Runtime</span>
+                  <select id="whisper-runtime-select">
+                    <option value="whisper-cpp">Whisper.cpp</option>
+                  </select>
+                </div>
+                <div class="s-row">
+                  <span class="s-label">Select Binary</span>
+                  <div class="model-row">
+                    <span id="binary-path-display" class="binary-path">Not selected</span>
+                    <button id="select-binary-btn" class="btn-primary" type="button">Browse…</button>
+                    <button id="recheck-binary-btn" class="btn-secondary" type="button">Recheck</button>
+                  </div>
+                </div>
+                <div class="s-row">
+                  <span class="s-label">Download Model</span>
+                  <div class="model-row">
+                    <button id="download-btn" class="btn-primary" type="button">Download</button>
+                  </div>
+                </div>
+                <div id="download-progress" class="hidden">
+                  <div id="progress-bar"><div id="progress-fill"></div></div>
+                </div>
+                <details class="engine-setup-section">
+                  <summary class="setup-summary">Setup Instructions</summary>
+                  <div class="setup-content">
+                    <ol class="setup-steps">
+                      <li>Download the Windows Whisper.cpp build from the <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener">official release</a>.</li>
+                      <li>Extract the ZIP and select <code>whisper-cli</code> in KimFlow using <strong>Select Binary</strong>.</li>
+                      <li>Click <strong>Recheck</strong> to verify that Whisper.cpp is correctly connected and working.</li>
+                    </ol>
+                  </div>
+                </details>
+                <div class="engine-release-link">
+                  <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener" class="text-btn">Official Release ↗</a>
+                </div>
+              </div>
+
+              <!-- Speechmatics Settings -->
+              <div class="engine-settings hidden" id="speechmatics-row">
+                <div class="engine-settings-header">Speechmatics</div>
+                <div class="s-row">
+                  <span class="s-label">API Key</span>
+                  <div class="api-key-row">
+                    <input type="password" id="speechmatics-key" placeholder="Enter your Speechmatics API key" />
+                    <button id="speechmatics-remove-key" class="btn-danger-sm" type="button" title="Remove key">✕</button>
+                  </div>
+                </div>
+                <div class="s-row">
+                  <span class="s-label"></span>
+                  <div class="api-key-footer">
+                    <span class="api-key-notice">🔒 Key stored securely encrypted on this device</span>
+                    <button id="speechmatics-test-btn" class="btn-secondary" type="button">Test Connection</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Deepgram Settings -->
+              <div class="engine-settings hidden" id="deepgram-row">
+                <div class="engine-settings-header">Deepgram</div>
+                <div class="s-row">
+                  <span class="s-label">API Key</span>
+                  <div class="api-key-row">
+                    <input type="password" id="deepgram-key" placeholder="key-..." />
+                    <button id="deepgram-remove-key" class="btn-danger-sm" type="button" title="Remove key">✕</button>
+                  </div>
+                </div>
+                <div class="s-row">
+                  <span class="s-label"></span>
+                  <div class="api-key-footer">
+                    <span class="api-key-notice">🔒 Key stored securely encrypted on this device</span>
+                  </div>
+                </div>
+                <div class="s-row">
+                  <span class="s-label">Model</span>
+                  <select id="deepgram-model-select">
+                    <option value="nova-3">Nova 3</option>
+                    <option value="nova-2">Nova 2</option>
+                    <option value="whisper">Whisper (Cloud)</option>
+                  </select>
+                </div>
+                <div class="s-row">
+                  <span class="s-label"></span>
+                  <button id="deepgram-test-btn" class="btn-secondary" type="button">Test Connection</button>
                 </div>
               </div>
 
@@ -169,6 +268,19 @@
                 <select id="translate-to-select"></select>
               </div>
 
+              <div class="s-row hidden" id="gemini-row">
+                <span class="s-label">Gemini API Key</span>
+                <input type="password" id="gemini-key" placeholder="AIza..." />
+              </div>
+
+              <div class="s-row hidden" id="gemini-model-row">
+                <span class="s-label">Gemini Model</span>
+                <div class="model-field">
+                  <input type="text" id="gemini-model" placeholder="gemini-3.6-flash (empty = automatic)" aria-label="Gemini model" />
+                  <div id="gemini-model-status" class="model-status neutral" aria-live="polite"></div>
+                </div>
+              </div>
+
               <div class="s-row" id="accent-row">
                 <span class="s-label">Accent Color</span>
                 <input type="color" id="accent-color" value="#8b5cf6" aria-label="Choose accent color" />
@@ -182,49 +294,6 @@
                 </div>
               </div>
             </div>
-
-            <details id="advanced-details">
-              <summary id="advanced-summary">Advanced</summary>
-              <div class="settings-panel">
-                <div class="s-row" id="groq-row">
-                  <span class="s-label">Groq API Key</span>
-                  <input type="password" id="groq-key" placeholder="gsk_..." />
-                </div>
-
-                <div class="s-row" id="deepgram-row">
-                  <span class="s-label">Deepgram API Key</span>
-                  <input type="password" id="deepgram-key" placeholder="key-..." />
-                </div>
-
-                <div class="s-row" id="gemini-row">
-                  <span class="s-label">Gemini API Key</span>
-                  <input type="password" id="gemini-key" placeholder="AIza..." />
-                </div>
-
-                <div class="s-row" id="gemini-model-row">
-                  <span class="s-label">Gemini Model</span>
-                  <div class="model-field">
-                    <input type="text" id="gemini-model" placeholder="gemini-3.6-flash (empty = automatic)" aria-label="Gemini model" />
-                    <div id="gemini-model-status" class="model-status neutral" aria-live="polite"></div>
-                  </div>
-                </div>
-
-                <div class="s-row" id="local-row">
-                  <span class="s-label">Local Model</span>
-                  <div class="model-row">
-                    <select id="model-select">
-                      <option value="small">Small (~466 MB)</option>
-                      <option value="medium">Medium (~1.5 GB)</option>
-                    </select>
-                    <button id="download-btn" class="btn-primary" type="button">Download</button>
-                  </div>
-                </div>
-
-                <div id="download-progress" class="hidden">
-                  <div id="progress-bar"><div id="progress-fill"></div></div>
-                </div>
-              </div>
-            </details>
           </section>
         </main>
       </div>

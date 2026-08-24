@@ -47,7 +47,7 @@ function printModel(info) {
   const stored = settings.load();
   const apiKey = process.env.GEMINI_API_KEY || stored.geminiApiKey;
   if (!apiKey) {
-    fail('No Gemini API key found. Enter one in KimFlow Advanced > Gemini API Key, or set GEMINI_API_KEY.');
+    fail('No Gemini API key found. Enter one in KimFlow Settings > Gemini API Key, or set GEMINI_API_KEY.');
   }
   if (info) {
     const infoResult = await gemini.validateModel(apiKey, info);

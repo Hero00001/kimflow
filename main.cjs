@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, clipboard, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -300,6 +300,38 @@ function registerIpc() {
   ipcMain.handle('cancel-recording', async (event) => {
     assertTrustedSender(event);
     await cancelRecording([mainWindow, overlayWindow]);
+  });
+  ipcMain.handle('select-whisper-binary', async (event) => {
+    assertTrustedSender(event);
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Whisper CLI Binary',
+      filters: process.platform === 'win32'
+        ? [{ name: 'Executables', extensions: ['exe', 'cmd'] }, { name: 'All Files', extensions: ['*'] }]
+        : [{ name: 'All Files', extensions: ['*'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || !result.filePaths?.length) return null;
+    return result.filePaths[0];
+  });
+  ipcMain.handle('check-whisper-binary', async (event, binaryPath) => {
+    assertTrustedSender(event);
+    if (typeof binaryPath !== 'string' || !binaryPath) return false;
+    try {
+      const stat = fs.statSync(binaryPath);
+      return stat.isFile();
+    } catch {
+      return false;
+    }
+  });
+  ipcMain.handle('test-deepgram-connection', async (event, apiKey) => {
+    assertTrustedSender(event);
+    const { testDeepgramConnection } = require('./backend/transcribe.cjs');
+    return testDeepgramConnection(apiKey);
+  });
+  ipcMain.handle('test-speechmatics-connection', async (event, apiKey) => {
+    assertTrustedSender(event);
+    const { testSpeechmaticsConnection } = require('./backend/transcribe.cjs');
+    return testSpeechmaticsConnection(apiKey);
   });
   ipcMain.handle('overlay-action', async (event, action) => {
     assertTrustedSender(event);

@@ -6,3 +6,4 @@ dist-electron/
 !.vscode/extensions.json
 .idea
 .DS_Store
+refactor.txt
