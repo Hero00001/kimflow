@@ -1,5 +1,9 @@
 const axios = require('axios');
+const https = require('https');
 const { isKnownLanguage, targetFor } = require('./languages.cjs');
+
+// Keep-alive avoids a fresh TLS handshake on every translation request.
+const keepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 5 });
 
 const PROVIDER_NAME = 'gemini';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -55,6 +59,7 @@ async function inspectModel(apiKey, modelId) {
     const response = await axios.get(`${API_BASE}/models/${encodeURIComponent(normalized)}`, {
       params: { key },
       timeout: 15000,
+      httpsAgent: keepAliveAgent,
       validateStatus: () => true,
     });
     if (response.status === 404) {
@@ -187,6 +192,7 @@ async function resolveModel(apiKey) {
     const response = await axios.get(`${API_BASE}/models`, {
       params: { key },
       timeout: 15000,
+      httpsAgent: keepAliveAgent,
       validateStatus: () => true,
     });
     if (response.status >= 200 && response.status < 300 && Array.isArray(response.data?.models)) {
@@ -231,9 +237,12 @@ async function translate({ text, sourceLanguage, targetLanguage, apiKey, model }
   try {
     response = await axios.post(endpoint, {
       contents: [{ role: 'user', parts: [{ text: buildPrompt(trimmed, sourceLanguage, targetLanguage) }] }],
+      // Low-latency tuning: deterministic output, bounded length, plain text.
+      generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'text/plain' },
     }, {
       params: { key },
       timeout: TIMEOUT_MS,
+      httpsAgent: keepAliveAgent,
       validateStatus: () => true,
     });
   } catch (error) {
@@ -261,6 +270,18 @@ async function translate({ text, sourceLanguage, targetLanguage, apiKey, model }
   return stripFences(translated);
 }
 
+// Best-effort pre-resolution so the model lookup can run in parallel with
+// transcription (or at app start) instead of adding a round-trip on stop.
+async function warmup(apiKey, model) {
+  try {
+    const raw = String(model || '').trim();
+    if (raw) await inspectModel(String(apiKey || '').trim(), raw);
+    else await resolveModel(apiKey);
+  } catch {
+    // Warmup must never break recording/transcription.
+  }
+}
+
 module.exports = {
   PROVIDER_NAME,
   DEFAULT_MODEL,
@@ -270,4 +291,5 @@ module.exports = {
   validateModel,
   inspectModel,
   normalizeModelId,
+  warmup,
 };

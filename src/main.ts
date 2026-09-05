@@ -18,7 +18,7 @@ import {
   loadSettingsIntoUi,
   wireSettingsControls,
 } from './settings-form';
-import { wireTranslationControls } from './translation';
+import { showTranslation, wireTranslationControls } from './translation';
 import { refreshHistory, setHistoryData, wireHistory } from './history';
 import {
   handleHotkeyPressed,
@@ -105,6 +105,7 @@ wireSettingsControls();
 wireTranslationControls();
 wireHistory((entry) => {
   showTranscript(entry.text);
+  showTranslation(entry.translation || null, entry.translationError || null);
   goToPage('transcribe');
 });
 wireRecordingControls();

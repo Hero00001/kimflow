@@ -183,6 +183,14 @@ function registerIpc() {
     }
     const saved = saveSettings(candidate);
     sendToWindows('settings-updated', saved);
+    // Pre-resolve the Gemini model so the next stop skips discovery.
+    if (saved.translationEnabled) {
+      void require('./backend/translation.service.cjs').warmup({
+        apiKey: saved.geminiApiKey,
+        model: saved.geminiModel || undefined,
+        provider: saved.translationProvider,
+      });
+    }
     return saved;
   });
   // Device enumeration happens in the renderer because mediaDevices belongs to
@@ -375,6 +383,13 @@ app.whenReady().then(() => {
     () => requestRendererHotkey(false),
   );
   registerHotkeys(settings.hotkey || 'CmdOrCtrl+Shift+Space');
+  if (settings.translationEnabled) {
+    void require('./backend/translation.service.cjs').warmup({
+      apiKey: settings.geminiApiKey,
+      model: settings.geminiModel || undefined,
+      provider: settings.translationProvider,
+    });
+  }
 });
 
 app.on('will-quit', () => {

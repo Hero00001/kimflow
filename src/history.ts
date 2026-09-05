@@ -25,7 +25,9 @@ export function renderHistory() {
   const query = historyQuery.trim().toLowerCase();
   const filtered = query
     ? historyData.sessions.filter((session) => {
-        return session.title.toLowerCase().includes(query) || session.text.toLowerCase().includes(query);
+        return session.title.toLowerCase().includes(query)
+          || session.text.toLowerCase().includes(query)
+          || (session.translation || '').toLowerCase().includes(query);
       })
     : historyData.sessions;
   historyList.replaceChildren();
@@ -34,13 +36,23 @@ export function renderHistory() {
     const item = document.createElement('button');
     item.type = 'button';
     item.className = 'history-item';
+    const textWrap = document.createElement('span');
+    textWrap.className = 'history-item-text';
     const title = document.createElement('span');
     title.className = 'history-item-title';
     title.textContent = entry.title;
+    textWrap.append(title);
+    if (entry.translation) {
+      const excerpt = document.createElement('span');
+      excerpt.className = 'history-item-translation';
+      const preview = entry.translation.length > 80 ? `${entry.translation.slice(0, 80).trimEnd()}…` : entry.translation;
+      excerpt.textContent = preview;
+      textWrap.append(excerpt);
+    }
     const meta = document.createElement('span');
     meta.className = 'history-item-meta';
-    meta.textContent = `${formatRelativeTime(entry.createdAt)} • ${formatDuration(entry.durationMs)}`;
-    item.append(title, meta);
+    meta.textContent = `${formatRelativeTime(entry.createdAt)} • ${formatDuration(entry.durationMs)}${entry.translation ? ' • 🌐' : ''}`;
+    item.append(textWrap, meta);
     item.addEventListener('click', () => onSelectEntry(entry));
     historyList.appendChild(item);
   }

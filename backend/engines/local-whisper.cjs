@@ -13,6 +13,53 @@ function errorText(error) {
   return String(error);
 }
 
+// Windows NTSTATUS crash codes that indicate the binary crashed, not a normal error.
+const CRASH_EXIT_CODES = new Set([
+  0xC0000409, // STATUS_STACK_BUFFER_OVERRUN
+  0xC0000005, // STATUS_ACCESS_VIOLATION
+  0xC000013A, // STATUS_CONTROL_C_EXIT
+  0xC0000135, // STATUS_DLL_NOT_FOUND
+  0xC000007B, // STATUS_INVALID_IMAGE_FORMAT
+  0xC000042D, // STATUS_VS_BETADISABLED
+  0xC000000D, // STATUS_INVALID_PARAMETER
+]);
+
+function isCrashExitCode(code) {
+  if (code == null) return false;
+  // Node.js on Windows may return the signed 32-bit value
+  const signed = code > 0x7FFFFFFF ? code - 0x100000000 : code;
+  return CRASH_EXIT_CODES.has(signed >>> 0);
+}
+
+function crashErrorMessage(exitCode, stderr) {
+  const signed = exitCode > 0x7FFFFFFF ? exitCode - 0x100000000 : exitCode;
+  const hex = '0x' + (signed >>> 0).toString(16).toUpperCase();
+  const hints = [];
+
+  if (signed === 0xC0000409 || signed === 0xC0000005) {
+    hints.push(
+      'The whisper binary crashed (stack overrun / access violation). This is usually caused by:',
+      '  1. Incompatible whisper.cpp build — try a different release (e.g. CPU-only or a newer Vulkan build)',
+      '  2. Missing VC++ Redistributable — install Microsoft Visual C++ Redistributable (latest)',
+      '  3. Model file mismatch — re-download the model in Settings',
+      '  4. Try running whisper-cli.exe directly from a terminal to confirm the crash',
+    );
+  } else if (signed === 0xC0000135) {
+    hints.push(
+      'A required DLL was not found. Install the Vulkan Runtime (vulkan-1.dll) or VC++ Redistributable.',
+    );
+  } else if (signed === 0xC000007B) {
+    hints.push(
+      'Invalid image format — you may be using a 32-bit whisper binary on a 64-bit system or vice versa.',
+    );
+  }
+
+  if (hints.length > 0) {
+    return `\n${hints.join('\n')}`;
+  }
+  return '';
+}
+
 function detectedLanguageFromOutput(output) {
   const text = String(output || '');
   const match = text.match(/detected language[:\s]+([a-z]{2,3})/i) || text.match(/\blanguage[:\s]+([a-z]{2,3})\b/i);
@@ -53,7 +100,17 @@ async function transcribe(modelSize, audioPath, language, binaryPath) {
     const detectedLanguage = detectedLanguageFromOutput(stderr) || detectedLanguageFromOutput(stdout);
     return { text: cleanupText(stdout.trim()), detectedLanguage };
   } catch (error) {
-    throw new Error(`whisper.cpp failed: ${errorText(error)}`);
+    // Include stdout/stderr so the user can see the actual whisper error
+    const parts = [`whisper.cpp failed: ${errorText(error)}`];
+    if (error.stderr) parts.push(`stderr: ${String(error.stderr).trim()}`);
+    if (error.stdout) parts.push(`stdout: ${String(error.stdout).trim()}`);
+    if (error.code != null) {
+      parts.push(`exit code: ${error.code}`);
+      if (isCrashExitCode(error.code)) {
+        parts.push(crashErrorMessage(error.code, error.stderr));
+      }
+    }
+    throw new Error(parts.join('\n'));
   }
 }
 

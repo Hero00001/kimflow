@@ -27,6 +27,13 @@ export function showTranslation(translation: string | null, error: string | null
   translationArea.classList.toggle('hidden', !(getSettings()?.translationEnabled && (translation || error)));
 }
 
+export function showTranslating() {
+  if (!getSettings()?.translationEnabled) return;
+  translationText.textContent = 'Translating…';
+  translationError.classList.add('hidden');
+  translationArea.classList.remove('hidden');
+}
+
 export function clearTranslation() {
   translationText.textContent = '';
   translationError.textContent = '';

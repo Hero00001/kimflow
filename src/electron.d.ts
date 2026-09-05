@@ -41,6 +41,7 @@ interface TranscriptionResult {
   text: string;
   translation: string | null;
   translationError: string | null;
+  translating?: boolean;
 }
 
 interface HotkeyEvent {
@@ -59,6 +60,9 @@ interface HistoryEntry {
   title: string;
   createdAt: number;
   durationMs: number;
+  translation?: string | null;
+  translationTarget?: string;
+  translationError?: string | null;
 }
 
 interface HistoryData {

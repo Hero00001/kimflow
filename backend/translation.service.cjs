@@ -42,7 +42,17 @@ async function translate({ text, sourceLanguage, targetLanguage, provider: provi
   }
 }
 
+async function warmup({ apiKey, model, provider: providerName } = {}) {
+  try {
+    const provider = PROVIDERS[String(providerName || '').toLowerCase()] || PROVIDERS[gemini.PROVIDER_NAME];
+    if (typeof provider.warmup === 'function') await provider.warmup(apiKey, model);
+  } catch {
+    // Best-effort only.
+  }
+}
+
 module.exports = {
   translate,
+  warmup,
   supportedProviders: () => Object.keys(PROVIDERS),
 };

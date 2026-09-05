@@ -2,7 +2,7 @@ import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn } from './dom';
 import { getSettings } from './store';
 import { errorMessage } from './utils';
 import { STATES, getCurrentState, setState, showError, showTranscript } from './status';
-import { clearTranslation, showTranslation } from './translation';
+import { clearTranslation, showTranslating, showTranslation } from './translation';
 import {
   abortCapture,
   captureState,
@@ -41,7 +41,8 @@ export async function finishRecording() {
     const result = await window.api.stopRecording(wav);
     if (result) {
       showTranscript(result.text);
-      showTranslation(result.translation, result.translationError);
+      if (result.translating) showTranslating();
+      else showTranslation(result.translation, result.translationError);
     }
   } catch (error) {
     abortCapture();
@@ -139,7 +140,8 @@ export function handleHotkeyPressed(event: HotkeyEvent) {
 export function handleTranscriptionResult(result: TranscriptionResult) {
   if (result) {
     showTranscript(result.text);
-    showTranslation(result.translation, result.translationError);
+    if (result.translating) showTranslating();
+    else showTranslation(result.translation, result.translationError);
   }
 }
 

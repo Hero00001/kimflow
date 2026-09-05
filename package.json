@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A dictation app powered by Whisper and Deepgram",
+  "description": "KimFlow",
   "author": "KimFlow",
   "main": "main.cjs",
   "scripts": {

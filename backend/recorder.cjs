@@ -42,6 +42,14 @@ function notifyHistory(target) {
   }
 }
 
+function emitTranscription(target, payload) {
+  for (const window of windowsFrom(target)) {
+    if (!window.isDestroyed?.()) {
+      window.webContents.send('transcription-result', payload);
+    }
+  }
+}
+
 function getState() {
   return currentState;
 }
@@ -118,6 +126,15 @@ async function stopRecording(settings, windows, audioBuffer) {
     await recorder.saveWav(tempPath);
 
     const language = settings.inputLanguage || 'auto';
+    // Warm the Gemini model lookup in parallel with transcription so the
+    // first stop after (re)start does not pay an extra round-trip.
+    if (settings.translationEnabled) {
+      void translationService.warmup({
+        apiKey: settings.geminiApiKey,
+        model: settings.geminiModel || undefined,
+        provider: settings.translationProvider,
+      });
+    }
     let transcription;
     switch (settings.engine) {
       case 'local':
@@ -139,14 +156,22 @@ async function stopRecording(settings, windows, audioBuffer) {
     const cleaned = cleanupText(transcription?.text || '');
     if (!cleaned) return '';
     pasteText(cleaned);
+    let historyId = null;
     try {
-      history.addSession({
+      const entry = history.addSession({
         text: cleaned,
         durationMs: startedAt ? Date.now() - startedAt : 0,
       });
+      historyId = entry ? entry.id : null;
       notifyHistory(windows);
     } catch (error) {
       console.error('[KimFlow] Failed to save history:', error.message);
+    }
+
+    // Emit the transcript immediately so translation latency never blocks
+    // display/paste. The translation result follows on the same channel.
+    if (settings.translationEnabled) {
+      emitTranscription(windows, { text: cleaned, translation: null, translationError: null, translating: true });
     }
 
     // Translation is a best-effort add-on. A provider failure must never
@@ -166,8 +191,23 @@ async function stopRecording(settings, windows, audioBuffer) {
       } catch (error) {
         translationError = error instanceof Error && error.message ? error.message : String(error);
       }
+      if (historyId) {
+        try {
+          history.updateSession(historyId, {
+            translation,
+            translationTarget: settings.translationTarget,
+            translationError,
+          });
+          notifyHistory(windows);
+        } catch (error) {
+          console.error('[KimFlow] Failed to update history translation:', error.message);
+        }
+      }
+      const final = { text: cleaned, translation, translationError, translating: false };
+      emitTranscription(windows, final);
+      return final;
     }
-    return { text: cleaned, translation, translationError };
+    return { text: cleaned, translation, translationError, translating: false };
   } finally {
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
     currentState = STATE.READY;
