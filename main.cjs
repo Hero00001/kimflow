@@ -13,6 +13,7 @@ const {
   STATE,
 } = require('./backend/recorder.cjs');
 const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
+const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
 const history = require('./backend/history.cjs');
 
 let mainWindow;
@@ -115,25 +116,10 @@ function createWindows() {
     console.error('[KimFlow] Failed to load main window:', error);
   });
 
-  overlayWindow = new BrowserWindow({
-    width: 200,
-    height: 46,
-    minWidth: 140,
-    minHeight: 42,
-    resizable: false,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    frame: false,
-    transparent: true,
-    show: true,
-    title: APP_NAME,
-    icon: ICON_PATH,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
+  overlayWindow = new BrowserWindow(buildOverlayWindowOptions({
+    preloadPath: path.join(__dirname, 'preload.cjs'),
+    iconPath: ICON_PATH,
+  }));
   // The overlay owns its controls, so it must receive mouse input. Its
   // controls can be moved with the frameless window drag region.
   overlayWindow.setIgnoreMouseEvents(false);
