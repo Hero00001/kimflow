@@ -197,7 +197,7 @@
                 <div class="s-row">
                   <span class="s-label"></span>
                   <div class="api-key-footer">
-                    <span class="api-key-notice">🔒 Key stored securely encrypted on this device</span>
+                    <span class="api-key-notice" id="speechmatics-key-status">No key saved</span>
                     <button id="speechmatics-test-btn" class="btn-secondary" type="button">Test Connection</button>
                   </div>
                 </div>
@@ -216,7 +216,7 @@
                 <div class="s-row">
                   <span class="s-label"></span>
                   <div class="api-key-footer">
-                    <span class="api-key-notice">🔒 Key stored securely encrypted on this device</span>
+                    <span class="api-key-notice" id="deepgram-key-status">No key saved</span>
                   </div>
                 </div>
                 <div class="s-row">
@@ -269,6 +269,13 @@
               <div class="s-row hidden" id="gemini-row">
                 <span class="s-label">Gemini API Key</span>
                 <input type="password" id="gemini-key" placeholder="AIza..." />
+              </div>
+
+              <div class="s-row hidden" id="gemini-key-status-row">
+                <span class="s-label"></span>
+                <div class="api-key-footer">
+                  <span class="api-key-notice" id="gemini-key-status">No key saved</span>
+                </div>
               </div>
 
               <div class="s-row hidden" id="gemini-model-row">

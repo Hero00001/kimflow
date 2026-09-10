@@ -35,4 +35,16 @@ function setSecret(name, value) {
   } catch {}
   memoryFallback[name] = String(value);
 }
-module.exports = { getSecret, setSecret, migratePlaintextKeys, SECRET_NAMES };
+function hasSecret(name) {
+  return getSecret(name) !== '';
+}
+function deleteSecret(name) {
+  delete memoryFallback[name];
+  try {
+    require('fs').rmSync(
+      require('path').join(require('./settings.cjs').CONFIG_DIR, `secret_${name}.bin`),
+      { force: true },
+    );
+  } catch {}
+}
+module.exports = { getSecret, setSecret, hasSecret, deleteSecret, migratePlaintextKeys, SECRET_NAMES };

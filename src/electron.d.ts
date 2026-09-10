@@ -85,6 +85,8 @@ interface Window {
     checkWhisperBinary: (binaryPath: string) => Promise<boolean>;
     testDeepgramConnection: (apiKey: string) => Promise<{ ok: boolean; message: string }>;
     testSpeechmaticsConnection: (apiKey: string) => Promise<{ ok: boolean; message: string }>;
+    hasSecret: (name: string) => Promise<boolean>;
+    deleteSecret: (name: string) => Promise<boolean>;
     toggleRecording: () => Promise<string>;
     startRecording: () => Promise<void>;
     stopRecording: (audioBuffer: ArrayBuffer) => Promise<TranscriptionResult>;

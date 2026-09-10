@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('api', {
   checkWhisperBinary: (binaryPath) => ipcRenderer.invoke('check-whisper-binary', binaryPath),
   testDeepgramConnection: (apiKey) => ipcRenderer.invoke('test-deepgram-connection', apiKey),
   testSpeechmaticsConnection: (apiKey) => ipcRenderer.invoke('test-speechmatics-connection', apiKey),
+  hasSecret: (name) => ipcRenderer.invoke('has-secret', name),
+  deleteSecret: (name) => ipcRenderer.invoke('delete-secret', name),
   toggleRecording: () => ipcRenderer.invoke('toggle-recording'),
   startRecording: () => ipcRenderer.invoke('start-recording'),
   stopRecording: (audioBuffer) => ipcRenderer.invoke('stop-recording', audioBuffer),

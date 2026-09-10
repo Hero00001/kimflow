@@ -7,15 +7,19 @@ import {
   recheckBinaryBtn,
   deepgramKey,
   deepgramRemoveKey,
+  deepgramKeyStatus,
   deepgramModelSelect,
   deepgramTestBtn,
   speechmaticsKey,
   speechmaticsRemoveKey,
+  speechmaticsKeyStatus,
   speechmaticsTestBtn,
   providerSelect,
   inputLanguageSelect,
   translateToSelect,
   geminiKey,
+  geminiKeyStatus,
+  geminiKeyStatusRow,
   geminiModel,
   hotkeyInput,
   hotkeyRecord,
@@ -80,7 +84,31 @@ function setEngine(engine: string) {
 function setTranslationUiFromSettings(enabled: boolean) {
   setTranslationUi(enabled);
   geminiRow.classList.toggle('hidden', !enabled);
+  geminiKeyStatusRow.classList.toggle('hidden', !enabled);
   geminiModelRow.classList.toggle('hidden', !enabled);
+}
+
+// Presence only — key values never leave the main process. The password
+// fields stay empty by design; this indicator is how users know a key is
+// stored.
+async function refreshKeyStatus(name: 'deepgramApiKey' | 'speechmaticsApiKey' | 'geminiApiKey'): Promise<void> {
+  const targets = {
+    deepgramApiKey: deepgramKeyStatus,
+    speechmaticsApiKey: speechmaticsKeyStatus,
+    geminiApiKey: geminiKeyStatus,
+  } as const;
+  try {
+    const saved = await window.api.hasSecret(name);
+    targets[name].textContent = saved ? '🔒 Key saved on this device ✓' : 'No key saved';
+  } catch {
+    targets[name].textContent = 'Key status unavailable';
+  }
+}
+
+function refreshAllKeyStatus() {
+  void refreshKeyStatus('deepgramApiKey');
+  void refreshKeyStatus('speechmaticsApiKey');
+  void refreshKeyStatus('geminiApiKey');
 }
 
 export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
@@ -100,6 +128,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setTranslationUiFromSettings(settings.translationEnabled);
   await populateLanguages();
   syncTranslationControls();
+  refreshAllKeyStatus();
 }
 
 export function applySettingsToUi(settings: Settings): void {
@@ -131,6 +160,7 @@ async function persist() {
   applyAccentColor(settings.accentColor);
   try {
     setSettings(await window.api.saveSettings(settings));
+    refreshAllKeyStatus();
   } catch (error) {
     showError(errorMessage(error, 'Unable to save settings'));
   }
@@ -245,6 +275,7 @@ export function wireSettingsControls() {
       const result = await window.api.testDeepgramConnection(key);
       showToast(result.message);
       void persist();
+      void refreshKeyStatus('deepgramApiKey');
       deepgramTestBtn.textContent = '✓ Connected';
       setTimeout(() => { deepgramTestBtn.textContent = 'Test Connection'; }, 2500);
     } catch (error) {
@@ -265,6 +296,7 @@ export function wireSettingsControls() {
       const result = await window.api.testSpeechmaticsConnection(key);
       showToast(result.message);
       void persist();
+      void refreshKeyStatus('speechmaticsApiKey');
       speechmaticsTestBtn.textContent = '✓ Connected';
       setTimeout(() => { speechmaticsTestBtn.textContent = 'Test Connection'; }, 2500);
     } catch (error) {
@@ -278,13 +310,17 @@ export function wireSettingsControls() {
   // Remove API keys
   deepgramRemoveKey.addEventListener('click', () => {
     deepgramKey.value = '';
+    void window.api.deleteSecret('deepgramApiKey').catch(() => undefined);
     void persist();
+    void refreshKeyStatus('deepgramApiKey');
     showToast('Deepgram key removed');
   });
 
   speechmaticsRemoveKey.addEventListener('click', () => {
     speechmaticsKey.value = '';
+    void window.api.deleteSecret('speechmaticsApiKey').catch(() => undefined);
     void persist();
+    void refreshKeyStatus('speechmaticsApiKey');
     showToast('Speechmatics key removed');
   });
 

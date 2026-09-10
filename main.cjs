@@ -328,6 +328,19 @@ function registerIpc() {
     const { testSpeechmaticsConnection } = require('./backend/transcribe.cjs');
     return testSpeechmaticsConnection(apiKey);
   });
+  ipcMain.handle('has-secret', (event, name) => {
+    assertTrustedSender(event);
+    const { hasSecret, SECRET_NAMES } = require('./backend/secrets.cjs');
+    if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
+    return hasSecret(name);
+  });
+  ipcMain.handle('delete-secret', (event, name) => {
+    assertTrustedSender(event);
+    const { deleteSecret, SECRET_NAMES } = require('./backend/secrets.cjs');
+    if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
+    deleteSecret(name);
+    return true;
+  });
   ipcMain.handle('overlay-action', async (event, action) => {
     assertTrustedSender(event);
     if (!['start', 'pause', 'resume', 'stop', 'cancel'].includes(action)) {
