@@ -98,6 +98,7 @@ interface Window {
     clearHistory: () => Promise<HistoryData>;
     onHotkeyPressed: (callback: (event: HotkeyEvent) => void) => () => void;
     onRecordingState: (callback: (state: string) => void) => () => void;
+    onRecordingTimeLimit: (callback: (event: { maxRecordingMs: number }) => void) => () => void;
     onTranscriptionResult: (callback: (result: TranscriptionResult) => void) => () => void;
     onDownloadProgress: (callback: (progress: DownloadProgress) => void) => () => void;
     onOverlayAction: (callback: (action: string) => void) => () => void;

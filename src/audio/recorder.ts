@@ -133,6 +133,46 @@ export function abortCapture() {
   stopTracks();
 }
 
+let micWatchCleanup: (() => void) | null = null;
+
+// A microphone unplug pauses the capture — it never cancels or discards
+// audio. The handler is idempotent and tolerates repeated devicechange
+// events: only an actively-recording capture is paused, so follow-up events
+// while already paused are harmless no-ops.
+export function watchMicDeviceChanges(onUnplugged?: () => void): () => void {
+  if (micWatchCleanup) return micWatchCleanup;
+  const noop = () => undefined;
+  const mediaDevices = navigator.mediaDevices as
+    | (MediaDevices & { addEventListener?: MediaDevices['addEventListener']; removeEventListener?: MediaDevices['removeEventListener'] })
+    | undefined;
+  if (typeof mediaDevices?.addEventListener !== 'function') return noop;
+  const handler = () => {
+    void populateMics();
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      try {
+        pauseCapture();
+      } catch {
+        return;
+      }
+      try {
+        onUnplugged?.();
+      } catch {
+        // Backend pause sync is best-effort; capture is already paused.
+      }
+    }
+  };
+  mediaDevices.addEventListener('devicechange', handler);
+  micWatchCleanup = () => {
+    try {
+      mediaDevices.removeEventListener?.('devicechange', handler);
+    } catch {
+      // Listener removal is best-effort.
+    }
+    micWatchCleanup = null;
+  };
+  return micWatchCleanup;
+}
+
 export async function startCapture(microphone: string): Promise<void> {
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
     throw new Error('This system does not support microphone recording');

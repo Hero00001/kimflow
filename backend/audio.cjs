@@ -16,6 +16,34 @@ function isWavBuffer(buffer) {
     && buffer.toString('ascii', 8, 12) === 'WAVE';
 }
 
+// Best-effort free-space guard run before writing the WAV file. It must never
+// throw: platforms without fs.statfsSync (or any stat failure) skip silently
+// so recording can never crash on an unsupported platform.
+const MIN_FREE_DISK_BYTES = 32 * 1024 * 1024;
+
+function ensureDiskSpace(dir, requiredBytes = MIN_FREE_DISK_BYTES) {
+  try {
+    if (typeof fs.statfsSync !== 'function') return { ok: true, skipped: true };
+    const stats = fs.statfsSync(dir || path.dirname(osTmpFallback()));
+    const free = Number(stats.bfree) * Number(stats.bsize);
+    if (!Number.isFinite(free)) return { ok: true, skipped: true };
+    if (free < Number(requiredBytes)) {
+      return { ok: false, skipped: false, freeBytes: free, error: `Insufficient disk space (${free} bytes free)` };
+    }
+    return { ok: true, skipped: false, freeBytes: free };
+  } catch {
+    return { ok: true, skipped: true };
+  }
+}
+
+function osTmpFallback() {
+  try {
+    return require('os').tmpdir();
+  } catch {
+    return '.';
+  }
+}
+
 class AudioRecorder {
   constructor() {
     this.chunks = [];
@@ -58,6 +86,10 @@ class AudioRecorder {
       }
 
       try {
+        const space = ensureDiskSpace(path.dirname(filePath), Math.max(raw.length, MIN_FREE_DISK_BYTES));
+        if (!space.ok) {
+          return reject(new Error(space.error || 'Insufficient disk space'));
+        }
         fs.mkdirSync(path.dirname(filePath), { recursive: true });
         fs.writeFileSync(filePath, raw);
         resolve(filePath);
@@ -68,4 +100,4 @@ class AudioRecorder {
   }
 }
 
-module.exports = { listMicrophones, AudioRecorder, isWavBuffer };
+module.exports = { listMicrophones, AudioRecorder, isWavBuffer, ensureDiskSpace, MIN_FREE_DISK_BYTES };

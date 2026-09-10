@@ -10,6 +10,7 @@ import {
   resumeCapture,
   startCapture,
   stopCapture,
+  watchMicDeviceChanges,
 } from './audio/recorder';
 
 export async function beginRecording() {
@@ -142,6 +143,21 @@ export function handleTranscriptionResult(result: TranscriptionResult) {
 export function wireRecordingControls() {
   wireToggle(recordBtn);
   wireToggle(micBtn);
+
+  // A removed microphone pauses instead of cancelling: audio captured so far
+  // is kept and the user can resume on another device.
+  watchMicDeviceChanges(() => {
+    void window.api.pauseRecording().catch((error) => {
+      showError(errorMessage(error, 'Unable to pause recording'));
+    });
+    if (getCurrentState() === STATES.RECORDING) setState(STATES.PAUSED);
+  });
+
+  // The 10-minute backend guard reuses the normal finish path, so the
+  // dictation is transcribed, pasted, and saved — never discarded.
+  window.api.onRecordingTimeLimit(() => {
+    void finishRecording();
+  });
 
   pauseBtn.addEventListener('click', () => {
     if (getCurrentState() === STATES.RECORDING) void pauseFromOverlay();

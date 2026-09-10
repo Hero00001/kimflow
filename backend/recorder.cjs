@@ -22,6 +22,37 @@ let operationId = 0;
 let recordingStartedAt = null;
 let activeAbortController = null;
 
+const MAX_RECORDING_MS = 10*60*1000;
+let autoStopTimer = null;
+
+function clearAutoStopTimer() {
+  if (autoStopTimer) {
+    clearTimeout(autoStopTimer);
+    autoStopTimer = null;
+  }
+}
+
+function emitTimeLimit(target) {
+  for (const window of windowsFrom(target)) {
+    if (!window.isDestroyed?.()) {
+      window.webContents.send('recording-time-limit', { maxRecordingMs: MAX_RECORDING_MS });
+    }
+  }
+}
+
+// On expiry the renderer runs its normal finishRecording() path (stopCapture
+// + stopRecording IPC), so a 10-minute dictation is transcribed, pasted, and
+// saved to history — never silently discarded.
+function scheduleAutoStopTimer(windows, delayMs = MAX_RECORDING_MS) {
+  clearAutoStopTimer();
+  const targets = windowsFrom(windows);
+  autoStopTimer = setTimeout(() => {
+    autoStopTimer = null;
+    emitTimeLimit(targets);
+  }, delayMs);
+  if (autoStopTimer && typeof autoStopTimer.unref === 'function') autoStopTimer.unref();
+}
+
 function shouldDropResult(opAtStop, opNow) {
   return opAtStop !== opNow;
 }
@@ -71,8 +102,10 @@ async function startRecording(settings, windows) {
     operationId += 1;
     recordingStartedAt = Date.now();
     currentState = STATE.RECORDING;
+    scheduleAutoStopTimer(windows);
     notify(windows, STATE.RECORDING);
   } catch (error) {
+    clearAutoStopTimer();
     audioRecorder = null;
     currentState = STATE.READY;
     throw error;
@@ -100,6 +133,7 @@ async function resumeRecording(windows) {
 async function cancelRecording(windows) {
   operationId += 1;
   recordingStartedAt = null;
+  clearAutoStopTimer();
   if (activeAbortController) {
     try { activeAbortController.abort(); } catch { /* already aborted */ }
     activeAbortController = null;
@@ -237,6 +271,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     }
     return { text: cleaned, translation, translationError, translating: false, pasteFallback, pasteOk };
   } finally {
+    clearAutoStopTimer();
     if (activeAbortController === abortController) activeAbortController = null;
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
     currentState = STATE.READY;
@@ -253,5 +288,8 @@ module.exports = {
   cancelRecording,
   onAudioChunk,
   shouldDropResult,
+  scheduleAutoStopTimer,
+  clearAutoStopTimer,
+  MAX_RECORDING_MS,
   STATE,
 };

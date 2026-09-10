@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   onHotkeyPressed: (callback) => subscribe('hotkey-pressed', callback),
   onRecordingState: (callback) => subscribe('recording-state', callback),
+  onRecordingTimeLimit: (callback) => subscribe('recording-time-limit', callback),
   onTranscriptionResult: (callback) => subscribe('transcription-result', callback),
   onDownloadProgress: (callback) => subscribe('download-progress', callback),
   onOverlayAction: (callback) => subscribe('overlay-action', callback),
