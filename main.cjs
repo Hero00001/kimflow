@@ -12,6 +12,7 @@ const {
   getState,
   STATE,
 } = require('./backend/recorder.cjs');
+require('./backend/secrets.cjs');
 const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
 const history = require('./backend/history.cjs');
 

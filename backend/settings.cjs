@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { AUTO, isKnownLanguage } = require('./languages.cjs');
+const { migratePlaintextKeys } = require('./secrets.cjs');
 
 const CONFIG_DIR = path.join(os.homedir(), '.kimflow');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
@@ -93,7 +94,8 @@ function load() {
       : fs.existsSync(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH : null;
     if (sourcePath) {
       const raw = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
-      return normalizeSettings(migrateInputLanguageToAuto(raw));
+      const { settings: migratedSettings } = migratePlaintextKeys(migrateInputLanguageToAuto(raw));
+      return normalizeSettings(migratedSettings);
     }
   } catch {
     // Fall back to safe defaults when the file is missing or malformed.
@@ -103,7 +105,11 @@ function load() {
 
 function save(settings) {
   migrateLegacyData();
-  const normalized = normalizeSettings(settings);
+  const { settings: migratedInput } = migratePlaintextKeys(settings && typeof settings === 'object' ? settings : {});
+  const normalized = normalizeSettings(migratedInput);
+  normalized.deepgramApiKey = '';
+  normalized.speechmaticsApiKey = '';
+  normalized.geminiApiKey = '';
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   const tempPath = `${CONFIG_PATH}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(normalized, null, 2), 'utf8');
