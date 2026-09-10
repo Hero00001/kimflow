@@ -12,7 +12,7 @@ const {
   getState,
   STATE,
 } = require('./backend/recorder.cjs');
-require('./backend/secrets.cjs');
+const { getSecret } = require('./backend/secrets.cjs');
 const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
 const history = require('./backend/history.cjs');
 
@@ -187,7 +187,7 @@ function registerIpc() {
     // Pre-resolve the Gemini model so the next stop skips discovery.
     if (saved.translationEnabled) {
       void require('./backend/translation.service.cjs').warmup({
-        apiKey: saved.geminiApiKey,
+        apiKey: saved.geminiApiKey || getSecret('geminiApiKey'),
         model: saved.geminiModel || undefined,
         provider: saved.translationProvider,
       });
@@ -211,7 +211,7 @@ function registerIpc() {
     if (typeof model !== 'string') throw new Error('Gemini model must be a string');
     const gemini = require('./backend/gemini.cjs');
     const settings = loadSettings();
-    return gemini.validateModel(settings.geminiApiKey, model);
+    return gemini.validateModel(settings.geminiApiKey || getSecret('geminiApiKey'), model);
   });
   ipcMain.handle('write-clipboard', (event, text) => {
     assertTrustedSender(event);
@@ -386,7 +386,7 @@ app.whenReady().then(() => {
   registerHotkeys(settings.hotkey || 'CmdOrCtrl+Shift+Space');
   if (settings.translationEnabled) {
     void require('./backend/translation.service.cjs').warmup({
-      apiKey: settings.geminiApiKey,
+      apiKey: settings.geminiApiKey || getSecret('geminiApiKey'),
       model: settings.geminiModel || undefined,
       provider: settings.translationProvider,
     });

@@ -94,8 +94,16 @@ function load() {
       : fs.existsSync(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH : null;
     if (sourcePath) {
       const raw = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
-      const { settings: migratedSettings } = migratePlaintextKeys(migrateInputLanguageToAuto(raw));
-      return normalizeSettings(migratedSettings);
+      const { settings: migratedSettings, migrated } = migratePlaintextKeys(migrateInputLanguageToAuto(raw));
+      const normalized = normalizeSettings(migratedSettings);
+      if (migrated) {
+        try {
+          save(normalized);
+        } catch {
+          // A read-only config must never break startup.
+        }
+      }
+      return normalized;
     }
   } catch {
     // Fall back to safe defaults when the file is missing or malformed.

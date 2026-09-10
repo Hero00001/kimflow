@@ -7,6 +7,7 @@ const { pasteText } = require('./paste.cjs');
 const { transcribeDeepgram, transcribeSpeechmatics, transcribeLocal } = require('./transcribe.cjs');
 const translationService = require('./translation.service.cjs');
 const { CONFIG_DIR } = require('./settings.cjs');
+const { getSecret } = require('./secrets.cjs');
 const history = require('./history.cjs');
 
 const STATE = {
@@ -177,7 +178,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     // first stop after (re)start does not pay an extra round-trip.
     if (settings.translationEnabled) {
       void translationService.warmup({
-        apiKey: settings.geminiApiKey,
+        apiKey: settings.geminiApiKey || getSecret('geminiApiKey'),
         model: settings.geminiModel || undefined,
         provider: settings.translationProvider,
       });
@@ -189,10 +190,10 @@ async function stopRecording(settings, windows, audioBuffer) {
           transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal);
           break;
         case 'deepgram':
-          transcription = await transcribeDeepgram(settings.deepgramApiKey, tempPath, language, settings.deepgramModel, signal);
+          transcription = await transcribeDeepgram(settings.deepgramApiKey || getSecret('deepgramApiKey'), tempPath, language, settings.deepgramModel, signal);
           break;
         case 'speechmatics':
-          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey, tempPath, language, signal);
+          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey || getSecret('speechmaticsApiKey'), tempPath, language, signal);
           break;
         default:
           throw new Error(`Unknown engine: ${settings.engine}`);
@@ -247,7 +248,7 @@ async function stopRecording(settings, windows, audioBuffer) {
           sourceLanguage: transcription?.detectedLanguage || language,
           targetLanguage: settings.translationTarget,
           provider: settings.translationProvider,
-          apiKey: settings.geminiApiKey,
+          apiKey: settings.geminiApiKey || getSecret('geminiApiKey'),
           model: settings.geminiModel || undefined,
         });
       } catch (error) {
