@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { AUTO, isKnownLanguage } = require('./languages.cjs');
+const { normalizeVocabulary } = require('./vocabulary.cjs');
 const { migratePlaintextKeys } = require('./secrets.cjs');
 
 const CONFIG_DIR = path.join(os.homedir(), '.kimflow');
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS = {
   speechmaticsApiKey: '',
   recordingMode: 'toggle',
   polishMode: 'thorough',
+  customVocabulary: [],
   hotkey: 'CmdOrCtrl+Shift+Space',
   accentColor: '#8b5cf6',
   translationEnabled: false,
@@ -51,6 +53,7 @@ function normalizeSettings(settings) {
     speechmaticsApiKey: stringValue(merged.speechmaticsApiKey, ''),
     recordingMode: ['toggle', 'push-to-talk'].includes(merged.recordingMode) ? merged.recordingMode : DEFAULT_SETTINGS.recordingMode,
     polishMode: ['off', 'light', 'thorough'].includes(merged.polishMode) ? merged.polishMode : DEFAULT_SETTINGS.polishMode,
+    customVocabulary: normalizeVocabulary(merged.customVocabulary),
     hotkey: stringValue(merged.hotkey, DEFAULT_SETTINGS.hotkey).trim() || DEFAULT_SETTINGS.hotkey,
     accentColor: HEX_COLOR.test(merged.accentColor) ? merged.accentColor.toLowerCase() : DEFAULT_SETTINGS.accentColor,
     translationEnabled: merged.translationEnabled === true,

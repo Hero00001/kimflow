@@ -762,7 +762,7 @@ kbd {
 
 /* ── Form controls ────────────────────────────────────── */
 
-select, input[type="password"], input[type="text"] {
+select, input[type="password"], input[type="text"], textarea {
   padding: 8px 12px;
   background: var(--surface);
   color: var(--text);
@@ -784,9 +784,16 @@ select {
   cursor: pointer;
 }
 
-select:focus, input[type="password"]:focus, input[type="text"]:focus {
+select:focus, input[type="password"]:focus, input[type="text"]:focus, textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
+#vocab-input {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  line-height: 1.6;
 }
 
 input[type="password"], input[type="text"] { flex: 1; }

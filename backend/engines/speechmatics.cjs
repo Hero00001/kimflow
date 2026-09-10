@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { cleanupText } = require('../cleanup.cjs');
+const { speechmaticsVocab } = require('../vocabulary.cjs');
 
 const BASE_URL = 'https://eu1.asr.api.speechmatics.com';
 
@@ -20,7 +21,7 @@ function throwIfAborted(signal) {
   }
 }
 
-async function transcribe(apiKey, audioPath, language, signal, polishMode) {
+async function transcribe(apiKey, audioPath, language, signal, polishMode, vocabulary) {
   throwIfAborted(signal);
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Speechmatics API key not set. Please enter your API key in settings.');
@@ -30,9 +31,12 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode) {
   debugLog('Speechmatics: audio loaded', { bytes: audioBuffer.length, file: audioPath });
 
   const lang = language && language !== 'auto' ? language : 'en';
+  const transcriptionConfig = { language: lang };
+  const additionalVocab = speechmaticsVocab(vocabulary);
+  if (additionalVocab.length > 0) transcriptionConfig.additional_vocab = additionalVocab;
   const config = JSON.stringify({
     type: 'transcription',
-    transcription_config: { language: lang },
+    transcription_config: transcriptionConfig,
   });
 
   // Step 1: Submit a batch transcription job

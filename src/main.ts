@@ -90,6 +90,7 @@ async function init() {
       whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
       deepgramApiKey: '', deepgramModel: 'nova-3', speechmaticsApiKey: '', recordingMode: 'toggle',
       polishMode: 'thorough',
+      customVocabulary: [],
       hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
       translationEnabled: false, translationProvider: 'gemini',
       geminiApiKey: '', geminiModel: '', inputLanguage: 'auto', translationTarget: 'en',

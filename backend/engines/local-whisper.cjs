@@ -3,6 +3,7 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const { cleanupText } = require('../cleanup.cjs');
+const { whisperPrompt } = require('../vocabulary.cjs');
 const { CONFIG_DIR } = require('../settings.cjs');
 const { validateModelSize, modelFilename } = require('../model-download.cjs');
 
@@ -90,7 +91,7 @@ function throwIfAborted(signal) {
   }
 }
 
-async function transcribe(modelSize, audioPath, language, binaryPath, signal, polishMode) {
+async function transcribe(modelSize, audioPath, language, binaryPath, signal, polishMode, vocabulary) {
   throwIfAborted(signal);
   validateModelSize(modelSize);
   const modelPath = path.join(CONFIG_DIR, modelFilename(modelSize));
@@ -102,10 +103,11 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal, po
   }
 
   const langFlag = language && language !== 'auto' ? language : 'auto';
+  const args = ['-m', modelPath, '-f', audioPath, '--no-timestamps', '-l', langFlag];
+  const prompt = whisperPrompt(vocabulary);
+  if (prompt) args.push('--prompt', prompt);
   try {
-    const { stdout, stderr } = await execFileAsync(whisperBinary, [
-      '-m', modelPath, '-f', audioPath, '--no-timestamps', '-l', langFlag,
-    ], { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024, signal });
+    const { stdout, stderr } = await execFileAsync(whisperBinary, args, { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024, signal });
     throwIfAborted(signal);
     const detectedLanguage = detectedLanguageFromOutput(stderr) || detectedLanguageFromOutput(stdout);
     return { text: cleanupText(stdout.trim(), polishMode), detectedLanguage };

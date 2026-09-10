@@ -1,5 +1,6 @@
 const fs = require('fs');
 const { cleanupText } = require('../cleanup.cjs');
+const { deepgramVocabParams } = require('../vocabulary.cjs');
 
 const DEEPGRAM_MODELS = {
   'nova-3': { label: 'Nova 3', value: 'nova-3' },
@@ -33,7 +34,7 @@ function throwIfAborted(signal) {
   }
 }
 
-async function transcribe(apiKey, audioPath, language, model, signal, polishMode) {
+async function transcribe(apiKey, audioPath, language, model, signal, polishMode, vocabulary) {
   throwIfAborted(signal);
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set. Please enter your API key in settings.');
@@ -42,10 +43,17 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
   debugLog('Deepgram: audio loaded', { bytes: audioBuffer.length, file: audioPath });
   const { createClient } = require('@deepgram/sdk');
   const deepgram = createClient(key);
-  const options = deepgramOptions(language, model);
+  const options = { ...deepgramOptions(language, model), ...deepgramVocabParams(model, vocabulary) };
 
   const query = new URL('https://api.deepgram.com/v1/listen');
-  Object.keys(options).forEach((keyName) => query.searchParams.append(keyName, String(options[keyName])));
+  for (const keyName of Object.keys(options)) {
+    const value = options[keyName];
+    if (Array.isArray(value)) {
+      for (const entry of value) query.searchParams.append(keyName, String(entry));
+    } else {
+      query.searchParams.append(keyName, String(value));
+    }
+  }
   debugLog('Deepgram: request URL', query.toString());
 
   let response;

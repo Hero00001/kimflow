@@ -9,6 +9,7 @@ interface Settings {
   speechmaticsApiKey: string;
   recordingMode: string;
   polishMode: string;
+  customVocabulary: string[];
   hotkey: string;
   accentColor: string;
   translationEnabled: boolean;

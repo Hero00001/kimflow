@@ -30,6 +30,7 @@ import {
   deepgramRow,
   modeGroup,
   polishGroup,
+  vocabInput,
   translationGroup,
   geminiRow,
   geminiModelRow,
@@ -129,6 +130,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   speechmaticsKey.value = settings.speechmaticsApiKey || '';
   setModeActive(settings.recordingMode);
   setPolishActive(settings.polishMode || 'thorough');
+  vocabInput.value = (settings.customVocabulary || []).join('\n');
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   accentColor.value = settings.accentColor;
@@ -163,6 +165,7 @@ async function persist() {
   settings.translationTarget = translateToSelect.value || 'en';
   settings.geminiApiKey = geminiKey.value;
   settings.geminiModel = geminiModel.value.trim();
+  settings.customVocabulary = vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 100);
   settings.hotkey = hotkeyInput.value.trim() || settings.hotkey;
   settings.accentColor = accentColor.value;
   applyAccentColor(settings.accentColor);
@@ -275,6 +278,8 @@ export function wireSettingsControls() {
   geminiModel.addEventListener('blur', () => { void validateModelField(); });
 
   micSelect.addEventListener('change', () => { void persist(); });
+  vocabInput.addEventListener('change', () => { void persist(); });
+  vocabInput.addEventListener('input', schedulePersist);
   modelSelect.addEventListener('change', () => { void checkModelStatus(); void persist(); });
   deepgramKey.addEventListener('change', () => { void persist(); });
   deepgramKey.addEventListener('input', schedulePersist);

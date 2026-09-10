@@ -13,16 +13,16 @@ const modelDownload = require('./model-download.cjs');
 
 /* ── Public API (unchanged signatures) ──────────────────────────────── */
 
-async function transcribeDeepgram(apiKey, audioPath, language, model, signal, polishMode) {
-  return deepgram.transcribe(apiKey, audioPath, language, model, signal, polishMode);
+async function transcribeDeepgram(apiKey, audioPath, language, model, signal, polishMode, vocabulary) {
+  return deepgram.transcribe(apiKey, audioPath, language, model, signal, polishMode, vocabulary);
 }
 
-async function transcribeSpeechmatics(apiKey, audioPath, language, signal, polishMode) {
-  return speechmatics.transcribe(apiKey, audioPath, language, signal, polishMode);
+async function transcribeSpeechmatics(apiKey, audioPath, language, signal, polishMode, vocabulary) {
+  return speechmatics.transcribe(apiKey, audioPath, language, signal, polishMode, vocabulary);
 }
 
-async function transcribeLocal(modelSize, audioPath, language, binaryPath, signal, polishMode) {
-  return localWhisper.transcribe(modelSize, audioPath, language, binaryPath, signal, polishMode);
+async function transcribeLocal(modelSize, audioPath, language, binaryPath, signal, polishMode, vocabulary) {
+  return localWhisper.transcribe(modelSize, audioPath, language, binaryPath, signal, polishMode, vocabulary);
 }
 
 async function testDeepgramConnection(apiKey) {

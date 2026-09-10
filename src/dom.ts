@@ -35,6 +35,7 @@ export const deepgramModelSelect = document.getElementById('deepgram-model-selec
 export const deepgramTestBtn = document.getElementById('deepgram-test-btn') as HTMLButtonElement;
 export const modeGroup = document.getElementById('mode-group')!;
 export const polishGroup = document.getElementById('polish-group')!;
+export const vocabInput = document.getElementById('vocab-input') as HTMLTextAreaElement;
 export const hotkeyInput = document.getElementById('hotkey-input') as HTMLInputElement;
 export const hotkeyRecord = document.getElementById('hotkey-record') as HTMLButtonElement;
 export const accentColor = document.getElementById('accent-color') as HTMLInputElement;

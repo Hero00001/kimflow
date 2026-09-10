@@ -187,13 +187,13 @@ async function stopRecording(settings, windows, audioBuffer) {
     try {
       switch (settings.engine) {
         case 'local':
-          transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal, settings.polishMode);
+          transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal, settings.polishMode, settings.customVocabulary);
           break;
         case 'deepgram':
-          transcription = await transcribeDeepgram(settings.deepgramApiKey || getSecret('deepgramApiKey'), tempPath, language, settings.deepgramModel, signal, settings.polishMode);
+          transcription = await transcribeDeepgram(settings.deepgramApiKey || getSecret('deepgramApiKey'), tempPath, language, settings.deepgramModel, signal, settings.polishMode, settings.customVocabulary);
           break;
         case 'speechmatics':
-          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey || getSecret('speechmaticsApiKey'), tempPath, language, signal, settings.polishMode);
+          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey || getSecret('speechmaticsApiKey'), tempPath, language, signal, settings.polishMode, settings.customVocabulary);
           break;
         default:
           throw new Error(`Unknown engine: ${settings.engine}`);
