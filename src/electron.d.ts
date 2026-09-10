@@ -8,6 +8,7 @@ interface Settings {
   deepgramModel: string;
   speechmaticsApiKey: string;
   recordingMode: string;
+  polishMode: string;
   hotkey: string;
   accentColor: string;
   translationEnabled: boolean;

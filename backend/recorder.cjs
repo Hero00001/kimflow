@@ -187,13 +187,13 @@ async function stopRecording(settings, windows, audioBuffer) {
     try {
       switch (settings.engine) {
         case 'local':
-          transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal);
+          transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal, settings.polishMode);
           break;
         case 'deepgram':
-          transcription = await transcribeDeepgram(settings.deepgramApiKey || getSecret('deepgramApiKey'), tempPath, language, settings.deepgramModel, signal);
+          transcription = await transcribeDeepgram(settings.deepgramApiKey || getSecret('deepgramApiKey'), tempPath, language, settings.deepgramModel, signal, settings.polishMode);
           break;
         case 'speechmatics':
-          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey || getSecret('speechmaticsApiKey'), tempPath, language, signal);
+          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey || getSecret('speechmaticsApiKey'), tempPath, language, signal, settings.polishMode);
           break;
         default:
           throw new Error(`Unknown engine: ${settings.engine}`);
@@ -208,7 +208,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Cancellation cannot always abort a provider's in-flight HTTP request,
     // but it must prevent a late result from being pasted or shown.
     if (shouldDropResult(currentOperation, operationId)) return '';
-    const cleaned = cleanupText(transcription?.text || '');
+    const cleaned = cleanupText(transcription?.text || '', settings.polishMode);
     if (!cleaned) return '';
     let pasteOk = true;
     let pasteFallback = null;

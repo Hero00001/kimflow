@@ -29,6 +29,7 @@ import {
   speechmaticsRow,
   deepgramRow,
   modeGroup,
+  polishGroup,
   translationGroup,
   geminiRow,
   geminiModelRow,
@@ -66,6 +67,12 @@ function formatHotkey(hotkey: string) {
 function setModeActive(mode: string) {
   modeGroup.querySelectorAll('.toggle-btn').forEach((button) => {
     button.classList.toggle('active', (button as HTMLElement).dataset.mode === mode);
+  });
+}
+
+function setPolishActive(polishMode: string) {
+  polishGroup.querySelectorAll('.toggle-btn').forEach((button) => {
+    button.classList.toggle('active', (button as HTMLElement).dataset.value === polishMode);
   });
 }
 
@@ -121,6 +128,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   deepgramModelSelect.value = settings.deepgramModel || 'nova-3';
   speechmaticsKey.value = settings.speechmaticsApiKey || '';
   setModeActive(settings.recordingMode);
+  setPolishActive(settings.polishMode || 'thorough');
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   accentColor.value = settings.accentColor;
@@ -230,6 +238,16 @@ export function wireSettingsControls() {
     if (!settings) return;
     settings.recordingMode = button.dataset.mode;
     setModeActive(settings.recordingMode);
+    void persist();
+  });
+
+  polishGroup.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
+    if (!button?.dataset.value) return;
+    const settings = getSettings();
+    if (!settings) return;
+    settings.polishMode = button.dataset.value;
+    setPolishActive(settings.polishMode);
     void persist();
   });
 

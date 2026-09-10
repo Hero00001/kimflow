@@ -89,6 +89,7 @@ async function init() {
       microphone: 'default', engine: 'local', whisperModel: 'small',
       whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
       deepgramApiKey: '', deepgramModel: 'nova-3', speechmaticsApiKey: '', recordingMode: 'toggle',
+      polishMode: 'thorough',
       hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
       translationEnabled: false, translationProvider: 'gemini',
       geminiApiKey: '', geminiModel: '', inputLanguage: 'auto', translationTarget: 'en',

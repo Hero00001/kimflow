@@ -90,7 +90,7 @@ function throwIfAborted(signal) {
   }
 }
 
-async function transcribe(modelSize, audioPath, language, binaryPath, signal) {
+async function transcribe(modelSize, audioPath, language, binaryPath, signal, polishMode) {
   throwIfAborted(signal);
   validateModelSize(modelSize);
   const modelPath = path.join(CONFIG_DIR, modelFilename(modelSize));
@@ -108,7 +108,7 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal) {
     ], { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024, signal });
     throwIfAborted(signal);
     const detectedLanguage = detectedLanguageFromOutput(stderr) || detectedLanguageFromOutput(stdout);
-    return { text: cleanupText(stdout.trim()), detectedLanguage };
+    return { text: cleanupText(stdout.trim(), polishMode), detectedLanguage };
   } catch (error) {
     if (signal?.aborted || error?.name === 'AbortError' || /abort/i.test(errorText(error))) {
       const abortError = new Error('Transcription aborted');

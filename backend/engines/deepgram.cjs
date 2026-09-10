@@ -33,7 +33,7 @@ function throwIfAborted(signal) {
   }
 }
 
-async function transcribe(apiKey, audioPath, language, model, signal) {
+async function transcribe(apiKey, audioPath, language, model, signal, polishMode) {
   throwIfAborted(signal);
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set. Please enter your API key in settings.');
@@ -101,7 +101,7 @@ async function transcribe(apiKey, audioPath, language, model, signal) {
     words: alternative?.words?.length ?? 0,
     length: transcript.length,
   });
-  return { text: cleanupText(transcript), detectedLanguage };
+  return { text: cleanupText(transcript, polishMode), detectedLanguage };
 }
 
 async function testConnection(apiKey) {

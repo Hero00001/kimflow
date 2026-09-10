@@ -1,10 +1,18 @@
 const { formatNumberWords } = require('./format-numbers.cjs');
+const { polishText } = require('./polish.cjs');
 
-function cleanupText(text) {
+function cleanupText(text, polishMode = 'thorough') {
   const trimmed = text.trim();
   if (!trimmed) return '';
 
-  const normalized = formatNumberWords(trimmed).split(/\s+/).join(' ');
+  const polished = polishText(formatNumberWords(trimmed), polishMode);
+  // Collapse whitespace per line so spoken "new line"/"new paragraph"
+  // commands survive as real line breaks.
+  const normalized = polished
+    .split('\n')
+    .map((line) => line.split(/\s+/).join(' '))
+    .join('\n')
+    .trim();
 
   let result = '';
   let capitalizeNext = true;

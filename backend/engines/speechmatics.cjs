@@ -20,7 +20,7 @@ function throwIfAborted(signal) {
   }
 }
 
-async function transcribe(apiKey, audioPath, language, signal) {
+async function transcribe(apiKey, audioPath, language, signal, polishMode) {
   throwIfAborted(signal);
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Speechmatics API key not set. Please enter your API key in settings.');
@@ -115,7 +115,7 @@ async function transcribe(apiKey, audioPath, language, signal) {
 
     if (!text) throw new Error('Speechmatics produced an empty transcript');
     throwIfAborted(signal);
-    return { text: cleanupText(text), detectedLanguage: lang !== 'en' ? lang : null };
+    return { text: cleanupText(text, polishMode), detectedLanguage: lang !== 'en' ? lang : null };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.startsWith('Speechmatics produced')) throw error;
