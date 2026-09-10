@@ -47,6 +47,12 @@ import {
 } from './translation';
 
 let recordingHotkey = false;
+let persistTimer: number | undefined;
+
+function schedulePersist() {
+  window.clearTimeout(persistTimer);
+  persistTimer = window.setTimeout(() => { void persist(); }, 500);
+}
 
 function formatHotkey(hotkey: string) {
   const isWindows = /win/i.test(navigator.platform || navigator.userAgent);
@@ -223,8 +229,11 @@ export function wireSettingsControls() {
   micSelect.addEventListener('change', () => { void persist(); });
   modelSelect.addEventListener('change', () => { void checkModelStatus(); void persist(); });
   deepgramKey.addEventListener('change', () => { void persist(); });
+  deepgramKey.addEventListener('input', schedulePersist);
   deepgramModelSelect.addEventListener('change', () => { void persist(); });
   speechmaticsKey.addEventListener('change', () => { void persist(); });
+  speechmaticsKey.addEventListener('input', schedulePersist);
+  geminiKey.addEventListener('input', schedulePersist);
 
   // Deepgram test connection
   deepgramTestBtn.addEventListener('click', async () => {
@@ -235,6 +244,7 @@ export function wireSettingsControls() {
     try {
       const result = await window.api.testDeepgramConnection(key);
       showToast(result.message);
+      void persist();
       deepgramTestBtn.textContent = '✓ Connected';
       setTimeout(() => { deepgramTestBtn.textContent = 'Test Connection'; }, 2500);
     } catch (error) {
@@ -254,6 +264,7 @@ export function wireSettingsControls() {
     try {
       const result = await window.api.testSpeechmaticsConnection(key);
       showToast(result.message);
+      void persist();
       speechmaticsTestBtn.textContent = '✓ Connected';
       setTimeout(() => { speechmaticsTestBtn.textContent = 'Test Connection'; }, 2500);
     } catch (error) {
