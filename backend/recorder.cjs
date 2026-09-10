@@ -210,19 +210,41 @@ async function stopRecording(settings, windows, audioBuffer) {
     if (shouldDropResult(currentOperation, operationId)) return '';
     const cleaned = cleanupText(transcription?.text || '', settings.polishMode);
     if (!cleaned) return '';
+    // AI polish is a best-effort refinement of the rule-polished text. Any
+    // failure (no key, quota, network) falls back to `cleaned` silently —
+    // the transcription result must never break on an optional pass.
+    let finalText = cleaned;
+    let polished = false;
+    if (settings.aiPolish) {
+      try {
+        const polishedText = await translationService.polish({
+          text: cleaned,
+          language: transcription?.detectedLanguage || language,
+          provider: settings.translationProvider,
+          apiKey: settings.geminiApiKey || getSecret('geminiApiKey'),
+          model: settings.geminiModel || undefined,
+        });
+        if (polishedText) {
+          finalText = polishedText;
+          polished = true;
+        }
+      } catch {
+        // Fall back to the rule-polished text.
+      }
+    }
     let pasteOk = true;
     let pasteFallback = null;
     try {
-      const pasteResult = pasteText(cleaned);
+      const pasteResult = pasteText(finalText);
       pasteOk = !pasteResult || pasteResult.ok !== false;
     } catch {
       pasteOk = false;
     }
-    if (!pasteOk) pasteFallback = cleaned;
+    if (!pasteOk) pasteFallback = finalText;
     let historyId = null;
     try {
       const entry = history.addSession({
-        text: cleaned,
+        text: finalText,
         durationMs: startedAt ? Date.now() - startedAt : 0,
       });
       historyId = entry ? entry.id : null;
@@ -234,7 +256,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Emit the transcript immediately so translation latency never blocks
     // display/paste. The translation result follows on the same channel.
     if (settings.translationEnabled) {
-      emitTranscription(windows, { text: cleaned, translation: null, translationError: null, translating: true, pasteFallback, pasteOk });
+      emitTranscription(windows, { text: finalText, translation: null, translationError: null, translating: true, pasteFallback, pasteOk, polished });
     }
 
     // Translation is a best-effort add-on. A provider failure must never
@@ -244,7 +266,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     if (settings.translationEnabled) {
       try {
         translation = await translationService.translate({
-          text: cleaned,
+          text: finalText,
           sourceLanguage: transcription?.detectedLanguage || language,
           targetLanguage: settings.translationTarget,
           provider: settings.translationProvider,
@@ -266,11 +288,11 @@ async function stopRecording(settings, windows, audioBuffer) {
           console.error('[KimFlow] Failed to update history translation:', error.message);
         }
       }
-      const final = { text: cleaned, translation, translationError, translating: false, pasteFallback, pasteOk };
+      const final = { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };
       emitTranscription(windows, final);
       return final;
     }
-    return { text: cleaned, translation, translationError, translating: false, pasteFallback, pasteOk };
+    return { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };
   } finally {
     clearAutoStopTimer();
     if (activeAbortController === abortController) activeAbortController = null;

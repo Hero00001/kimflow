@@ -32,6 +32,7 @@ import {
   polishGroup,
   vocabInput,
   translationGroup,
+  aiPolishGroup,
   geminiRow,
   geminiModelRow,
   downloadBtn,
@@ -74,6 +75,12 @@ function setModeActive(mode: string) {
 function setPolishActive(polishMode: string) {
   polishGroup.querySelectorAll('.toggle-btn').forEach((button) => {
     button.classList.toggle('active', (button as HTMLElement).dataset.value === polishMode);
+  });
+}
+
+function setAiPolishActive(enabled: boolean) {
+  aiPolishGroup.querySelectorAll('.toggle-btn').forEach((button) => {
+    button.classList.toggle('active', (button as HTMLElement).dataset.value === (enabled ? 'on' : 'off'));
   });
 }
 
@@ -131,6 +138,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setModeActive(settings.recordingMode);
   setPolishActive(settings.polishMode || 'thorough');
   vocabInput.value = (settings.customVocabulary || []).join('\n');
+  setAiPolishActive(settings.aiPolish === true);
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   accentColor.value = settings.accentColor;
@@ -266,6 +274,16 @@ export function wireSettingsControls() {
     });
     setTranslationUiFromSettings(enabled);
     if (!enabled) clearTranslation();
+    void persist();
+  });
+
+  aiPolishGroup.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
+    if (!button?.dataset.value) return;
+    const settings = getSettings();
+    if (!settings) return;
+    settings.aiPolish = button.dataset.value === 'on';
+    setAiPolishActive(settings.aiPolish);
     void persist();
   });
 

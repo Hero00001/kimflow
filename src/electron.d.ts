@@ -10,6 +10,7 @@ interface Settings {
   recordingMode: string;
   polishMode: string;
   customVocabulary: string[];
+  aiPolish: boolean;
   hotkey: string;
   accentColor: string;
   translationEnabled: boolean;

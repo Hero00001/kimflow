@@ -44,6 +44,7 @@ export const historyList = document.getElementById('history-list')!;
 export const historyEmpty = document.getElementById('history-empty')!;
 export const clearHistoryBtn = document.getElementById('clear-history-btn') as HTMLButtonElement;
 export const translationGroup = document.getElementById('translation-group')!;
+export const aiPolishGroup = document.getElementById('ai-polish-group')!;
 export const providerSelect = document.getElementById('provider-select') as HTMLSelectElement;
 export const inputLanguageSelect = document.getElementById('input-language-select') as HTMLSelectElement;
 export const translateToSelect = document.getElementById('translate-to-select') as HTMLSelectElement;

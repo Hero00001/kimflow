@@ -159,6 +159,24 @@ function stripFences(text) {
   return text.replace(/^```[a-zA-Z]*\s*/m, '').replace(/```\s*$/m, '').trim();
 }
 
+function buildPolishPrompt(text, language) {
+  const languageLabel = !language || language === 'auto'
+    ? 'the same language as the transcript'
+    : `the language "${targetFor(language)}"`;
+  return [
+    'You are a dictation cleanup engine.',
+    `Rewrite the transcript below into clean written text in ${languageLabel}.`,
+    'Remove filler words, false starts and repeated words.',
+    'Resolve self-corrections, keeping only the final intent.',
+    'Fix grammar and punctuation. Keep names, numbers and meaning exactly.',
+    'Return ONLY the rewritten text as plain text.',
+    'Do not add explanations, notes or quotes.',
+    'If the text is already clean, return it unchanged.',
+    '',
+    text,
+  ].join('\n');
+}
+
 function extractText(data) {
   const candidate = data?.candidates?.[0];
   const parts = candidate?.content?.parts;
@@ -270,6 +288,58 @@ async function translate({ text, sourceLanguage, targetLanguage, apiKey, model }
   return stripFences(translated);
 }
 
+async function polish({ text, language, apiKey, model }) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return '';
+
+  const key = String(apiKey || '').trim();
+  if (!key) throw translationError('Gemini API key not set. Please enter your API key in settings.');
+  if (trimmed.length > MAX_TEXT_LENGTH) {
+    throw translationError('Transcript is too long to polish in one request.');
+  }
+
+  const rawModel = String(model || '').trim();
+  let activeModel;
+  if (rawModel) {
+    const validation = await validateModel(key, rawModel);
+    if (!validation.ok) throw translationError(validation.message);
+    activeModel = validation.model;
+  } else {
+    activeModel = await resolveModel(key);
+  }
+  const endpoint = `${API_BASE}/models/${encodeURIComponent(activeModel)}:generateContent`;
+  let response;
+  try {
+    response = await axios.post(endpoint, {
+      contents: [{ role: 'user', parts: [{ text: buildPolishPrompt(trimmed, language) }] }],
+      // Polish runs once per transcript on short text: deterministic,
+      // tightly bounded output keeps free-tier usage negligible.
+      generationConfig: { temperature: 0, maxOutputTokens: 2048, responseMimeType: 'text/plain' },
+    }, {
+      params: { key },
+      timeout: TIMEOUT_MS,
+      httpsAgent: keepAliveAgent,
+      validateStatus: () => true,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw translationError(`Gemini API request failed: ${message}`);
+  }
+
+  if (response.status < 200 || response.status >= 300) {
+    const detail = describeError(response.data);
+    throw translationError(
+      detail
+        ? `Gemini API error (${response.status}): ${detail}`
+        : `Gemini API error (${response.status})`,
+    );
+  }
+
+  const polished = extractText(response.data);
+  if (polished === null) throw translationError('Gemini returned no polished text.');
+  return stripFences(polished);
+}
+
 // Best-effort pre-resolution so the model lookup can run in parallel with
 // transcription (or at app start) instead of adding a round-trip on stop.
 async function warmup(apiKey, model) {
@@ -287,6 +357,8 @@ module.exports = {
   DEFAULT_MODEL,
   MODEL_PREFERENCE,
   translate,
+  polish,
+  buildPolishPrompt,
   resolveModel,
   validateModel,
   inspectModel,

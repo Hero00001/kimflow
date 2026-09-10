@@ -91,6 +91,7 @@ async function init() {
       deepgramApiKey: '', deepgramModel: 'nova-3', speechmaticsApiKey: '', recordingMode: 'toggle',
       polishMode: 'thorough',
       customVocabulary: [],
+      aiPolish: false,
       hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
       translationEnabled: false, translationProvider: 'gemini',
       geminiApiKey: '', geminiModel: '', inputLanguage: 'auto', translationTarget: 'en',

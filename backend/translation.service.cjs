@@ -16,8 +16,7 @@ function pruneCache() {
   }
 }
 
-async function translate({ text, sourceLanguage, targetLanguage, provider: providerName, apiKey, model }) {
-  const trimmed = String(text || '').trim();
+async function translate({ text, sourceLanguage, targetLanguage, provider: providerName, apiKey, model }) {  const trimmed = String(text || '').trim();
   if (!trimmed) return '';
 
   const provider = PROVIDERS[String(providerName || '').toLowerCase()] || PROVIDERS[gemini.PROVIDER_NAME];
@@ -51,8 +50,36 @@ async function warmup({ apiKey, model, provider: providerName } = {}) {
   }
 }
 
+async function polish({ text, language, provider: providerName, apiKey, model }) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return '';
+
+  const provider = PROVIDERS[String(providerName || '').toLowerCase()] || PROVIDERS[gemini.PROVIDER_NAME];
+  if (typeof provider.polish !== 'function') return trimmed;
+  const key = `__polish|${String(language || 'auto')}|${trimmed}`;
+
+  if (cache.has(key)) {
+    const cached = cache.get(key);
+    if (cached && !(cached instanceof Error)) return cached;
+    cache.delete(key);
+  }
+
+  const request = provider.polish({ text: trimmed, language, apiKey, model });
+  cache.set(key, request);
+  try {
+    const result = await request;
+    cache.set(key, result);
+    pruneCache();
+    return result;
+  } catch (error) {
+    cache.delete(key);
+    throw error;
+  }
+}
+
 module.exports = {
   translate,
+  polish,
   warmup,
   supportedProviders: () => Object.keys(PROVIDERS),
 };
