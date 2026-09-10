@@ -20,6 +20,11 @@ let currentState = STATE.READY;
 let audioRecorder = null;
 let operationId = 0;
 let recordingStartedAt = null;
+let activeAbortController = null;
+
+function shouldDropResult(opAtStop, opNow) {
+  return opAtStop !== opNow;
+}
 
 function windowsFrom(target) {
   if (!target) return [];
@@ -95,6 +100,10 @@ async function resumeRecording(windows) {
 async function cancelRecording(windows) {
   operationId += 1;
   recordingStartedAt = null;
+  if (activeAbortController) {
+    try { activeAbortController.abort(); } catch { /* already aborted */ }
+    activeAbortController = null;
+  }
   if (audioRecorder) {
     try { await audioRecorder.stop(); } catch { /* already stopped */ }
   }
@@ -116,6 +125,10 @@ async function stopRecording(settings, windows, audioBuffer) {
   currentState = STATE.TRANSCRIBING;
   notify(windows, STATE.TRANSCRIBING);
 
+  const abortController = new AbortController();
+  activeAbortController = abortController;
+  const signal = abortController.signal;
+
   const tempPath = path.join(CONFIG_DIR, `temp_recording_${crypto.randomUUID()}.wav`);
   const recorder = audioRecorder;
   audioRecorder = null;
@@ -136,23 +149,30 @@ async function stopRecording(settings, windows, audioBuffer) {
       });
     }
     let transcription;
-    switch (settings.engine) {
-      case 'local':
-        transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '');
-        break;
-      case 'deepgram':
-        transcription = await transcribeDeepgram(settings.deepgramApiKey, tempPath, language, settings.deepgramModel);
-        break;
-      case 'speechmatics':
-        transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey, tempPath, language);
-        break;
-      default:
-        throw new Error(`Unknown engine: ${settings.engine}`);
+    try {
+      switch (settings.engine) {
+        case 'local':
+          transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal);
+          break;
+        case 'deepgram':
+          transcription = await transcribeDeepgram(settings.deepgramApiKey, tempPath, language, settings.deepgramModel, signal);
+          break;
+        case 'speechmatics':
+          transcription = await transcribeSpeechmatics(settings.speechmaticsApiKey, tempPath, language, signal);
+          break;
+        default:
+          throw new Error(`Unknown engine: ${settings.engine}`);
+      }
+    } catch (error) {
+      // Cancel aborts the in-flight request; a late abort must look like a
+      // dropped result, not a transcription failure.
+      if (signal.aborted || error?.name === 'AbortError' || /aborted/i.test(error?.message || '')) return '';
+      throw error;
     }
 
     // Cancellation cannot always abort a provider's in-flight HTTP request,
     // but it must prevent a late result from being pasted or shown.
-    if (currentOperation !== operationId) return '';
+    if (shouldDropResult(currentOperation, operationId)) return '';
     const cleaned = cleanupText(transcription?.text || '');
     if (!cleaned) return '';
     let pasteOk = true;
@@ -217,6 +237,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     }
     return { text: cleaned, translation, translationError, translating: false, pasteFallback, pasteOk };
   } finally {
+    if (activeAbortController === abortController) activeAbortController = null;
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
     currentState = STATE.READY;
     notify(windows, STATE.READY);
@@ -231,5 +252,6 @@ module.exports = {
   resumeRecording,
   cancelRecording,
   onAudioChunk,
+  shouldDropResult,
   STATE,
 };

@@ -82,7 +82,16 @@ function resolveWhisperBinary(customPath) {
   }) || null;
 }
 
-async function transcribe(modelSize, audioPath, language, binaryPath) {
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    const error = new Error('Transcription aborted');
+    error.name = 'AbortError';
+    throw error;
+  }
+}
+
+async function transcribe(modelSize, audioPath, language, binaryPath, signal) {
+  throwIfAborted(signal);
   validateModelSize(modelSize);
   const modelPath = path.join(CONFIG_DIR, modelFilename(modelSize));
   if (!fs.existsSync(modelPath)) throw new Error('Whisper model not found. Please download a model first.');
@@ -96,10 +105,16 @@ async function transcribe(modelSize, audioPath, language, binaryPath) {
   try {
     const { stdout, stderr } = await execFileAsync(whisperBinary, [
       '-m', modelPath, '-f', audioPath, '--no-timestamps', '-l', langFlag,
-    ], { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024 });
+    ], { timeout: 120000, windowsHide: true, maxBuffer: 10 * 1024 * 1024, signal });
+    throwIfAborted(signal);
     const detectedLanguage = detectedLanguageFromOutput(stderr) || detectedLanguageFromOutput(stdout);
     return { text: cleanupText(stdout.trim()), detectedLanguage };
   } catch (error) {
+    if (signal?.aborted || error?.name === 'AbortError' || /abort/i.test(errorText(error))) {
+      const abortError = new Error('Transcription aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
     // Include stdout/stderr so the user can see the actual whisper error
     const parts = [`whisper.cpp failed: ${errorText(error)}`];
     if (error.stderr) parts.push(`stderr: ${String(error.stderr).trim()}`);

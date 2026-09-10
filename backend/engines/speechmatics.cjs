@@ -12,7 +12,16 @@ function debugLog(message, payload) {
   }
 }
 
-async function transcribe(apiKey, audioPath, language) {
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    const error = new Error('Transcription aborted');
+    error.name = 'AbortError';
+    throw error;
+  }
+}
+
+async function transcribe(apiKey, audioPath, language, signal) {
+  throwIfAborted(signal);
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Speechmatics API key not set. Please enter your API key in settings.');
 
@@ -38,6 +47,7 @@ async function transcribe(apiKey, audioPath, language) {
       headers: { Authorization: `Bearer ${key}`, ...form.getHeaders() },
       timeout: 60000,
       validateStatus: () => true,
+      signal,
     });
 
     debugLog('Speechmatics: submit response', { status: submitResp.status, data: submitResp.data });
@@ -50,6 +60,7 @@ async function transcribe(apiKey, audioPath, language) {
     if (!jobId) throw new Error('Speechmatics did not return a job ID');
     debugLog('Speechmatics: job submitted', { jobId });
   } catch (error) {
+    throwIfAborted(signal);
     const message = error instanceof Error ? error.message : String(error);
     if (message.startsWith('Speechmatics API error')) throw error;
     throw new Error(`Speechmatics job submission failed: ${message}`);
@@ -58,12 +69,14 @@ async function transcribe(apiKey, audioPath, language) {
   // Step 2: Poll until the job completes (max 120s)
   const deadline = Date.now() + 120000;
   while (Date.now() < deadline) {
+    throwIfAborted(signal);
     await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       const statusResp = await axios.get(`${BASE_URL}/v2/jobs/${jobId}`, {
         headers: { Authorization: `Bearer ${key}` },
         timeout: 30000,
         validateStatus: () => true,
+        signal,
       });
       debugLog('Speechmatics: status', { jobId, status: statusResp.data?.job?.status });
       const status = statusResp.data?.job?.status;
@@ -80,12 +93,14 @@ async function transcribe(apiKey, audioPath, language) {
   }
 
   // Step 3: Fetch the transcript as plain text
+  throwIfAborted(signal);
   try {
     const transcriptResp = await axios.get(`${BASE_URL}/v2/jobs/${jobId}/transcript`, {
       headers: { Authorization: `Bearer ${key}` },
       params: { format: 'txt' },
       timeout: 30000,
       validateStatus: () => true,
+      signal,
     });
 
     debugLog('Speechmatics: transcript response', { status: transcriptResp.status });
@@ -99,6 +114,7 @@ async function transcribe(apiKey, audioPath, language) {
       : JSON.stringify(transcriptResp.data);
 
     if (!text) throw new Error('Speechmatics produced an empty transcript');
+    throwIfAborted(signal);
     return { text: cleanupText(text), detectedLanguage: lang !== 'en' ? lang : null };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

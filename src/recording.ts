@@ -12,12 +12,9 @@ import {
   stopCapture,
 } from './audio/recorder';
 
-let isToggling = false;
-
 export async function beginRecording() {
   const settings = getSettings();
-  if (!settings || getCurrentState() !== STATES.READY || isToggling) return;
-  isToggling = true;
+  if (!settings || getCurrentState() !== STATES.READY) return;
   try {
     await startCapture(settings.microphone);
     await window.api.startRecording();
@@ -27,14 +24,11 @@ export async function beginRecording() {
     await window.api.cancelRecording().catch(() => undefined);
     setState(STATES.READY);
     showError(errorMessage(error, 'Unable to start recording'));
-  } finally {
-    isToggling = false;
   }
 }
 
 export async function finishRecording() {
-  if ((getCurrentState() !== STATES.RECORDING && getCurrentState() !== STATES.PAUSED) || isToggling) return;
-  isToggling = true;
+  if (getCurrentState() !== STATES.RECORDING && getCurrentState() !== STATES.PAUSED) return;
   setState(STATES.TRANSCRIBING);
   try {
     const wav = await stopCapture();
@@ -50,8 +44,6 @@ export async function finishRecording() {
     await window.api.cancelRecording().catch(() => undefined);
     setState(STATES.READY);
     showError(errorMessage(error, 'Transcription failed'));
-  } finally {
-    isToggling = false;
   }
 }
 

@@ -25,7 +25,16 @@ function deepgramOptions(language, model) {
   return { model: modelName, language: deepgramLanguage(language), smart_format: true };
 }
 
-async function transcribe(apiKey, audioPath, language, model) {
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    const error = new Error('Transcription aborted');
+    error.name = 'AbortError';
+    throw error;
+  }
+}
+
+async function transcribe(apiKey, audioPath, language, model, signal) {
+  throwIfAborted(signal);
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set. Please enter your API key in settings.');
 
@@ -43,8 +52,10 @@ async function transcribe(apiKey, audioPath, language, model) {
   try {
     response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, options);
   } catch (error) {
+    throwIfAborted(signal);
     throw new Error(`Deepgram request failed: ${error?.message || error}`);
   }
+  throwIfAborted(signal);
   debugLog('Deepgram: response received', response?.result ? {
     duration: response.result?.metadata?.duration,
     channels: response.result?.metadata?.channels,
