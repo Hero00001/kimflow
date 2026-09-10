@@ -1,30 +1,35 @@
-const { clipboard } = require('electron');
 const { execFile } = require('child_process');
 
 function pasteText(text) {
-  if (!text) return;
-  clipboard.writeText(text);
+  try {
+    if (!text) return { ok: true, error: null };
+    require('electron').clipboard.writeText(text);
 
-  if (process.platform === 'darwin') {
-    execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], (error) => {
+    if (process.platform === 'darwin') {
+      execFile('osascript', ['-e', 'tell application "System Events" to keystroke "v" using command down'], (error) => {
+        if (error) console.error('[KimFlow] Paste failed:', error.message);
+      });
+      return { ok: true, error: null };
+    }
+
+    if (process.platform === 'win32') {
+      // WScript.Shell is available on supported Windows installations and avoids
+      // a native Node module that must be rebuilt for every Electron version.
+      const script = '$ws = New-Object -ComObject WScript.Shell; $ws.SendKeys("^v")';
+      execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], (error) => {
+        if (error) console.error('[KimFlow] Paste failed:', error.message);
+      });
+      return { ok: true, error: null };
+    }
+
+    execFile('xdotool', ['key', 'ctrl+v'], (error) => {
       if (error) console.error('[KimFlow] Paste failed:', error.message);
     });
-    return;
+    return { ok: true, error: null };
+  } catch (e) {
+    try { require('electron').clipboard.writeText(text); } catch {}
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-
-  if (process.platform === 'win32') {
-    // WScript.Shell is available on supported Windows installations and avoids
-    // a native Node module that must be rebuilt for every Electron version.
-    const script = '$ws = New-Object -ComObject WScript.Shell; $ws.SendKeys("^v")';
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], (error) => {
-      if (error) console.error('[KimFlow] Paste failed:', error.message);
-    });
-    return;
-  }
-
-  execFile('xdotool', ['key', 'ctrl+v'], (error) => {
-    if (error) console.error('[KimFlow] Paste failed:', error.message);
-  });
 }
 
 module.exports = { pasteText };

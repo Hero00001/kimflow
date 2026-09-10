@@ -85,3 +85,7 @@ export function showToast(message: string) {
   requestAnimationFrame(() => toast.classList.add('show'));
   setTimeout(() => toast.remove(), 1500);
 }
+
+export function showPasteFallback() {
+  showToast('Paste failed — text copied to clipboard, press Ctrl+V');
+}

@@ -155,7 +155,15 @@ async function stopRecording(settings, windows, audioBuffer) {
     if (currentOperation !== operationId) return '';
     const cleaned = cleanupText(transcription?.text || '');
     if (!cleaned) return '';
-    pasteText(cleaned);
+    let pasteOk = true;
+    let pasteFallback = null;
+    try {
+      const pasteResult = pasteText(cleaned);
+      pasteOk = !pasteResult || pasteResult.ok !== false;
+    } catch {
+      pasteOk = false;
+    }
+    if (!pasteOk) pasteFallback = cleaned;
     let historyId = null;
     try {
       const entry = history.addSession({
@@ -171,7 +179,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Emit the transcript immediately so translation latency never blocks
     // display/paste. The translation result follows on the same channel.
     if (settings.translationEnabled) {
-      emitTranscription(windows, { text: cleaned, translation: null, translationError: null, translating: true });
+      emitTranscription(windows, { text: cleaned, translation: null, translationError: null, translating: true, pasteFallback, pasteOk });
     }
 
     // Translation is a best-effort add-on. A provider failure must never
@@ -203,11 +211,11 @@ async function stopRecording(settings, windows, audioBuffer) {
           console.error('[KimFlow] Failed to update history translation:', error.message);
         }
       }
-      const final = { text: cleaned, translation, translationError, translating: false };
+      const final = { text: cleaned, translation, translationError, translating: false, pasteFallback, pasteOk };
       emitTranscription(windows, final);
       return final;
     }
-    return { text: cleaned, translation, translationError, translating: false };
+    return { text: cleaned, translation, translationError, translating: false, pasteFallback, pasteOk };
   } finally {
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
     currentState = STATE.READY;

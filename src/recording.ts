@@ -1,7 +1,7 @@
 import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn } from './dom';
 import { getSettings } from './store';
 import { errorMessage } from './utils';
-import { STATES, getCurrentState, setState, showError, showTranscript } from './status';
+import { STATES, getCurrentState, setState, showError, showPasteFallback, showTranscript } from './status';
 import { clearTranslation, showTranslating, showTranslation } from './translation';
 import {
   abortCapture,
@@ -43,6 +43,7 @@ export async function finishRecording() {
       showTranscript(result.text);
       if (result.translating) showTranslating();
       else showTranslation(result.translation, result.translationError);
+      if (result.pasteOk === false) showPasteFallback();
     }
   } catch (error) {
     abortCapture();
@@ -142,6 +143,7 @@ export function handleTranscriptionResult(result: TranscriptionResult) {
     showTranscript(result.text);
     if (result.translating) showTranslating();
     else showTranslation(result.translation, result.translationError);
+    if (result.pasteOk === false) showPasteFallback();
   }
 }
 
