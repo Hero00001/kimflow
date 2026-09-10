@@ -234,13 +234,19 @@ async function stopRecording(settings, windows, audioBuffer) {
     }
     let pasteOk = true;
     let pasteFallback = null;
-    try {
-      const pasteResult = pasteText(finalText);
-      pasteOk = !pasteResult || pasteResult.ok !== false;
-    } catch {
-      pasteOk = false;
-    }
-    if (!pasteOk) pasteFallback = finalText;
+    const doPaste = (text) => {
+      try {
+        const pasteResult = pasteText(text);
+        pasteOk = !pasteResult || pasteResult.ok !== false;
+      } catch {
+        pasteOk = false;
+      }
+      if (!pasteOk) pasteFallback = text;
+    };
+    // Without translation the transcript pastes immediately. With
+    // translation enabled the paste waits below for the translated text —
+    // pasting the original first would defeat the feature.
+    if (!settings.translationEnabled) doPaste(finalText);
     let historyId = null;
     try {
       const entry = history.addSession({
@@ -261,6 +267,8 @@ async function stopRecording(settings, windows, audioBuffer) {
 
     // Translation is a best-effort add-on. A provider failure must never
     // break the transcription result, so it is isolated and reported softly.
+    // A successful translation is what gets pasted; anything else falls
+    // back to the transcribed text.
     let translation = null;
     let translationError = null;
     if (settings.translationEnabled) {
@@ -276,6 +284,7 @@ async function stopRecording(settings, windows, audioBuffer) {
       } catch (error) {
         translationError = error instanceof Error && error.message ? error.message : String(error);
       }
+      doPaste(translation || finalText);
       if (historyId) {
         try {
           history.updateSession(historyId, {
