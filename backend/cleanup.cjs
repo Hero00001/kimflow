@@ -1,8 +1,10 @@
+const { formatNumberWords } = require('./format-numbers.cjs');
+
 function cleanupText(text) {
   const trimmed = text.trim();
   if (!trimmed) return '';
 
-  const normalized = trimmed.split(/\s+/).join(' ');
+  const normalized = formatNumberWords(trimmed).split(/\s+/).join(' ');
 
   let result = '';
   let capitalizeNext = true;

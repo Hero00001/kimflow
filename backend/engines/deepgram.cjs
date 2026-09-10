@@ -22,7 +22,7 @@ function deepgramLanguage(language) {
 
 function deepgramOptions(language, model) {
   const modelName = DEEPGRAM_MODELS[model] ? model : 'nova-3';
-  return { model: modelName, language: deepgramLanguage(language), smart_format: true };
+  return { model: modelName, language: deepgramLanguage(language), smart_format: true, numerals: true };
 }
 
 function throwIfAborted(signal) {
@@ -119,4 +119,4 @@ async function testConnection(apiKey) {
   }
 }
 
-module.exports = { transcribe, testConnection };
+module.exports = { transcribe, testConnection, deepgramOptions };
