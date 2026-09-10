@@ -1,11 +1,15 @@
 import { errorMessage } from '../utils';
-import { micSelect } from '../dom';
+import { micSelect, micLevel, micLevelFill } from '../dom';
 import { getSettings } from '../store';
 import { showError } from '../status';
 
 let mediaRecorder: MediaRecorder | null = null;
 let mediaStream: MediaStream | null = null;
 let recordingChunks: Blob[] = [];
+let meterContext: AudioContext | null = null;
+let meterAnalyser: AnalyserNode | null = null;
+let meterData: Uint8Array | null = null;
+let meterRaf = 0;
 
 export async function encodeWav(blob: Blob): Promise<ArrayBuffer> {
   const source = await blob.arrayBuffer();
@@ -99,10 +103,64 @@ async function requestAudioStream(microphone: string): Promise<void> {
       throw error;
     }
   }
+  try {
+    stopMeter();
+    meterContext = new AudioContext();
+    const source = meterContext.createMediaStreamSource(mediaStream);
+    meterAnalyser = meterContext.createAnalyser();
+    meterAnalyser.fftSize = 512;
+    meterData = new Uint8Array(meterAnalyser.fftSize);
+    source.connect(meterAnalyser);
+  } catch {
+    stopMeter();
+  }
   await populateMics();
 }
 
+export function meterWidth(rms: number): number {
+  if (!Number.isFinite(rms) || rms <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round(rms * 140)));
+}
+
+function stopMeter() {
+  if (meterRaf) {
+    cancelAnimationFrame(meterRaf);
+    meterRaf = 0;
+  }
+  if (meterContext) {
+    void meterContext.close().catch(() => undefined);
+    meterContext = null;
+  }
+  meterAnalyser = null;
+  meterData = null;
+  micLevelFill.style.width = '0%';
+  micLevelFill.classList.remove('hot');
+  micLevel.classList.add('hidden');
+}
+
+function tickMeter() {
+  meterRaf = 0;
+  if (!meterAnalyser || !meterData || !mediaRecorder || mediaRecorder.state !== 'recording') return;
+  meterAnalyser.getByteTimeDomainData(meterData);
+  let sum = 0;
+  for (let i = 0; i < meterData.length; i += 1) {
+    const sample = (meterData[i] - 128) / 128;
+    sum += sample * sample;
+  }
+  const width = meterWidth(Math.sqrt(sum / meterData.length));
+  micLevelFill.style.width = `${width}%`;
+  micLevelFill.classList.toggle('hot', width >= 95);
+  meterRaf = requestAnimationFrame(tickMeter);
+}
+
+function startMeter() {
+  if (!meterAnalyser) return;
+  micLevel.classList.remove('hidden');
+  if (!meterRaf) tickMeter();
+}
+
 function stopTracks() {
+  stopMeter();
   mediaStream?.getTracks().forEach((track) => track.stop());
   mediaStream = null;
 }
@@ -110,11 +168,13 @@ function stopTracks() {
 export function pauseCapture() {
   if (!mediaRecorder || mediaRecorder.state !== 'recording') throw new Error('Audio recording is not active');
   mediaRecorder.pause();
+  micLevel.classList.add('hidden');
 }
 
 export function resumeCapture() {
   if (!mediaRecorder || mediaRecorder.state !== 'paused') throw new Error('Audio recording is not paused');
   mediaRecorder.resume();
+  startMeter();
 }
 
 export function captureState(): RecordingState | undefined {
@@ -187,6 +247,7 @@ export async function startCapture(microphone: string): Promise<void> {
     if (event.data.size > 0) recordingChunks.push(event.data);
   };
   mediaRecorder.start();
+  startMeter();
 }
 
 export async function stopCapture(): Promise<ArrayBuffer> {

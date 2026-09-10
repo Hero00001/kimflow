@@ -1,6 +1,8 @@
 export const statusDot = document.getElementById('status-dot')!;
 export const statusText = document.getElementById('status-text')!;
 export const statusError = document.getElementById('status-error')!;
+export const micLevel = document.getElementById('mic-level')!;
+export const micLevelFill = document.getElementById('mic-level-fill')!;
 export const recordBtn = document.getElementById('record-btn') as HTMLButtonElement;
 export const recordIconMic = document.getElementById('record-icon-mic')!;
 export const recordIconStop = document.getElementById('record-icon-stop')!;

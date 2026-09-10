@@ -241,6 +241,26 @@ body.platform-mac #window-controls { display: none; }
   margin-left: 4px;
 }
 
+#mic-level {
+  width: 64px;
+  height: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#mic-level-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--success);
+  border-radius: 3px;
+}
+
+#mic-level-fill.hot { background: var(--danger); }
+
 /* ── Recording button ─────────────────────────────────── */
 
 #record-btn {
