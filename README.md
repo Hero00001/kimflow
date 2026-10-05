@@ -326,6 +326,4 @@ Please avoid committing API keys, downloaded model files, generated `dist/` outp
 
 ## License
 
-This repository currently does not contain a root-level `LICENSE` file, so no project license is formally declared yet. Please contact the maintainers before redistributing or using KimFlow in a way that requires explicit licensing.
-
-The `package/LICENSE` file belongs to a bundled package and should not be treated as the license for the KimFlow application itself. A project-level license should be added before the first public release.
+KimFlow is licensed under the MIT License. See the root-level `LICENSE` file for details.

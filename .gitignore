@@ -7,3 +7,6 @@ dist-electron/
 .idea
 .DS_Store
 refactor.txt
+docs/
+.superpowers/
+real refcator.md
