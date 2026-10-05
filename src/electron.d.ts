@@ -47,6 +47,7 @@ interface TranscriptionResult {
   translating?: boolean;
   pasteFallback: string | null;
   pasteOk: boolean;
+  aborted?: boolean;
 }
 
 interface HotkeyEvent {

@@ -39,11 +39,12 @@ import {
   downloadProgress,
   progressFill,
   hotkeyDisplay,
+  statusError,
 } from './dom';
 import { getSettings, setSettings } from './store';
 import { applyAccentColor } from './theme';
 import { showError, showToast } from './status';
-import { errorMessage } from './utils';
+import { errorDetails, friendlyError } from './utils';
 import {
   clearTranslation,
   populateLanguages,
@@ -131,7 +132,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setEngine(settings.engine);
   modelSelect.value = settings.whisperModel || 'small';
   whisperRuntimeSelect.value = settings.whisperRuntime || 'whisper-cpp';
-  binaryPathDisplay.textContent = settings.whisperBinaryPath || 'Not selected';
+  showBinaryName(settings.whisperBinaryPath || '');
   deepgramKey.value = settings.deepgramApiKey || '';
   deepgramModelSelect.value = settings.deepgramModel || 'nova-3';
   speechmaticsKey.value = settings.speechmaticsApiKey || '';
@@ -181,7 +182,9 @@ async function persist() {
     setSettings(await window.api.saveSettings(settings));
     refreshAllKeyStatus();
   } catch (error) {
-    showError(errorMessage(error, 'Unable to save settings'));
+    const friendly = friendlyError(error, 'Unable to save settings');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }
 
@@ -194,7 +197,9 @@ export async function checkModelStatus() {
     downloadBtn.disabled = downloaded;
   } catch (error) {
     downloadBtn.disabled = false;
-    showError(errorMessage(error, 'Unable to check model'));
+    const friendly = friendlyError(error, 'Unable to check model');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }
 
@@ -213,7 +218,9 @@ function wireDownload() {
     } catch (error) {
       downloadBtn.textContent = 'Retry';
       downloadBtn.disabled = false;
-      showError(errorMessage(error, 'Download failed'));
+      const friendly = friendlyError(error, 'Download failed');
+      if (friendly) showError(friendly);
+      statusError.title = errorDetails(error) ?? '';
     } finally {
       downloadProgress.classList.add('hidden');
     }
@@ -223,14 +230,26 @@ function wireDownload() {
 async function updateBinaryStatus(binaryPath: string) {
   if (!binaryPath) {
     binaryPathDisplay.textContent = 'Not selected';
+    binaryPathDisplay.title = '';
     return;
   }
   try {
     const ok = await window.api.checkWhisperBinary(binaryPath);
-    binaryPathDisplay.textContent = ok ? binaryPath.split(/[/\\]/).pop()! + ' ✓' : binaryPath.split(/[/\\]/).pop()! + ' ✗';
+    showBinaryName(binaryPath, ok);
   } catch {
-    binaryPathDisplay.textContent = binaryPath.split(/[/\\]/).pop()!;
+    showBinaryName(binaryPath);
   }
+}
+
+function showBinaryName(fullPath: string, ok?: boolean) {
+  if (!fullPath) {
+    binaryPathDisplay.textContent = 'Not selected';
+    binaryPathDisplay.title = '';
+    return;
+  }
+  const name = fullPath.split(/[/\\]/).pop() || fullPath;
+  binaryPathDisplay.textContent = ok === undefined ? name : `${name} ${ok ? '✓' : '✗'}`;
+  binaryPathDisplay.title = fullPath;
 }
 
 export function wireSettingsControls() {
@@ -320,7 +339,9 @@ export function wireSettingsControls() {
       deepgramTestBtn.textContent = '✓ Connected';
       setTimeout(() => { deepgramTestBtn.textContent = 'Test Connection'; }, 2500);
     } catch (error) {
-      showError(errorMessage(error, 'Connection failed'));
+      const friendly = friendlyError(error, 'Connection failed');
+      if (friendly) showError(friendly);
+      statusError.title = errorDetails(error) ?? '';
       deepgramTestBtn.textContent = 'Test Connection';
     } finally {
       deepgramTestBtn.disabled = false;
@@ -341,7 +362,9 @@ export function wireSettingsControls() {
       speechmaticsTestBtn.textContent = '✓ Connected';
       setTimeout(() => { speechmaticsTestBtn.textContent = 'Test Connection'; }, 2500);
     } catch (error) {
-      showError(errorMessage(error, 'Connection failed'));
+      const friendly = friendlyError(error, 'Connection failed');
+      if (friendly) showError(friendly);
+      statusError.title = errorDetails(error) ?? '';
       speechmaticsTestBtn.textContent = 'Test Connection';
     } finally {
       speechmaticsTestBtn.disabled = false;
@@ -374,10 +397,12 @@ export function wireSettingsControls() {
           settings.whisperBinaryPath = binaryPath;
           void persist();
         }
-        binaryPathDisplay.textContent = binaryPath.split(/[/\\]/).pop()!;
+        showBinaryName(binaryPath);
       }
     } catch (error) {
-      showError(errorMessage(error, 'Unable to select binary'));
+      const friendly = friendlyError(error, 'Unable to select binary');
+      if (friendly) showError(friendly);
+      statusError.title = errorDetails(error) ?? '';
     }
   });
 

@@ -267,7 +267,7 @@ function registerIpc() {
         ? Buffer.from(new Uint8Array(audioBuffer))
         : Buffer.from(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.byteLength);
     const result = await stopRecording(loadSettings(), [mainWindow, overlayWindow], buffer);
-    if (result) sendToWindows('transcription-result', result);
+    if (result && !result.aborted) sendToWindows('transcription-result', result);
     return result;
   });
 

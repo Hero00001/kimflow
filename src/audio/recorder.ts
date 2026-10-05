@@ -1,5 +1,5 @@
-import { errorMessage } from '../utils';
-import { micSelect, micLevel, micLevelFill } from '../dom';
+import { errorDetails, friendlyError } from '../utils';
+import { micSelect, micLevel, micLevelFill, statusError } from '../dom';
 import { getSettings } from '../store';
 import { showError } from '../status';
 
@@ -267,7 +267,7 @@ export async function stopCapture(): Promise<ArrayBuffer> {
   try {
     return await encodeWav(webm);
   } catch (error) {
-    throw new Error(`Unable to decode microphone audio: ${errorMessage(error, 'unsupported audio format')}`);
+    throw new Error(`Unable to decode microphone audio: ${friendlyError(error, 'unsupported audio format')}`);
   }
 }
 
@@ -280,6 +280,8 @@ export async function requestMicPermission(): Promise<void> {
     const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     permissionStream.getTracks().forEach((track) => track.stop());
   } catch (error) {
-    showError(errorMessage(error, 'Microphone permission was not granted'));
+    const friendly = friendlyError(error, 'Microphone permission was not granted');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }

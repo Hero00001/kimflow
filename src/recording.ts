@@ -1,6 +1,6 @@
-import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn } from './dom';
+import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn, statusError } from './dom';
 import { getSettings } from './store';
-import { errorMessage } from './utils';
+import { errorDetails, friendlyError } from './utils';
 import { STATES, getCurrentState, setState, showError, showPasteFallback, showTranscript } from './status';
 import { clearTranslation, showTranslating, showTranslation } from './translation';
 import {
@@ -24,7 +24,9 @@ export async function beginRecording() {
     abortCapture();
     await window.api.cancelRecording().catch(() => undefined);
     setState(STATES.READY);
-    showError(errorMessage(error, 'Unable to start recording'));
+    const friendly = friendlyError(error, 'Unable to start recording');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }
 
@@ -34,6 +36,10 @@ export async function finishRecording() {
   try {
     const wav = await stopCapture();
     const result = await window.api.stopRecording(wav);
+    if (result && result.aborted) {
+      setState(STATES.READY);
+      return;
+    }
     if (result) {
       showTranscript(result.text);
       if (result.translating) showTranslating();
@@ -44,7 +50,9 @@ export async function finishRecording() {
     abortCapture();
     await window.api.cancelRecording().catch(() => undefined);
     setState(STATES.READY);
-    showError(errorMessage(error, 'Transcription failed'));
+    const friendly = friendlyError(error, 'Transcription failed');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }
 
@@ -54,7 +62,9 @@ async function pauseFromOverlay() {
     await window.api.pauseRecording();
   } catch (error) {
     if (captureState() === 'paused') resumeCapture();
-    showError(errorMessage(error, 'Unable to pause recording'));
+    const friendly = friendlyError(error, 'Unable to pause recording');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }
 
@@ -64,7 +74,9 @@ async function resumeFromOverlay() {
     await window.api.resumeRecording();
   } catch (error) {
     if (captureState() === 'recording') pauseCapture();
-    showError(errorMessage(error, 'Unable to resume recording'));
+    const friendly = friendlyError(error, 'Unable to resume recording');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
   }
 }
 
@@ -132,6 +144,7 @@ export function handleHotkeyPressed(event: HotkeyEvent) {
 }
 
 export function handleTranscriptionResult(result: TranscriptionResult) {
+  if (result && result.aborted) return;
   if (result) {
     showTranscript(result.text);
     if (result.translating) showTranslating();
@@ -148,7 +161,9 @@ export function wireRecordingControls() {
   // is kept and the user can resume on another device.
   watchMicDeviceChanges(() => {
     void window.api.pauseRecording().catch((error) => {
-      showError(errorMessage(error, 'Unable to pause recording'));
+      const friendly = friendlyError(error, 'Unable to pause recording');
+      if (friendly) showError(friendly);
+      statusError.title = errorDetails(error) ?? '';
     });
     if (getCurrentState() === STATES.RECORDING) setState(STATES.PAUSED);
   });
