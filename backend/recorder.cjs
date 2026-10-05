@@ -201,15 +201,15 @@ async function stopRecording(settings, windows, audioBuffer) {
     } catch (error) {
       // Cancel aborts the in-flight request; a late abort must look like a
       // dropped result, not a transcription failure.
-      if (signal.aborted || error?.name === 'AbortError' || /aborted/i.test(error?.message || '')) return '';
+      if (signal.aborted || error?.name === 'AbortError' || /aborted/i.test(error?.message || '')) return { text: '', aborted: true };
       throw error;
     }
 
     // Cancellation cannot always abort a provider's in-flight HTTP request,
     // but it must prevent a late result from being pasted or shown.
-    if (shouldDropResult(currentOperation, operationId)) return '';
+    if (shouldDropResult(currentOperation, operationId)) return { text: '', aborted: true };
     const cleaned = cleanupText(transcription?.text || '', settings.polishMode);
-    if (!cleaned) return '';
+    if (!cleaned) { const e = new Error('No speech detected — check mic level and try again.'); e.details = `empty transcript (engine=${settings.engine})`; throw e; }
     // AI polish is a best-effort refinement of the rule-polished text. Any
     // failure (no key, quota, network) falls back to `cleaned` silently —
     // the transcription result must never break on an optional pass.

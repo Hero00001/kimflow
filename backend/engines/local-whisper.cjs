@@ -117,7 +117,7 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal, po
       abortError.name = 'AbortError';
       throw abortError;
     }
-    // Include stdout/stderr so the user can see the actual whisper error
+    // Keep the raw whisper output for diagnostics, but surface a friendly single-line message.
     const parts = [`whisper.cpp failed: ${errorText(error)}`];
     if (error.stderr) parts.push(`stderr: ${String(error.stderr).trim()}`);
     if (error.stdout) parts.push(`stdout: ${String(error.stdout).trim()}`);
@@ -127,7 +127,11 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal, po
         parts.push(crashErrorMessage(error.code, error.stderr));
       }
     }
-    throw new Error(parts.join('\n'));
+    const { friendlyMessageFor } = require('../friendly-errors.cjs');
+    const raw = parts.join('\n');
+    const friendly = friendlyMessageFor(error) || 'Transcription failed — see details and try again.';
+    const out = new Error(friendly); out.details = raw.slice(0, 2000); out.code = error && error.code;
+    throw out;
   }
 }
 
