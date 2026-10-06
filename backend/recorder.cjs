@@ -304,11 +304,15 @@ async function stopRecording(settings, windows, audioBuffer) {
     }
     return { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };
   } finally {
-    clearAutoStopTimer();
     if (activeAbortController === abortController) activeAbortController = null;
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }
-    currentState = STATE.READY;
-    notify(windows, STATE.READY);
+    // A stale stop (cancelled and restarted while transcribing) must not
+    // reset the live session or kill its auto-stop timer.
+    if (!shouldDropResult(currentOperation, operationId)) {
+      clearAutoStopTimer();
+      currentState = STATE.READY;
+      notify(windows, STATE.READY);
+    }
   }
 }
 
