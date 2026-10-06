@@ -46,12 +46,23 @@ export function setTranslationUi(enabled: boolean) {
   translateToRow.classList.toggle('hidden', !enabled);
 }
 
+function setSelectValue(select: HTMLSelectElement, value: string, fallback: string) {
+  // After a failed language fetch the select may hold a single fallback
+  // option; assigning a missing value silently shows nothing while the store
+  // disagrees. Keep the wanted value visible instead.
+  const wanted = value || fallback;
+  if (![...select.options].some((option) => option.value === wanted)) {
+    select.append(new Option(wanted, wanted));
+  }
+  select.value = wanted;
+}
+
 export function syncTranslationControls() {
   const settings = getSettings();
   if (!settings) return;
-  providerSelect.value = settings.translationProvider || 'gemini';
-  inputLanguageSelect.value = settings.inputLanguage || 'auto';
-  translateToSelect.value = settings.translationTarget || 'en';
+  setSelectValue(providerSelect, settings.translationProvider || 'gemini', 'gemini');
+  setSelectValue(inputLanguageSelect, settings.inputLanguage || 'auto', 'auto');
+  setSelectValue(translateToSelect, settings.translationTarget || 'en', 'en');
   geminiKey.value = settings.geminiApiKey || '';
   geminiModel.value = settings.geminiModel || '';
   translationGroup.querySelectorAll('.toggle-btn').forEach((button) => {
