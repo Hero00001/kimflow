@@ -109,3 +109,19 @@ test('normal stop still returns to ready', async (t) => {
   assert.equal(recorder.getState(), 'ready');
   await recorder.cancelRecording([]);
 });
+
+test('notifying a dead window never throws', async (t) => {
+  const recorder = useIsolatedRecorder(t, async () => ({ text: 'hi there' }));
+  const evilWindow = {
+    isDestroyed: () => false,
+    webContents: { send: () => { throw new Error('Object has been destroyed'); } },
+  };
+  await recorder.startRecording(SETTINGS, [evilWindow]);
+  assert.equal(recorder.getState(), 'recording');
+  const result = await recorder.stopRecording(SETTINGS, [evilWindow], new ArrayBuffer(8));
+  assert.equal(result && result.text, 'Hi there.');
+  assert.equal(recorder.getState(), 'ready');
+  await recorder.cancelRecording([evilWindow]);
+  assert.equal(recorder.getState(), 'ready');
+});
+

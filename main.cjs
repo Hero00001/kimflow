@@ -40,7 +40,11 @@ function destroyOverlayWindow() {
 
 function sendToWindows(channel, value) {
   for (const window of [mainWindow, overlayWindow]) {
-    if (window && !window.isDestroyed()) window.webContents.send(channel, value);
+    if (!window || window.isDestroyed()) continue;
+    if (window.webContents?.isDestroyed?.() === true) continue;
+    try {
+      window.webContents.send(channel, value);
+    } catch { /* window died mid-send */ }
   }
 }
 
@@ -234,9 +238,7 @@ function registerIpc() {
   ipcMain.handle('clear-history', (event) => {
     assertTrustedSender(event);
     const cleared = history.clear();
-    for (const window of [mainWindow, overlayWindow]) {
-      if (window && !window.isDestroyed()) window.webContents.send('history-updated', cleared);
-    }
+    sendToWindows('history-updated', cleared);
     return cleared;
   });
   ipcMain.handle('get-recording-state', (event) => {

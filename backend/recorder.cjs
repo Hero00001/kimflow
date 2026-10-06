@@ -64,28 +64,24 @@ function windowsFrom(target) {
   return Array.isArray(target) ? target.filter(Boolean) : [target];
 }
 
+function sendToWindow(window, channel, payload) {
+  if (!window || window.isDestroyed()) return;
+  if (window.webContents?.isDestroyed?.() === true) return;
+  try {
+    window.webContents.send(channel, payload);
+  } catch { /* window died mid-send */ }
+}
+
 function notify(target, state) {
-  for (const window of windowsFrom(target)) {
-    if (!window.isDestroyed?.()) {
-      window.webContents.send('recording-state', state);
-    }
-  }
+  for (const window of windowsFrom(target)) sendToWindow(window, 'recording-state', state);
 }
 
 function notifyHistory(target) {
-  for (const window of windowsFrom(target)) {
-    if (!window.isDestroyed?.()) {
-      window.webContents.send('history-updated', history.load());
-    }
-  }
+  for (const window of windowsFrom(target)) sendToWindow(window, 'history-updated', history.load());
 }
 
 function emitTranscription(target, payload) {
-  for (const window of windowsFrom(target)) {
-    if (!window.isDestroyed?.()) {
-      window.webContents.send('transcription-result', payload);
-    }
-  }
+  for (const window of windowsFrom(target)) sendToWindow(window, 'transcription-result', payload);
 }
 
 function getState() {
