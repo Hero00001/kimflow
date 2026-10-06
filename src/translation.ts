@@ -70,8 +70,12 @@ function setModelStatus(status: 'neutral' | 'ok' | 'err', text: string) {
   geminiModelStatus.textContent = text;
 }
 
+let modelValidationSeq = 0;
 export async function validateModelField() {
   const value = geminiModel.value.trim();
+  // Sequence guard: a slower earlier check must never overwrite the status
+  // of a newer value typed after it started.
+  const seq = ++modelValidationSeq;
   if (!value) {
     setModelStatus('neutral', 'Leave empty for automatic model selection.');
     return;
@@ -79,8 +83,10 @@ export async function validateModelField() {
   setModelStatus('neutral', 'Checking…');
   try {
     const status = await window.api.validateGeminiModel(value);
+    if (seq !== modelValidationSeq) return;
     setModelStatus(status.ok ? 'ok' : 'err', status.message);
   } catch {
+    if (seq !== modelValidationSeq) return;
     setModelStatus('neutral', 'Could not validate model right now. It will be checked before translating.');
   }
 }
