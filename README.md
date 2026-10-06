@@ -256,7 +256,7 @@ The application icon is sourced from `app icon/icon.png` and included in the pac
 
 - Confirm that the global hotkey is not already registered by another application.
 - Try the recording button in the main window.
-- Check that the current hotkey contains at least one modifier and a valid key.
+- Check that the current hotkey is a valid key (e.g. `F5`, `1`, `Space`) or a modifier plus a key (e.g. `Ctrl+Shift+Space`).
 - Confirm that microphone permission was granted.
 - If using development mode, make sure `npm run electron-dev` is still running.
 

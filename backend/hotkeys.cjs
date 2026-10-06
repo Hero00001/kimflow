@@ -19,15 +19,18 @@ function normalizeHotkey(hotkey) {
     .join('+');
 }
 
+// A hotkey is a bare key ("1", "F5", "Space") or modifier(s)
+// plus a key ("Ctrl+Shift+Space"). Every part before the final
+// key must be a modifier; a lone modifier is not a hotkey.
+const MODIFIERS = new Set(['Control', 'Command', 'Alt', 'Shift', 'Super', 'Ctrl', 'Cmd', 'CmdOrCtrl', 'CommandOrControl']);
+const KEY_PATTERN = /^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|Space|Tab|Enter|Escape|Backspace|Delete|Insert|Home|End|PageUp|PageDown|Up|Down|Left|Right|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|VolumeUp|VolumeDown|VolumeMute)$/;
+
 function isValidHotkey(hotkey) {
   const value = String(hotkey || '').trim();
   if (!value || value.length > 80) return false;
   const parts = value.split('+');
-  if (parts.length < 2) return false;
-  const modifiers = new Set(['Control', 'Command', 'Alt', 'Shift', 'Super', 'Ctrl', 'Cmd', 'CmdOrCtrl', 'CommandOrControl']);
   const key = parts[parts.length - 1];
-  return parts.slice(0, -1).every((part) => modifiers.has(part))
-    && /^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|Space|Tab|Enter|Escape|Backspace|Delete|Insert|Home|End|PageUp|PageDown|Up|Down|Left|Right|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|VolumeUp|VolumeDown|VolumeMute)$/.test(key);
+  return KEY_PATTERN.test(key) && parts.slice(0, -1).every((part) => MODIFIERS.has(part));
 }
 
 function registerHotkeys(hotkey) {
