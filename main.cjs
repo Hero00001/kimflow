@@ -277,7 +277,13 @@ function registerIpc() {
           try { fs.unlinkSync(zipPath); } catch { /* temp cleanup */ }
         }
       }
-      await engine.smokeTestEngine(exePath);
+      await engine.smokeTestEngine(exePath).catch((smokeError) => {
+        // A build that cannot start on this machine is unusable: remove it
+        // so the button returns to Download instead of failing identically
+        // on every click, then surface the human explanation.
+        engine.removeEngine(flavor);
+        throw smokeError;
+      });
       const settings = loadSettings();
       settings.whisperBinaryPath = exePath;
       const saved = saveSettings(settings);

@@ -324,7 +324,11 @@ async function refreshEngineButtons(): Promise<void> {
   ];
   for (const { button, flavor, label } of entries) {
     const state = status[flavor] || 'missing';
-    const isActive = activePath.replace(/\\/g, '/').endsWith(`engines/${flavor}/whisper-cli.exe`);
+    // Engine installs nest the binary (e.g. engines/cpu/Release/...) — match
+    // the flavor folder + filename, not an exact tail path.
+    const parts = activePath.replace(/\\/g, '/').toLowerCase().split('/');
+    const root = parts.indexOf('engines');
+    const isActive = root !== -1 && parts[root + 1] === flavor && parts[parts.length - 1] === 'whisper-cli.exe';
     button.disabled = state === 'downloading' || isTranscribingNow();
     // Accent highlight + text: color is never the only active signal.
     button.classList.toggle('active', isActive);
@@ -347,9 +351,17 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
     showBinaryName(exePath, true);
     showToast('Engine installed ✓');
   } catch (error) {
-    const friendly = friendlyError(error, 'Engine download failed');
-    if (friendly) showError(friendly);
-    statusError.title = errorDetails(error) ?? '';
+    // Engine failures already speak human (fingerprint, startup check) —
+    // show the first line, keep the whole message in the tooltip.
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    if (/^Engine /.test(message)) {
+      showError(message.split('\n')[0]);
+      statusError.title = message;
+    } else {
+      const friendly = friendlyError(error, 'Engine download failed');
+      if (friendly) showError(friendly);
+      statusError.title = errorDetails(error) ?? '';
+    }
   } finally {
     hideDownloadProgress();
     await refreshEngineButtons();

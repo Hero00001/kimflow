@@ -144,3 +144,41 @@ test('engineInstalled reflects the on-disk binary', async (t) => {
   assert.equal(downloader.engineInstalled('amd'), false);
 });
 
+
+test('extraction finds a nested binary', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const fixture = path.join(__dirname, 'fixtures', 'engine-nested-test.zip');
+  const exe = await downloader.extractEngineZip(fixture, 'cpu');
+  assert.equal(exe, path.join(dir, 'engines', 'cpu', 'Release', 'whisper-cli.exe'));
+  assert.equal(fs.readFileSync(exe, 'utf8'), 'FAKE-NESTED-EXE');
+});
+
+test('installed check finds a nested binary', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.equal(downloader.engineInstalled('cpu'), false);
+  const nested = path.join(dir, 'engines', 'cpu', 'Release');
+  fs.mkdirSync(nested, { recursive: true });
+  fs.writeFileSync(path.join(nested, 'whisper-cli.exe'), 'x');
+  assert.equal(downloader.engineInstalled('cpu'), true);
+  assert.equal(downloader.engineBinaryPath('cpu'), path.join(nested, 'whisper-cli.exe'));
+});
+
+
+test('smoke failure with a crash code explains the CPU problem', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const crash = new Error('Command failed: whisper-cli.exe --help');
+  crash.code = 3221225501;
+  await assert.rejects(downloader.smokeTestEngine('x', async () => { throw crash; }), /Illegal instruction|newer CPU/i);
+});
+
+test('removeEngine deletes the flavor dir and tolerates absence', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const flavorDir = path.join(dir, 'engines', 'amd');
+  fs.mkdirSync(flavorDir, { recursive: true });
+  fs.writeFileSync(path.join(flavorDir, 'whisper-cli.exe'), 'x');
+  downloader.removeEngine('amd');
+  assert.equal(fs.existsSync(flavorDir), false);
+  assert.equal(downloader.engineInstalled('amd'), false);
+  downloader.removeEngine('amd');
+});
+

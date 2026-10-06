@@ -19,15 +19,41 @@ function engineDir(flavor) {
 
 function engineBinaryPath(flavor) {
   const spec = getEngineSpec(validateFlavor(flavor));
-  return path.join(engineDir(flavor), spec.binaryName);
+  const dir = engineDir(flavor);
+  // Upstream zips nest the binary (e.g. Release/whisper-cli.exe) — locate it
+  // instead of assuming top level. Falls back to the top-level path when
+  // nothing is installed yet so callers always get a usable string.
+  return findEngineBinary(dir, spec.binaryName) || path.join(dir, spec.binaryName);
 }
 
 function engineInstalled(flavor) {
   try {
-    return fs.existsSync(engineBinaryPath(validateFlavor(flavor)));
+    return findEngineBinary(engineDir(validateFlavor(flavor))) !== null;
   } catch {
     return false;
   }
+}
+
+// Recursive basename search: engine zips lay out files differently per
+// release (top level vs Release/ subfolder). Case-insensitive like Windows.
+function findEngineBinary(dir, binaryName = 'whisper-cli.exe') {
+  const wanted = String(binaryName).toLowerCase();
+  const stack = [dir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) stack.push(full);
+      else if (entry.name.toLowerCase() === wanted) return full;
+    }
+  }
+  return null;
 }
 
 function sha256File(filePath) {
@@ -102,7 +128,6 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
   return new Promise((resolve, reject) => {
     yauzl.open(zipPath, { lazyEntries: true }, (error, zip) => {
       if (error) return reject(error);
-      const kept = [];
       zip.on('error', reject);
       zip.on('entry', (entry) => {
         let target;
@@ -125,14 +150,14 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
           }
           const out = fs.createWriteStream(target);
           out.on('error', (writeError) => { zip.close(); reject(writeError); });
-          out.on('finish', () => { kept.push(target); zip.readEntry(); });
+          out.on('finish', () => { zip.readEntry(); });
           stream.on('error', (readError) => { zip.close(); reject(readError); });
           stream.pipe(out);
         });
       });
       zip.on('end', () => {
-        const exe = path.join(destDir, 'whisper-cli.exe');
-        if (!kept.includes(exe)) {
+        const exe = findEngineBinary(destDir, 'whisper-cli.exe');
+        if (!exe) {
           reject(new Error('Engine archive did not contain whisper-cli.exe'));
           return;
         }
@@ -143,7 +168,7 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
   });
 }
 
-module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu };
+module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, findEngineBinary, removeEngine, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu };
 
 const { execFile } = require('node:child_process');
 
@@ -155,13 +180,26 @@ async function defaultExec(binaryPath, args, options) {
 async function smokeTestEngine(binaryPath, execFn = defaultExec) {
   // A downloaded engine must prove it starts on THIS machine before it
   // becomes active (catches AVX2-baseline crashes like exit 3221225501).
+  // Crash exit codes get the human explanation, not raw exec output.
+  const { isCrashExitCode, crashErrorMessage } = require('./engines/local-whisper.cjs');
   try {
     await execFn(binaryPath, ['--help'], { timeout: 30000, windowsHide: true });
     return true;
   } catch (error) {
     const detail = error instanceof Error && error.message ? error.message : String(error);
+    const code = error && error.code;
+    if (code != null && isCrashExitCode(code)) {
+      throw new Error(`Engine failed its startup check.${crashErrorMessage(code, detail)}`);
+    }
     throw new Error(`Engine failed its startup check: ${detail}`);
   }
+}
+
+function removeEngine(flavor) {
+  validateFlavor(flavor);
+  try {
+    fs.rmSync(engineDir(flavor), { recursive: true, force: true });
+  } catch { /* already gone is fine */ }
 }
 
 async function detectGpu(deps = {}) {
