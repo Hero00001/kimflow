@@ -79,10 +79,68 @@ async function downloadEngineZip(mainWindow, flavor) {
   }
 }
 
-module.exports = {
-  enginesRoot,
-  engineDir,
-  engineBinaryPath,
-  engineInstalled,
-  downloadEngineZip,
-};
+function safeEntryPath(entryName, destDir) {
+  const normalized = String(entryName).replace(/\\/g, '/');
+  if (!normalized || normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized)) {
+    throw new Error(`Unsafe zip entry: ${entryName}`);
+  }
+  const resolved = path.resolve(destDir, normalized);
+  const root = path.resolve(destDir) + path.sep;
+  if (resolved !== path.resolve(destDir) && !resolved.startsWith(root)) {
+    throw new Error(`Unsafe zip entry: ${entryName}`);
+  }
+  return resolved;
+}
+
+function extractEngineZip(zipPath, flavor, wantedFiles) {
+  // yauzl is required lazily so startup and every non-download path pay nothing.
+  const yauzl = require('yauzl');
+  validateFlavor(flavor);
+  const wanted = wantedFiles && wantedFiles.length > 0 ? wantedFiles : ['whisper-cli.exe'];
+  const destDir = engineDir(flavor);
+  fs.mkdirSync(destDir, { recursive: true });
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (error, zip) => {
+      if (error) return reject(error);
+      const kept = [];
+      zip.on('error', reject);
+      zip.on('entry', (entry) => {
+        let target;
+        try {
+          target = safeEntryPath(entry.fileName, destDir);
+        } catch (entryError) {
+          zip.close();
+          return reject(entryError);
+        }
+        const base = path.basename(entry.fileName);
+        if (/\/$/.test(entry.fileName) || !wanted.includes(base)) {
+          zip.readEntry();
+          return;
+        }
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        zip.openReadStream(entry, (streamError, stream) => {
+          if (streamError) {
+            zip.close();
+            return reject(streamError);
+          }
+          const out = fs.createWriteStream(target);
+          out.on('error', (writeError) => { zip.close(); reject(writeError); });
+          out.on('finish', () => { kept.push(target); zip.readEntry(); });
+          stream.on('error', (readError) => { zip.close(); reject(readError); });
+          stream.pipe(out);
+        });
+      });
+      zip.on('end', () => {
+        const exe = path.join(destDir, 'whisper-cli.exe');
+        if (!kept.includes(exe)) {
+          reject(new Error('Engine archive did not contain whisper-cli.exe'));
+          return;
+        }
+        resolve(exe);
+      });
+      zip.readEntry();
+    });
+  });
+}
+
+module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, downloadEngineZip, safeEntryPath, extractEngineZip };

@@ -72,3 +72,20 @@ test('hash mismatch is rejected and the zip is deleted', async (t) => {
   if (fs.existsSync(path.join(dir, 'engines'))) walk(path.join(dir, 'engines'));
   assert.deepEqual(leftovers, []);
 });
+
+test('zip-slip entries are rejected without writing', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.throws(() => downloader.safeEntryPath('../evil.exe', 'C:\\engines\\cpu'), /Unsafe zip entry/);
+  assert.throws(() => downloader.safeEntryPath('/abs/evil.exe', 'C:\\engines\\cpu'), /Unsafe zip entry/);
+  assert.throws(() => downloader.safeEntryPath('C:\\evil.exe', 'C:\\engines\\cpu'), /Unsafe zip entry/);
+  assert.ok(downloader.safeEntryPath('sub/whisper-cli.exe', 'C:\\engines\\cpu').endsWith('whisper-cli.exe'));
+});
+
+test('extraction keeps only wanted files', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const fixture = path.join(__dirname, 'fixtures', 'engine-test.zip');
+  const exe = await downloader.extractEngineZip(fixture, 'cpu', ['whisper-cli.exe']);
+  assert.equal(exe, path.join(dir, 'engines', 'cpu', 'whisper-cli.exe'));
+  assert.equal(fs.readFileSync(exe, 'utf8'), 'FAKE-EXE');
+  assert.equal(fs.existsSync(path.join(dir, 'engines', 'cpu', 'docs', 'readme.txt')), false);
+});
