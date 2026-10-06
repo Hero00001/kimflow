@@ -309,6 +309,7 @@ function registerIpc() {
   });
   ipcMain.handle('select-whisper-binary', async (event) => {
     assertTrustedSender(event);
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Whisper CLI Binary',
       filters: process.platform === 'win32'
@@ -331,11 +332,13 @@ function registerIpc() {
   });
   ipcMain.handle('test-deepgram-connection', async (event, apiKey) => {
     assertTrustedSender(event);
+    if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('A Deepgram API key is required to test the connection');
     const { testDeepgramConnection } = require('./backend/transcribe.cjs');
     return testDeepgramConnection(apiKey);
   });
   ipcMain.handle('test-speechmatics-connection', async (event, apiKey) => {
     assertTrustedSender(event);
+    if (typeof apiKey !== 'string' || !apiKey.trim()) throw new Error('A Speechmatics API key is required to test the connection');
     const { testSpeechmaticsConnection } = require('./backend/transcribe.cjs');
     return testSpeechmaticsConnection(apiKey);
   });
@@ -399,7 +402,23 @@ app.whenReady().then(() => {
     () => requestRendererHotkey(true),
     () => requestRendererHotkey(false),
   );
-  registerHotkeys(settings.hotkey || 'CmdOrCtrl+Shift+Space');
+  const startupHotkey = settings.hotkey || 'CmdOrCtrl+Shift+Space';
+  if (!registerHotkeys(startupHotkey)) {
+    // A taken hotkey previously failed silently: buttons worked but the
+    // shortcut was dead with no indication. Say so once, up front.
+    console.error(`[KimFlow] Capture hotkey "${startupHotkey}" is already in use; change it in Settings.`);
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        void dialog.showMessageBox(mainWindow, {
+          type: 'warning',
+          buttons: ['OK'],
+          defaultId: 0,
+          title: APP_NAME,
+          message: `Capture hotkey "${startupHotkey}" is already in use by another application. Recording buttons still work — pick a free hotkey in Settings.`,
+        });
+      }
+    } catch { /* startup warning is best-effort */ }
+  }
   if (settings.translationEnabled) {
     void require('./backend/translation.service.cjs').warmup({
       apiKey: settings.geminiApiKey || getSecret('geminiApiKey'),
