@@ -1,7 +1,6 @@
 const { globalShortcut } = require('electron');
 
 let onHotkeyPressed = null;
-let onHotkeyReleased = null;
 let activeHotkey = null;
 
 function normalizeHotkey(hotkey) {
@@ -71,9 +70,11 @@ function unregisterHotkeys() {
   activeHotkey = null;
 }
 
-function setHotkeyCallbacks(pressed, released) {
+function setHotkeyCallbacks(pressed) {
+  // Note: no release callback exists on purpose. OS global shortcuts only
+  // fire on press — push-to-talk release is handled renderer-side, which
+  // safely toggles instead (see handleTrigger in src/recording.ts).
   onHotkeyPressed = pressed;
-  onHotkeyReleased = released;
 }
 
 module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey };

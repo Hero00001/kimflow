@@ -398,10 +398,7 @@ app.whenReady().then(() => {
   createWindows();
 
   const settings = loadSettings();
-  setHotkeyCallbacks(
-    () => requestRendererHotkey(true),
-    () => requestRendererHotkey(false),
-  );
+  setHotkeyCallbacks(() => requestRendererHotkey(true));
   const startupHotkey = settings.hotkey || 'CmdOrCtrl+Shift+Space';
   if (!registerHotkeys(startupHotkey)) {
     // A taken hotkey previously failed silently: buttons worked but the
