@@ -253,6 +253,46 @@ function registerIpc() {
     assertTrustedSender(event);
     return require('./backend/transcribe.cjs').downloadModel(mainWindow, modelSize);
   });
+  const engineDownloadState = new Set();
+
+  ipcMain.handle('download-engine', async (event, flavor) => {
+    assertTrustedSender(event);
+    const { validateFlavor } = require('./backend/engine-manifest.cjs');
+    validateFlavor(flavor);
+    if (process.platform !== 'win32') throw new Error('Engine downloads are Windows-only in this version');
+    if (engineDownloadState.has(flavor)) throw new Error('That engine is already downloading');
+    engineDownloadState.add(flavor);
+    try {
+      const engine = require('./backend/engine-download.cjs');
+      const zipPath = await engine.downloadEngineZip(mainWindow, flavor);
+      const exePath = await engine.extractEngineZip(zipPath, flavor);
+      try { fs.unlinkSync(zipPath); } catch { /* temp cleanup */ }
+      await engine.smokeTestEngine(exePath);
+      const settings = loadSettings();
+      settings.whisperBinaryPath = exePath;
+      const saved = saveSettings(settings);
+      sendToWindows('settings-updated', saved);
+      return exePath;
+    } finally {
+      engineDownloadState.delete(flavor);
+    }
+  });
+  ipcMain.handle('engine-status', (event) => {
+    assertTrustedSender(event);
+    const engine = require('./backend/engine-download.cjs');
+    const { ENGINE_FLAVORS } = require('./backend/engine-manifest.cjs');
+    const status = {};
+    for (const flavor of ENGINE_FLAVORS) {
+      status[flavor] = engineDownloadState.has(flavor)
+        ? 'downloading'
+        : (engine.engineInstalled(flavor) ? 'ready' : 'missing');
+    }
+    return status;
+  });
+  ipcMain.handle('detect-gpu', async (event) => {
+    assertTrustedSender(event);
+    return require('./backend/engine-download.cjs').detectGpu();
+  });
   ipcMain.handle('start-recording', async (event) => {
     assertTrustedSender(event);
     await startRecording(loadSettings(), [mainWindow, overlayWindow]);

@@ -85,6 +85,9 @@ interface Window {
     getRecordingState: () => Promise<string>;
     checkModelDownloaded: (modelSize: string) => Promise<boolean>;
     downloadModel: (modelSize: string) => Promise<void>;
+    downloadEngine: (flavor: string) => Promise<string>;
+    engineStatus: () => Promise<Record<string, 'missing' | 'ready' | 'downloading'>>;
+    detectGpu: () => Promise<string>;
     selectWhisperBinary: () => Promise<string | null>;
     checkWhisperBinary: (binaryPath: string) => Promise<boolean>;
     testDeepgramConnection: (apiKey: string) => Promise<{ ok: boolean; message: string }>;

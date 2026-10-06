@@ -912,6 +912,12 @@ input[type="color"] {
 .model-row { display: flex; gap: 8px; align-items: center; }
 .model-row select { min-width: auto; }
 .model-row, .api-key-row, .model-field, .hotkey-editor, .api-key-footer { flex: 1 1 auto; min-width: 0; }
+#engine-download-row .model-row { flex-wrap: wrap; }
+.engine-suggestion {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+}
 @media (max-width: 560px) { .s-row.binary-row { flex-direction: column; align-items: stretch; } }
 
 /* ── Progress bar ─────────────────────────────────────── */
