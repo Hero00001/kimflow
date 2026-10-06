@@ -164,7 +164,17 @@ export function applySettingsToUi(settings: Settings): void {
   syncTranslationControls();
 }
 
-async function persist() {
+let persistChain: Promise<void> = Promise.resolve();
+
+function persist(): void {
+  // Serialize saves: debounced keystroke saves and immediate change saves
+  // used to finish out of order, letting a stale response overwrite newer
+  // input. Chaining makes completion order match initiation order, and each
+  // run re-reads the DOM so the last save always carries current values.
+  persistChain = persistChain.then(runPersist);
+}
+
+async function runPersist(): Promise<void> {
   const settings = getSettings();
   if (!settings) return;
   settings.microphone = micSelect.value || 'default';
