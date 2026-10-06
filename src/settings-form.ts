@@ -38,12 +38,16 @@ import {
   downloadBtn,
   downloadProgress,
   progressFill,
+  engineCpuBtn,
+  engineNvidiaBtn,
+  engineAmdBtn,
+  engineSuggestion,
   hotkeyDisplay,
   statusError,
 } from './dom';
 import { getSettings, setSettings } from './store';
 import { applyAccentColor } from './theme';
-import { showError, showToast } from './status';
+import { STATES, getCurrentState, onStateChange, showError, showToast } from './status';
 import { errorDetails, friendlyError } from './utils';
 import {
   clearTranslation,
@@ -95,6 +99,10 @@ function setEngine(engine: string) {
   engineGroup.querySelectorAll('.toggle-btn').forEach((button) => {
     button.classList.toggle('active', (button as HTMLElement).dataset.value === engine);
   });
+  if (engine === 'local') {
+    void refreshEngineButtons();
+    void refreshEngineSuggestion();
+  }
 }
 
 function setTranslationUiFromSettings(enabled: boolean) {
@@ -152,6 +160,9 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   await populateLanguages();
   syncTranslationControls();
   refreshAllKeyStatus();
+  applyEngineWindowsGate();
+  await refreshEngineButtons();
+  await refreshEngineSuggestion();
 }
 
 export function applySettingsToUi(settings: Settings): void {
@@ -264,6 +275,71 @@ function showBinaryName(fullPath: string, ok?: boolean) {
   const name = fullPath.split(/[/\\]/).pop() || fullPath;
   binaryPathDisplay.textContent = ok === undefined ? name : `${name} ${ok ? '✓' : '✗'}`;
   binaryPathDisplay.title = fullPath;
+}
+
+function isWindowsEngineHost(): boolean {
+  return /win/i.test(navigator.platform || navigator.userAgent);
+}
+
+function applyEngineWindowsGate(): void {
+  const show = isWindowsEngineHost();
+  document.getElementById('engine-download-row')?.classList.toggle('hidden', !show);
+  document.getElementById('engine-suggestion-row')?.classList.toggle('hidden', !show);
+}
+
+function isTranscribingNow(): boolean {
+  return getCurrentState() === STATES.TRANSCRIBING;
+}
+
+async function refreshEngineButtons(): Promise<void> {
+  if (!isWindowsEngineHost()) return;
+  let status: Record<string, string> = {};
+  try { status = await window.api.engineStatus(); } catch { status = {}; }
+  const activePath = getSettings()?.whisperBinaryPath || '';
+  const entries: Array<{ button: HTMLButtonElement; flavor: string; label: string }> = [
+    { button: engineCpuBtn, flavor: 'cpu', label: 'Download CPU (~8 MB)' },
+    { button: engineNvidiaBtn, flavor: 'nvidia', label: 'Download NVIDIA (~273 MB)' },
+    { button: engineAmdBtn, flavor: 'amd', label: 'Download AMD (~18 MB)' },
+  ];
+  for (const { button, flavor, label } of entries) {
+    const state = status[flavor] || 'missing';
+    const isActive = activePath.replace(/\\/g, '/').endsWith(`engines/${flavor}/whisper-cli.exe`);
+    button.disabled = state === 'downloading' || isTranscribingNow();
+    if (state === 'downloading') button.textContent = 'Downloading…';
+    else if (isActive) button.textContent = '✓ Active';
+    else if (state === 'ready') button.textContent = 'Use ' + label.replace('Download ', '');
+    else button.textContent = label;
+  }
+}
+
+async function downloadEngineFlavor(flavor: string): Promise<void> {
+  try {
+    await refreshEngineButtons();
+    const exePath = await window.api.downloadEngine(flavor);
+    const settings = getSettings();
+    if (settings) settings.whisperBinaryPath = exePath;
+    showBinaryName(exePath, true);
+    showToast('Engine installed ✓');
+  } catch (error) {
+    const friendly = friendlyError(error, 'Engine download failed');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
+  } finally {
+    await refreshEngineButtons();
+    await updateBinaryStatus(getSettings()?.whisperBinaryPath || '');
+  }
+}
+
+async function refreshEngineSuggestion(): Promise<void> {
+  if (!isWindowsEngineHost()) return;
+  try {
+    const gpu = await window.api.detectGpu();
+    const names: Record<string, string> = { nvidia: 'NVIDIA', amd: 'AMD', cpu: 'CPU' };
+    engineSuggestion.textContent = `Suggested for your PC: ${names[gpu] || 'CPU'}`;
+    engineSuggestion.classList.remove('hidden');
+  } catch {
+    engineSuggestion.classList.add('hidden');
+  }
 }
 
 export function wireSettingsControls() {
@@ -428,6 +504,12 @@ export function wireSettingsControls() {
       showError('No binary selected. Use Select Binary first.');
     }
   });
+
+  applyEngineWindowsGate();
+  engineCpuBtn.addEventListener('click', () => { void downloadEngineFlavor('cpu'); });
+  engineNvidiaBtn.addEventListener('click', () => { void downloadEngineFlavor('nvidia'); });
+  engineAmdBtn.addEventListener('click', () => { void downloadEngineFlavor('amd'); });
+  onStateChange(() => { void refreshEngineButtons(); });
 
   accentColor.addEventListener('input', () => { void persist(); });
   hotkeyInput.addEventListener('change', () => { void persist(); });

@@ -25,6 +25,14 @@ export function getCurrentState(): string {
   return currentState;
 }
 
+type StateListener = (state: string) => void;
+const stateListeners = new Set<StateListener>();
+
+export function onStateChange(listener: StateListener): () => void {
+  stateListeners.add(listener);
+  return () => { stateListeners.delete(listener); };
+}
+
 export function setState(state: string) {
   currentState = state;
   recordBtn.classList.remove('recording', 'transcribing');
@@ -65,6 +73,13 @@ export function setState(state: string) {
   pauseBtn.disabled = !active;
   stopBtn.disabled = !active;
   endBtn.disabled = !interactive;
+  stateListeners.forEach((listener) => {
+    try {
+      listener(state);
+    } catch {
+      // Listener errors must never break state transitions.
+    }
+  });
 }
 
 export function showError(message: string) {
