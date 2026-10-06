@@ -4,6 +4,7 @@ import {
   binaryPathDisplay,
   selectBinaryBtn,
   recheckBinaryBtn,
+  clearBinaryBtn,
   deepgramKey,
   deepgramRemoveKey,
   deepgramKeyStatus,
@@ -172,6 +173,10 @@ export function applySettingsToUi(settings: Settings): void {
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   setTranslationUiFromSettings(settings.translationEnabled);
   syncTranslationControls();
+  // Engine labels + binary display must follow every save broadcast,
+  // otherwise they freeze on pre-change state.
+  void refreshEngineButtons();
+  void updateBinaryStatus(settings.whisperBinaryPath || '');
 }
 
 let persistChain: Promise<void> = Promise.resolve();
@@ -321,6 +326,8 @@ async function refreshEngineButtons(): Promise<void> {
     const state = status[flavor] || 'missing';
     const isActive = activePath.replace(/\\/g, '/').endsWith(`engines/${flavor}/whisper-cli.exe`);
     button.disabled = state === 'downloading' || isTranscribingNow();
+    // Accent highlight + text: color is never the only active signal.
+    button.classList.toggle('active', isActive);
     if (state === 'downloading') button.textContent = 'Downloading…';
     else if (isActive) button.textContent = '✓ Active';
     else if (state === 'ready') button.textContent = 'Use ' + label.replace('Download ', '');
@@ -523,6 +530,19 @@ export function wireSettingsControls() {
     } else {
       showError('No binary selected. Use Select Binary first.');
     }
+  });
+
+  clearBinaryBtn.addEventListener('click', () => {
+    // Clearing hands control back: pick any engine button (or Browse again)
+    // to choose what transcribes next. The file itself is left on disk.
+    const settings = getSettings();
+    if (settings) {
+      settings.whisperBinaryPath = '';
+      void persist();
+    }
+    showBinaryName('');
+    showToast('Custom binary cleared');
+    void refreshEngineButtons();
   });
 
   applyEngineWindowsGate();

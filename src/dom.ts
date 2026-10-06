@@ -22,6 +22,7 @@ export const modelSelect = document.getElementById('model-select') as HTMLSelect
 export const binaryPathDisplay = document.getElementById('binary-path-display')!;
 export const selectBinaryBtn = document.getElementById('select-binary-btn') as HTMLButtonElement;
 export const recheckBinaryBtn = document.getElementById('recheck-binary-btn') as HTMLButtonElement;
+export const clearBinaryBtn = document.getElementById('clear-binary-btn') as HTMLButtonElement;
 export const downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
 export const engineCpuBtn = document.getElementById('engine-cpu-btn') as HTMLButtonElement;
 export const engineNvidiaBtn = document.getElementById('engine-nvidia-btn') as HTMLButtonElement;

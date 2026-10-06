@@ -264,9 +264,19 @@ function registerIpc() {
     engineDownloadState.add(flavor);
     try {
       const engine = require('./backend/engine-download.cjs');
-      const zipPath = await engine.downloadEngineZip(mainWindow, flavor);
-      const exePath = await engine.extractEngineZip(zipPath, flavor);
-      try { fs.unlinkSync(zipPath); } catch { /* temp cleanup */ }
+      let exePath;
+      if (engine.engineInstalled(flavor)) {
+        // Already on disk: re-verify it still runs, then just switch to it.
+        // Clicking "Use X" must never re-download hundreds of megabytes.
+        exePath = engine.engineBinaryPath(flavor);
+      } else {
+        const zipPath = await engine.downloadEngineZip(mainWindow, flavor);
+        try {
+          exePath = await engine.extractEngineZip(zipPath, flavor);
+        } finally {
+          try { fs.unlinkSync(zipPath); } catch { /* temp cleanup */ }
+        }
+      }
       await engine.smokeTestEngine(exePath);
       const settings = loadSettings();
       settings.whisperBinaryPath = exePath;

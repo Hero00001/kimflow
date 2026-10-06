@@ -132,3 +132,15 @@ test('gpu detection: cpu fallback when nothing matches', async (t) => {
     fileExists: () => false, platform: 'win32',
   }), 'cpu');
 });
+
+test('engineInstalled reflects the on-disk binary', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.equal(downloader.engineInstalled('cpu'), false);
+  const exeDir = path.join(dir, 'engines', 'cpu');
+  fs.mkdirSync(exeDir, { recursive: true });
+  fs.writeFileSync(path.join(exeDir, 'whisper-cli.exe'), 'x');
+  assert.equal(downloader.engineInstalled('cpu'), true);
+  assert.equal(downloader.engineBinaryPath('cpu'), path.join(exeDir, 'whisper-cli.exe'));
+  assert.equal(downloader.engineInstalled('amd'), false);
+});
+

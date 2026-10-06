@@ -918,6 +918,12 @@ input[type="color"] {
   color: var(--accent);
   font-weight: 500;
 }
+
+#engine-download-row .btn-secondary.active {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
 @media (max-width: 560px) { .s-row.binary-row { flex-direction: column; align-items: stretch; } }
 
 /* ── Progress bar ─────────────────────────────────────── */
