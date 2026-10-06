@@ -1,4 +1,5 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { CONFIG_DIR } = require('./settings.cjs');
@@ -31,7 +32,9 @@ function modelDownloaded(modelSize) {
 async function downloadModel(mainWindow, modelSize) {
   const modelFile = modelFilename(modelSize);
   const dest = path.join(CONFIG_DIR, modelFile);
-  const tempDest = `${dest}.download`;
+  // Unique temp per download: two concurrent downloads of the same model
+  // must not share (and corrupt) one staging file.
+  const tempDest = `${dest}.download-${crypto.randomUUID()}`;
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
 
   try {
@@ -61,6 +64,11 @@ async function downloadModel(mainWindow, modelSize) {
       writer.on('error', reject);
       response.data.on('error', reject);
     });
+    // A stream can end cleanly early (dropped connection the server never
+    // reported). Promote to a model only the exact advertised bytes.
+    if (total > 0 && downloaded !== total) {
+      throw new Error(`Model download incomplete: received ${downloaded} of ${total} bytes`);
+    }
     fs.renameSync(tempDest, dest);
   } catch (error) {
     try { fs.unlinkSync(tempDest); } catch { /* partial download cleanup */ }
