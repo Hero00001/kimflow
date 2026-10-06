@@ -431,6 +431,11 @@ export function wireSettingsControls() {
 
   accentColor.addEventListener('input', () => { void persist(); });
   hotkeyInput.addEventListener('change', () => { void persist(); });
+  function stopHotkeyRecord() {
+    recordingHotkey = false;
+    hotkeyRecord.textContent = 'Record';
+    hotkeyInput.classList.remove('recording');
+  }
   hotkeyRecord.addEventListener('click', () => {
     recordingHotkey = !recordingHotkey;
     hotkeyRecord.textContent = recordingHotkey ? 'Press keys…' : 'Record';
@@ -440,6 +445,8 @@ export function wireSettingsControls() {
   hotkeyInput.addEventListener('keydown', (event) => {
     if (!recordingHotkey) return;
     event.preventDefault();
+    // Escape or focus loss cancels capture instead of sticking on "Press keys…".
+    if (event.key === 'Escape') { stopHotkeyRecord(); return; }
     const modifiers = [
       event.ctrlKey ? 'Ctrl' : '', event.metaKey ? 'Command' : '',
       event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '',
@@ -447,11 +454,12 @@ export function wireSettingsControls() {
     const key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
     if (!['Control', 'Meta', 'Alt', 'Shift'].includes(event.key)) {
       hotkeyInput.value = [...modifiers, key].join('+');
-      recordingHotkey = false;
-      hotkeyRecord.textContent = 'Record';
-      hotkeyInput.classList.remove('recording');
+      stopHotkeyRecord();
       void persist();
     }
+  });
+  hotkeyInput.addEventListener('blur', () => {
+    if (recordingHotkey) stopHotkeyRecord();
   });
 
   wireDownload();
