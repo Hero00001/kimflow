@@ -13,9 +13,14 @@ import {
   watchMicDeviceChanges,
 } from './audio/recorder';
 
+let beginInFlight = false;
+
 export async function beginRecording() {
   const settings = getSettings();
-  if (!settings || getCurrentState() !== STATES.READY) return;
+  if (!settings || getCurrentState() !== STATES.READY || beginInFlight) return;
+  // Set synchronously: a second concurrent call (double-click, hotkey+click)
+  // must see it before the first await yields.
+  beginInFlight = true;
   try {
     await startCapture(settings.microphone);
     await window.api.startRecording();
@@ -27,6 +32,8 @@ export async function beginRecording() {
     const friendly = friendlyError(error, 'Unable to start recording');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
+  } finally {
+    beginInFlight = false;
   }
 }
 

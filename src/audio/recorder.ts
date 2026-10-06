@@ -3,8 +3,7 @@ import { micSelect, micLevel, micLevelFill, statusError } from '../dom';
 import { getSettings } from '../store';
 import { showError } from '../status';
 
-let mediaRecorder: MediaRecorder | null = null;
-let mediaStream: MediaStream | null = null;
+let mediaRecorder: MediaRecorder | null = null;let mediaStream: MediaStream | null = null;
 let recordingChunks: Blob[] = [];
 let meterContext: AudioContext | null = null;
 let meterAnalyser: AnalyserNode | null = null;
@@ -250,15 +249,37 @@ export async function startCapture(microphone: string): Promise<void> {
   startMeter();
 }
 
+// Upper bound for MediaRecorder.stop() to deliver its final blob. Normal
+// stops resolve in milliseconds; beyond this the capture is wedged and the
+// caller must fail loudly rather than hang the UI in TRANSCRIBING forever.
+const STOP_TIMEOUT_MS = 10000;
+
 export async function stopCapture(): Promise<ArrayBuffer> {
   const recorder = mediaRecorder;
   if (!recorder) throw new Error('Audio recording is not active');
 
   const webm = await new Promise<Blob>((resolve, reject) => {
-    recorder.onstop = () => resolve(new Blob(recordingChunks, { type: recorder.mimeType }));
-    recorder.onerror = () => reject(new Error('Microphone recording failed'));
+    // MediaRecorder.stop() normally fires onstop within milliseconds. If it
+    // never fires, the UI would sit in TRANSCRIBING with every control
+    // disabled forever — fail loudly instead so the caller can recover.
+    const timer = setTimeout(() => {
+      recorder.onstop = null;
+      recorder.onerror = null;
+      reject(new Error('Microphone did not finish stopping in time'));
+    }, STOP_TIMEOUT_MS);
+    recorder.onstop = () => {
+      clearTimeout(timer);
+      resolve(new Blob(recordingChunks, { type: recorder.mimeType }));
+    };
+    recorder.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('Microphone recording failed'));
+    };
     if (recorder.state !== 'inactive') recorder.stop();
-    else resolve(new Blob(recordingChunks, { type: recorder.mimeType }));
+    else {
+      clearTimeout(timer);
+      resolve(new Blob(recordingChunks, { type: recorder.mimeType }));
+    }
   });
 
   mediaRecorder = null;
