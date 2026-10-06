@@ -313,8 +313,10 @@ async function refreshEngineButtons(): Promise<void> {
 }
 
 async function downloadEngineFlavor(flavor: string): Promise<void> {
+  const clicked = flavor === 'nvidia' ? engineNvidiaBtn : flavor === 'amd' ? engineAmdBtn : engineCpuBtn;
+  clicked.disabled = true;
+  clicked.textContent = 'Downloading…';
   try {
-    await refreshEngineButtons();
     const exePath = await window.api.downloadEngine(flavor);
     const settings = getSettings();
     if (settings) settings.whisperBinaryPath = exePath;
