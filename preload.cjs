@@ -6,7 +6,7 @@ function subscribe(channel, callback) {
   return () => ipcRenderer.removeListener(channel, handler);
 }
 
-contextBridge.exposeInMainWorld('api', {
+const fullApi = {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   listMicrophones: () => ipcRenderer.invoke('list-microphones'),
@@ -41,4 +41,26 @@ contextBridge.exposeInMainWorld('api', {
   onOverlayAction: (callback) => subscribe('overlay-action', callback),
   onSettingsUpdated: (callback) => subscribe('settings-updated', callback),
   onHistoryUpdated: (callback) => subscribe('history-updated', callback),
-});
+};
+
+// The floating widget only drives recording and mirrors state/accent color.
+// Everything that mutates data or touches secrets stays in the main window.
+// getSettings is read-only (key fields are blanked by design) and the widget
+// uses it solely for the accent color.
+const overlayApi = {
+  overlayAction: fullApi.overlayAction,
+  getRecordingState: fullApi.getRecordingState,
+  getSettings: fullApi.getSettings,
+  onRecordingState: fullApi.onRecordingState,
+  onSettingsUpdated: fullApi.onSettingsUpdated,
+};
+
+function isOverlayPage() {
+  try {
+    return /overlay\.html?$/i.test(window.location.href);
+  } catch {
+    return false;
+  }
+}
+
+contextBridge.exposeInMainWorld('api', isOverlayPage() ? overlayApi : fullApi);
