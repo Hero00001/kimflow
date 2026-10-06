@@ -119,7 +119,11 @@ function load() {
 }
 
 function save(settings) {
-  migrateLegacyData();
+  try {
+    migrateLegacyData();
+  } catch {
+    // A broken legacy dir must never prevent saving current settings.
+  }
   const { settings: migratedInput } = migratePlaintextKeys(settings && typeof settings === 'object' ? settings : {});
   const normalized = normalizeSettings(migratedInput);
   normalized.deepgramApiKey = '';
