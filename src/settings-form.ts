@@ -1,7 +1,6 @@
 import {
   micSelect,
   modelSelect,
-  whisperRuntimeSelect,
   binaryPathDisplay,
   selectBinaryBtn,
   recheckBinaryBtn,
@@ -37,6 +36,7 @@ import {
   geminiModelRow,
   downloadBtn,
   downloadProgress,
+  downloadLabel,
   progressFill,
   engineCpuBtn,
   engineNvidiaBtn,
@@ -143,7 +143,6 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setSettings(settings);
   setEngine(settings.engine);
   modelSelect.value = settings.whisperModel || 'small';
-  whisperRuntimeSelect.value = settings.whisperRuntime || 'whisper-cpp';
   showBinaryName(settings.whisperBinaryPath || '');
   deepgramKey.value = settings.deepgramApiKey || '';
   deepgramModelSelect.value = settings.deepgramModel || 'nova-3';
@@ -190,7 +189,7 @@ async function runPersist(): Promise<void> {
   if (!settings) return;
   settings.microphone = micSelect.value || 'default';
   settings.whisperModel = modelSelect.value;
-  settings.whisperRuntime = whisperRuntimeSelect.value;
+  settings.whisperRuntime = 'whisper-cpp';
   settings.deepgramApiKey = deepgramKey.value;
   settings.deepgramModel = deepgramModelSelect.value;
   settings.speechmaticsApiKey = speechmaticsKey.value;
@@ -218,7 +217,7 @@ export async function checkModelStatus() {
   if (!settings || settings.engine !== 'local') return;
   try {
     const downloaded = await window.api.checkModelDownloaded(modelSelect.value);
-    downloadBtn.textContent = downloaded ? '✓' : 'Download';
+    downloadBtn.textContent = downloaded ? '✓ Ready' : 'Download';
     downloadBtn.disabled = downloaded;
   } catch (error) {
     downloadBtn.disabled = false;
@@ -229,17 +228,34 @@ export async function checkModelStatus() {
 }
 
 export function handleDownloadProgress(progress: DownloadProgress) {
-  progressFill.style.width = `${Math.max(0, Math.min(100, progress.percent))}%`;
+  const percent = Math.max(0, Math.min(100, progress.percent));
+  progressFill.style.width = `${percent}%`;
+  downloadLabel.textContent = activeDownloadLabel ? `${activeDownloadLabel}… ${Math.round(percent)}%` : '';
+}
+
+let activeDownloadLabel = '';
+
+function showDownloadProgress(label: string) {
+  activeDownloadLabel = label;
+  downloadLabel.textContent = `${label}… 0%`;
+  progressFill.style.width = '0%';
+  downloadProgress.classList.remove('hidden');
+}
+
+function hideDownloadProgress() {
+  activeDownloadLabel = '';
+  downloadLabel.textContent = '';
+  downloadProgress.classList.add('hidden');
 }
 
 function wireDownload() {
   downloadBtn.addEventListener('click', async () => {
     downloadBtn.disabled = true;
-    downloadProgress.classList.remove('hidden');
-    progressFill.style.width = '0%';
+    downloadBtn.textContent = 'Downloading…';
+    showDownloadProgress(`Downloading ${modelSelect.value} model`);
     try {
       await window.api.downloadModel(modelSelect.value);
-      downloadBtn.textContent = '✓';
+      downloadBtn.textContent = '✓ Ready';
     } catch (error) {
       downloadBtn.textContent = 'Retry';
       downloadBtn.disabled = false;
@@ -247,7 +263,7 @@ function wireDownload() {
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
     } finally {
-      downloadProgress.classList.add('hidden');
+      hideDownloadProgress();
     }
   });
 }
@@ -316,6 +332,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   const clicked = flavor === 'nvidia' ? engineNvidiaBtn : flavor === 'amd' ? engineAmdBtn : engineCpuBtn;
   clicked.disabled = true;
   clicked.textContent = 'Downloading…';
+  showDownloadProgress(`Downloading ${flavor} engine`);
   try {
     const exePath = await window.api.downloadEngine(flavor);
     const settings = getSettings();
@@ -327,6 +344,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   } finally {
+    hideDownloadProgress();
     await refreshEngineButtons();
     await updateBinaryStatus(getSettings()?.whisperBinaryPath || '');
   }

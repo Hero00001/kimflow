@@ -69,10 +69,9 @@ To set up Local Whisper in KimFlow:
 2. Open **Settings**.
 3. Ensure **Local Whisper** is selected as the engine.
 4. Choose a **Whisper Model** (Tiny, Base, Small, or Medium).
-5. Click **Download** and wait for the model download to complete.
-6. Download the Windows Whisper.cpp build from the [official release](https://github.com/ggerganov/whisper.cpp/releases).
-7. Extract the ZIP and select `whisper-cli` in KimFlow using **Select Binary**.
-8. Click **Recheck** to verify that Whisper.cpp is correctly connected and working.
+5. Click **Download** and wait for the model download to complete (shows ✓ Ready).
+6. Under **Engine**, click the suggested download (CPU, NVIDIA, or AMD) and wait for ✓ Active.
+7. Prefer your own build? Open **Advanced (custom binary)**, **Browse** for `whisper-cli`, then **Recheck**.
 
 Model files are stored in the KimFlow data directory. Cloud engines do not require the local Whisper executable or model.
 
@@ -89,11 +88,9 @@ Local Whisper runs on the device and does not require an API key. It requires:
 - Sufficient disk space and system resources for the selected model.
 
 Settings available when Local Whisper is selected:
-- **Whisper Model:** Tiny, Base, Small, or Medium
-- **Whisper Runtime:** Whisper.cpp
-- **Select Binary:** Browse for the `whisper-cli` executable
-- **Download Model:** Download the selected model
-- **Setup Instructions:** Expandable guide with step-by-step instructions
+- **Whisper Model:** Tiny, Base, Small, or Medium (Download button fetches it with progress, then shows ✓ Ready)
+- **Engine:** one-click CPU, NVIDIA, or AMD engine downloads with progress and a suggested pick for your PC
+- **Advanced (custom binary):** Browse for your own `whisper-cli` executable and Recheck it
 
 ### Deepgram
 

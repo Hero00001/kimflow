@@ -140,35 +140,18 @@
                 <div class="engine-settings-header">Local Whisper</div>
                 <div class="s-row">
                   <span class="s-label">Whisper Model</span>
-                  <select id="model-select">
-                    <option value="tiny">Tiny (~75 MB)</option>
-                    <option value="base">Base (~142 MB)</option>
-                    <option value="small">Small (~466 MB)</option>
-                    <option value="medium">Medium (~1.5 GB)</option>
-                  </select>
-                </div>
-                <div class="s-row">
-                  <span class="s-label">Whisper Runtime</span>
-                  <select id="whisper-runtime-select">
-                    <option value="whisper-cpp">Whisper.cpp</option>
-                  </select>
-                </div>
-                <div class="s-row binary-row">
-                  <span class="s-label">Select Binary</span>
                   <div class="model-row">
-                    <span id="binary-path-display" class="binary-path">Not selected</span>
-                    <button id="select-binary-btn" class="btn-primary" type="button">Browse…</button>
-                    <button id="recheck-binary-btn" class="btn-secondary" type="button">Recheck</button>
-                  </div>
-                </div>
-                <div class="s-row">
-                  <span class="s-label">Download Model</span>
-                  <div class="model-row">
+                    <select id="model-select">
+                      <option value="tiny">Tiny (~75 MB)</option>
+                      <option value="base">Base (~142 MB)</option>
+                      <option value="small">Small (~466 MB)</option>
+                      <option value="medium">Medium (~1.5 GB)</option>
+                    </select>
                     <button id="download-btn" class="btn-primary" type="button">Download</button>
                   </div>
                 </div>
                 <div class="s-row" id="engine-download-row">
-                  <span class="s-label">Engine Binaries</span>
+                  <span class="s-label">Engine</span>
                   <div class="model-row">
                     <button id="engine-cpu-btn" class="btn-secondary" type="button">Download CPU (~8 MB)</button>
                     <button id="engine-nvidia-btn" class="btn-secondary" type="button">Download NVIDIA (~273 MB)</button>
@@ -180,21 +163,22 @@
                   <span id="engine-suggestion" class="engine-suggestion hidden"></span>
                 </div>
                 <div id="download-progress" class="hidden">
+                  <span id="download-label" class="download-label"></span>
                   <div id="progress-bar"><div id="progress-fill"></div></div>
                 </div>
                 <details class="engine-setup-section">
-                  <summary class="setup-summary">Setup Instructions</summary>
+                  <summary class="setup-summary">Advanced (custom binary)</summary>
                   <div class="setup-content">
-                    <ol class="setup-steps">
-                      <li>Download the Windows Whisper.cpp build from the <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener">official release</a>.</li>
-                      <li>Extract the ZIP and select <code>whisper-cli</code> in KimFlow using <strong>Select Binary</strong>.</li>
-                      <li>Click <strong>Recheck</strong> to verify that Whisper.cpp is correctly connected and working.</li>
-                    </ol>
+                    <div class="s-row binary-row">
+                      <span class="s-label">Select Binary</span>
+                      <div class="model-row">
+                        <span id="binary-path-display" class="binary-path">Not selected</span>
+                        <button id="select-binary-btn" class="btn-primary" type="button">Browse…</button>
+                        <button id="recheck-binary-btn" class="btn-secondary" type="button">Recheck</button>
+                      </div>
+                    </div>
                   </div>
                 </details>
-                <div class="engine-release-link">
-                  <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener" class="text-btn">Official Release ↗</a>
-                </div>
               </div>
 
               <!-- Speechmatics Settings -->

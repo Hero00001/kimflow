@@ -924,6 +924,13 @@ input[type="color"] {
 
 #download-progress { padding: 2px 0 14px; }
 
+.download-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 #progress-bar {
   height: 4px;
   background: var(--surface);
