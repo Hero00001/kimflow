@@ -122,7 +122,10 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
   // yauzl is required lazily so startup and every non-download path pay nothing.
   const yauzl = require('yauzl');
   validateFlavor(flavor);
-  const wanted = wantedFiles && wantedFiles.length > 0 ? wantedFiles : ['whisper-cli.exe'];
+  // Default keeps the exe plus every DLL: a Windows exe without its sibling
+  // DLLs refuses to start (0xC0000135), so exe-only extraction can never pass
+  // the smoke test. Layout is preserved — DLLs stay next to their exe.
+  const wanted = wantedFiles && wantedFiles.length > 0 ? wantedFiles : null;
   const destDir = engineDir(flavor);
   fs.mkdirSync(destDir, { recursive: true });
   return new Promise((resolve, reject) => {
@@ -138,7 +141,10 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
           return reject(entryError);
         }
         const base = path.basename(entry.fileName);
-        if (/\/$/.test(entry.fileName) || !wanted.includes(base)) {
+        const keep = wanted
+          ? wanted.includes(base)
+          : base.toLowerCase() === 'whisper-cli.exe' || base.toLowerCase().endsWith('.dll');
+        if (/\/$/.test(entry.fileName) || !keep) {
           zip.readEntry();
           return;
         }

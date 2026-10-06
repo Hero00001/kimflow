@@ -182,3 +182,12 @@ test('removeEngine deletes the flavor dir and tolerates absence', async (t) => {
   downloader.removeEngine('amd');
 });
 
+
+test('extraction keeps sibling DLLs next to the binary', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const fixture = path.join(__dirname, 'fixtures', 'engine-nested-test.zip');
+  const exe = await downloader.extractEngineZip(fixture, 'cpu');
+  assert.equal(exe, path.join(dir, 'engines', 'cpu', 'Release', 'whisper-cli.exe'));
+  assert.equal(fs.readFileSync(path.join(dir, 'engines', 'cpu', 'Release', 'ggml.dll'), 'utf8'), 'FAKE-DLL');
+});
+
