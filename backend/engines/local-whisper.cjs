@@ -24,6 +24,7 @@ const CRASH_EXIT_CODES = new Set([
   0xC000007B, // STATUS_INVALID_IMAGE_FORMAT
   0xC000042D, // STATUS_VS_BETADISABLED
   0xC000000D, // STATUS_INVALID_PARAMETER
+  0xC000001D, // STATUS_ILLEGAL_INSTRUCTION
 ]);
 
 function isCrashExitCode(code) {
@@ -35,10 +36,13 @@ function isCrashExitCode(code) {
 
 function crashErrorMessage(exitCode, stderr) {
   const signed = exitCode > 0x7FFFFFFF ? exitCode - 0x100000000 : exitCode;
-  const hex = '0x' + (signed >>> 0).toString(16).toUpperCase();
+  // Compare as unsigned: NTSTATUS literals above are all > 0x7FFFFFFF, so a
+  // signed comparison would never match and no hint would ever fire.
+  const code = signed >>> 0;
+  const hex = '0x' + code.toString(16).toUpperCase();
   const hints = [];
 
-  if (signed === 0xC0000409 || signed === 0xC0000005) {
+  if (code === 0xC0000409 || code === 0xC0000005) {
     hints.push(
       'The whisper binary crashed (stack overrun / access violation). This is usually caused by:',
       '  1. Incompatible whisper.cpp build — try a different release (e.g. CPU-only or a newer Vulkan build)',
@@ -46,13 +50,20 @@ function crashErrorMessage(exitCode, stderr) {
       '  3. Model file mismatch — re-download the model in Settings',
       '  4. Try running whisper-cli.exe directly from a terminal to confirm the crash',
     );
-  } else if (signed === 0xC0000135) {
+  } else if (code === 0xC0000135) {
     hints.push(
       'A required DLL was not found. Install the Vulkan Runtime (vulkan-1.dll) or VC++ Redistributable.',
     );
-  } else if (signed === 0xC000007B) {
+  } else if (code === 0xC000007B) {
     hints.push(
       'Invalid image format — you may be using a 32-bit whisper binary on a 64-bit system or vice versa.',
+    );
+  } else if (code === 0xC000001D) {
+    hints.push(
+      'Illegal instruction — this whisper build was compiled for a newer CPU than this machine has (recent builds need AVX2).',
+      '  1. Your GPU and driver are fine — the binary dies before using them, so reinstalling drivers will not help',
+      '  2. Use a CPU-only / baseline whisper build instead (runs everywhere, just slower)',
+      '  3. Or build whisper.cpp from source on this PC with a portable CPU baseline and Vulkan enabled',
     );
   }
 
@@ -136,4 +147,4 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal, po
   }
 }
 
-module.exports = { transcribe };
+module.exports = { transcribe, isCrashExitCode, crashErrorMessage };

@@ -75,3 +75,18 @@ test('recorder empty-hint throws friendly hint and abort paths stay silent', asy
   assert.equal(shouldDropResult(1, 2), true);
   assert.equal(shouldDropResult(2, 2), false);
 });
+
+test('illegal-instruction crash is recognized with a CPU hint', () => {
+  const { isCrashExitCode, crashErrorMessage } = require('../backend/engines/local-whisper.cjs');
+  assert.equal(isCrashExitCode(3221225501), true);
+  assert.equal(isCrashExitCode(-1073741795), true);
+  assert.ok(/Illegal instruction|newer CPU/i.test(crashErrorMessage(3221225501, '')), 'expected CPU hint');
+});
+
+
+test('older crash hints fire for unsigned and signed codes', () => {
+  const { crashErrorMessage } = require('../backend/engines/local-whisper.cjs');
+  assert.ok(/required DLL was not found/i.test(crashErrorMessage(3221225781, '')), 'unsigned 0xC0000135');
+  assert.ok(/required DLL was not found/i.test(crashErrorMessage(-1073741515, '')), 'signed 0xC0000135');
+});
+
