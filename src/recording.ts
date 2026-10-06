@@ -167,12 +167,15 @@ export function wireRecordingControls() {
   // A removed microphone pauses instead of cancelling: audio captured so far
   // is kept and the user can resume on another device.
   watchMicDeviceChanges(() => {
+    // Only an actively-recording capture pauses: calling the backend while
+    // idle throws "not active" and flashes a bogus error at the user.
+    if (getCurrentState() !== STATES.RECORDING) return;
     void window.api.pauseRecording().catch((error) => {
       const friendly = friendlyError(error, 'Unable to pause recording');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
     });
-    if (getCurrentState() === STATES.RECORDING) setState(STATES.PAUSED);
+    setState(STATES.PAUSED);
   });
 
   // The 10-minute backend guard reuses the normal finish path, so the
