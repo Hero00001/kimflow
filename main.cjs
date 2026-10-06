@@ -334,6 +334,12 @@ function registerIpc() {
     if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
     return hasSecret(name);
   });
+  ipcMain.handle('secret-state', (event, name) => {
+    assertTrustedSender(event);
+    const { describeSecret, SECRET_NAMES } = require('./backend/secrets.cjs');
+    if (!SECRET_NAMES.includes(name)) throw new Error(`Unknown secret: ${name}`);
+    return describeSecret(name);
+  });
   ipcMain.handle('delete-secret', (event, name) => {
     assertTrustedSender(event);
     const { deleteSecret, SECRET_NAMES } = require('./backend/secrets.cjs');

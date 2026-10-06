@@ -114,8 +114,12 @@ async function refreshKeyStatus(name: 'deepgramApiKey' | 'speechmaticsApiKey' | 
     geminiApiKey: geminiKeyStatus,
   } as const;
   try {
-    const saved = await window.api.hasSecret(name);
-    targets[name].textContent = saved ? '🔒 Key saved on this device ✓' : 'No key saved';
+    const state = await window.api.secretState(name);
+    targets[name].textContent = state === 'saved'
+      ? '🔒 Key saved on this device ✓'
+      : state === 'unreadable'
+        ? '⚠ Saved key cannot be read — re-enter it below'
+        : 'No key saved';
   } catch {
     targets[name].textContent = 'Key status unavailable';
   }

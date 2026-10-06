@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   testDeepgramConnection: (apiKey) => ipcRenderer.invoke('test-deepgram-connection', apiKey),
   testSpeechmaticsConnection: (apiKey) => ipcRenderer.invoke('test-speechmatics-connection', apiKey),
   hasSecret: (name) => ipcRenderer.invoke('has-secret', name),
+  secretState: (name) => ipcRenderer.invoke('secret-state', name),
   deleteSecret: (name) => ipcRenderer.invoke('delete-secret', name),
   toggleRecording: () => ipcRenderer.invoke('toggle-recording'),
   startRecording: () => ipcRenderer.invoke('start-recording'),
