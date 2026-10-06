@@ -143,4 +143,51 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
   });
 }
 
-module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, downloadEngineZip, safeEntryPath, extractEngineZip };
+module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu };
+
+const { execFile } = require('node:child_process');
+
+async function defaultExec(binaryPath, args, options) {
+  const { promisify } = require('node:util');
+  await promisify(execFile)(binaryPath, args, options);
+}
+
+async function smokeTestEngine(binaryPath, execFn = defaultExec) {
+  // A downloaded engine must prove it starts on THIS machine before it
+  // becomes active (catches AVX2-baseline crashes like exit 3221225501).
+  try {
+    await execFn(binaryPath, ['--help'], { timeout: 30000, windowsHide: true });
+    return true;
+  } catch (error) {
+    const detail = error instanceof Error && error.message ? error.message : String(error);
+    throw new Error(`Engine failed its startup check: ${detail}`);
+  }
+}
+
+async function detectGpu(deps = {}) {
+  const run = deps.run || (async (command) => {
+    const { promisify } = require('node:util');
+    const { stdout } = await promisify(execFile)(
+      command === 'nvidia-smi' ? 'nvidia-smi' : 'powershell',
+      command === 'nvidia-smi' ? ['-L'] : ['-NoProfile', '-Command', 'Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name'],
+      { timeout: 15000, windowsHide: true },
+    );
+    return { stdout: String(stdout) };
+  });
+  const fileExists = deps.fileExists || fs.existsSync;
+  const platform = deps.platform || process.platform;
+  try {
+    await run('nvidia-smi');
+    return 'nvidia';
+  } catch { /* not an NVIDIA machine */ }
+  if (platform === 'win32') {
+    try {
+      const { stdout } = await run('wmic-video');
+      if (/amd|radeon/i.test(stdout)) {
+        const vulkanDll = 'C:\\Windows\\System32\\vulkan-1.dll';
+        if (fileExists(vulkanDll)) return 'amd';
+      }
+    } catch { /* fall through to cpu */ }
+  }
+  return 'cpu';
+}

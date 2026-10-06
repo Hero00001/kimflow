@@ -89,3 +89,46 @@ test('extraction keeps only wanted files', async (t) => {
   assert.equal(fs.readFileSync(exe, 'utf8'), 'FAKE-EXE');
   assert.equal(fs.existsSync(path.join(dir, 'engines', 'cpu', 'docs', 'readme.txt')), false);
 });
+
+test('smoke test passes for a working binary', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.equal(await downloader.smokeTestEngine(process.execPath, async (bin, args) => {
+    const { execFile } = require('node:child_process');
+    const { promisify } = require('node:util');
+    await promisify(execFile)(bin, args, { timeout: 30000 });
+  }), true);
+});
+
+test('smoke test fails for a crashing binary', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  await assert.rejects(
+    downloader.smokeTestEngine(process.execPath, async () => { const e = new Error('boom'); e.code = 1; throw e; }),
+    /startup check/i,
+  );
+});
+
+test('gpu detection: nvidia wins when nvidia-smi runs', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.equal(await downloader.detectGpu({
+    run: async () => ({ stdout: 'NVIDIA GeForce RTX 4070' }),
+    fileExists: () => false, platform: 'win32',
+  }), 'nvidia');
+});
+
+test('gpu detection: amd on Radeon controller with Vulkan dll', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const run = async (command) => {
+    if (command === 'nvidia-smi') throw new Error('not found');
+    if (command === 'wmic-video') return { stdout: 'Radeon RX 7800 XT' };
+    throw new Error(`unexpected command: ${command}`);
+  };
+  assert.equal(await downloader.detectGpu({ run, fileExists: () => true, platform: 'win32' }), 'amd');
+});
+
+test('gpu detection: cpu fallback when nothing matches', async (t) => {
+  const { downloader } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.equal(await downloader.detectGpu({
+    run: async () => { throw new Error('nope'); },
+    fileExists: () => false, platform: 'win32',
+  }), 'cpu');
+});
