@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS = {
   geminiApiKey: '',
   geminiModel: '',
   inputLanguage: AUTO,
+  inputLanguageMigrated: false,
   translationTarget: 'en',
 };
 
@@ -63,6 +64,7 @@ function normalizeSettings(settings) {
     geminiApiKey: stringValue(merged.geminiApiKey, ''),
     geminiModel: stringValue(merged.geminiModel, '').trim(),
     inputLanguage: isKnownLanguage(merged.inputLanguage) ? merged.inputLanguage : DEFAULT_SETTINGS.inputLanguage,
+    inputLanguageMigrated: merged.inputLanguageMigrated === true,
     translationTarget: targetLanguage,
   };
 }
@@ -84,13 +86,17 @@ function migrateLegacyData() {
 }
 
 function migrateInputLanguageToAuto(settings) {
-  // Older Saved configs forced 'en' as the input/STT language, which made
+  // Older saved configs forced 'en' as the input/STT language, which made
   // Deepgram reject non-English speech. Reset such a stored value to Auto
-  // Detect once; a user selecting English explicitly afterwards is preserved.
-  if (settings && typeof settings === 'object' && settings.inputLanguage === 'en') {
+  // Detect exactly once, then persist the marker: without it, this reset
+  // would also swallow a deliberate English selection on every launch.
+  if (settings && typeof settings === 'object'
+    && settings.inputLanguage === 'en' && !settings.inputLanguageMigrated) {
     settings.inputLanguage = AUTO;
+    settings.inputLanguageMigrated = true;
+    return true;
   }
-  return settings;
+  return false;
 }
 
 function load() {
@@ -101,9 +107,12 @@ function load() {
       : fs.existsSync(LEGACY_CONFIG_PATH) ? LEGACY_CONFIG_PATH : null;
     if (sourcePath) {
       const raw = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
-      const { settings: migratedSettings, migrated } = migratePlaintextKeys(migrateInputLanguageToAuto(raw));
+      const languageReset = migrateInputLanguageToAuto(raw);
+      const { settings: migratedSettings, migrated } = migratePlaintextKeys(raw);
       const normalized = normalizeSettings(migratedSettings);
-      if (migrated) {
+      // Persist whenever a migration rewrote the stored config: the
+      // language reset must land on disk or it would replay every launch.
+      if (migrated || languageReset) {
         try {
           save(normalized);
         } catch {

@@ -36,9 +36,7 @@ function clearAutoStopTimer() {
 
 function emitTimeLimit(target) {
   for (const window of windowsFrom(target)) {
-    if (!window.isDestroyed?.()) {
-      window.webContents.send('recording-time-limit', { maxRecordingMs: MAX_RECORDING_MS });
-    }
+    sendToWindow(window, 'recording-time-limit', { maxRecordingMs: MAX_RECORDING_MS });
   }
 }
 
@@ -294,8 +292,10 @@ async function stopRecording(settings, windows, audioBuffer) {
           console.error('[KimFlow] Failed to update history translation:', error.message);
         }
       }
+      // The IPC layer broadcasts the returned result exactly once;
+      // emitting it here too would deliver the final transcript
+      // twice on the same channel.
       const final = { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };
-      emitTranscription(windows, final);
       return final;
     }
     return { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };

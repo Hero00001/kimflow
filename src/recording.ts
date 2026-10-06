@@ -14,17 +14,29 @@ import {
 } from './audio/recorder';
 
 let beginInFlight = false;
+// A stop that lands while a start is still initializing must not be
+// lost: getUserMedia can take hundreds of milliseconds, and both the
+// hotkey and the on-screen buttons would otherwise see state "ready"
+// and drop the request, leaving a recording the user already stopped.
+let stopRequestedDuringStart = false;
 
 export async function beginRecording() {
   const settings = getSettings();
-  if (!settings || getCurrentState() !== STATES.READY || beginInFlight) return;
-  // Set synchronously: a second concurrent call (double-click, hotkey+click)
-  // must see it before the first await yields.
+  if (!settings || getCurrentState() !== STATES.READY) return;
+  // A second start request while the first is still initializing is a
+  // toggle-off: stop the session as soon as it goes live instead of
+  // silently ignoring the press.
+  if (beginInFlight) {
+    stopRequestedDuringStart = true;
+    return;
+  }
   beginInFlight = true;
+  stopRequestedDuringStart = false;
   try {
     await startCapture(settings.microphone);
     await window.api.startRecording();
     setState(STATES.RECORDING);
+    if (stopRequestedDuringStart) void finishRecording();
   } catch (error) {
     abortCapture();
     await window.api.cancelRecording().catch(() => undefined);
@@ -38,7 +50,10 @@ export async function beginRecording() {
 }
 
 export async function finishRecording() {
-  if (getCurrentState() !== STATES.RECORDING && getCurrentState() !== STATES.PAUSED) return;
+  if (getCurrentState() !== STATES.RECORDING && getCurrentState() !== STATES.PAUSED) {
+    if (beginInFlight) stopRequestedDuringStart = true;
+    return;
+  }
   setState(STATES.TRANSCRIBING);
   try {
     const wav = await stopCapture();
@@ -202,7 +217,7 @@ export function wireRecordingControls() {
   window.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     const target = event.target as HTMLElement | null;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT')) return;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
     if (getCurrentState() === STATES.RECORDING || getCurrentState() === STATES.PAUSED) {
       void finishRecording();
     }
