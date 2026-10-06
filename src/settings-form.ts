@@ -332,15 +332,40 @@ async function refreshEngineButtons(): Promise<void> {
     button.disabled = state === 'downloading' || isTranscribingNow();
     // Accent highlight + text: color is never the only active signal.
     button.classList.toggle('active', isActive);
+    button.title = '';
     if (state === 'downloading') button.textContent = 'Downloading…';
     else if (isActive) button.textContent = '✓ Active';
-    else if (state === 'ready') button.textContent = 'Use ' + label.replace('Download ', '');
+    else if (state === 'incompatible') {
+      button.textContent = '✗ Incompatible';
+      button.title = 'This build cannot start on this PC';
+    } else if (state === 'ready') button.textContent = 'Use ' + label.replace('Download ', '');
     else button.textContent = label;
   }
 }
 
 async function downloadEngineFlavor(flavor: string): Promise<void> {
   const clicked = flavor === 'nvidia' ? engineNvidiaBtn : flavor === 'amd' ? engineAmdBtn : engineCpuBtn;
+  // An installed-but-incompatible build switches directly: re-proving a
+  // known failure would just replay the same error on every click.
+  let preState = '';
+  try { preState = (await window.api.engineStatus())[flavor] || ''; } catch { preState = ''; }
+  if (preState === 'incompatible') {
+    try {
+      const exePath = await window.api.activateEngine(flavor);
+      const settings = getSettings();
+      if (settings) settings.whisperBinaryPath = exePath;
+      showBinaryName(exePath, true);
+      showToast('Switched — this build cannot start on this PC');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error ?? '');
+      showError(message.split('\n')[0]);
+      statusError.title = message;
+    } finally {
+      await refreshEngineButtons();
+      await updateBinaryStatus(getSettings()?.whisperBinaryPath || '');
+    }
+    return;
+  }
   clicked.disabled = true;
   clicked.textContent = 'Downloading…';
   showDownloadProgress(`Downloading ${flavor} engine`);

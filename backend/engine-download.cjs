@@ -34,6 +34,33 @@ function engineInstalled(flavor) {
   }
 }
 
+function incompatibleMarkerPath(flavor) {
+  return path.join(engineDir(validateFlavor(flavor)), '.incompatible');
+}
+
+// A build that fails its smoke test stays on disk but is marked, so the UI
+// can show "incompatible" instead of deleting it and looping forever.
+function markEngineIncompatible(flavor, reason) {
+  validateFlavor(flavor);
+  fs.mkdirSync(engineDir(flavor), { recursive: true });
+  fs.writeFileSync(incompatibleMarkerPath(flavor), String(reason || 'failed startup check'), 'utf8');
+}
+
+function clearEngineIncompatible(flavor) {
+  try {
+    fs.rmSync(incompatibleMarkerPath(validateFlavor(flavor)), { force: true });
+  } catch { /* already clear is fine */ }
+}
+
+function engineState(flavor) {
+  validateFlavor(flavor);
+  if (!engineInstalled(flavor)) return 'missing';
+  try {
+    if (fs.existsSync(incompatibleMarkerPath(flavor))) return 'incompatible';
+  } catch { /* fall through to ready */ }
+  return 'ready';
+}
+
 // Recursive basename search: engine zips lay out files differently per
 // release (top level vs Release/ subfolder). Case-insensitive like Windows.
 function findEngineBinary(dir, binaryName = 'whisper-cli.exe') {
@@ -174,7 +201,7 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
   });
 }
 
-module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, findEngineBinary, removeEngine, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu };
+module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, findEngineBinary, removeEngine, markEngineIncompatible, clearEngineIncompatible, engineState, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu };
 
 const { execFile } = require('node:child_process');
 

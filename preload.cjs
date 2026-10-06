@@ -16,6 +16,7 @@ const fullApi = {
   checkModelDownloaded: (modelSize) => ipcRenderer.invoke('check-model-downloaded', modelSize),
   downloadModel: (modelSize) => ipcRenderer.invoke('download-model', modelSize),
   downloadEngine: (flavor) => ipcRenderer.invoke('download-engine', flavor),
+  activateEngine: (flavor) => ipcRenderer.invoke('activate-engine', flavor),
   engineStatus: () => ipcRenderer.invoke('engine-status'),
   detectGpu: () => ipcRenderer.invoke('detect-gpu'),
   selectWhisperBinary: () => ipcRenderer.invoke('select-whisper-binary'),

@@ -278,12 +278,13 @@ function registerIpc() {
         }
       }
       await engine.smokeTestEngine(exePath).catch((smokeError) => {
-        // A build that cannot start on this machine is unusable: remove it
-        // so the button returns to Download instead of failing identically
-        // on every click, then surface the human explanation.
-        engine.removeEngine(flavor);
+        // A build that cannot start on this machine stays installed but is
+        // marked incompatible, so the UI shows it honestly instead of
+        // deleting it and looping the same failure on every click.
+        engine.markEngineIncompatible(flavor, smokeError instanceof Error ? smokeError.message : String(smokeError));
         throw smokeError;
       });
+      engine.clearEngineIncompatible(flavor);
       const settings = loadSettings();
       settings.whisperBinaryPath = exePath;
       const saved = saveSettings(settings);
@@ -301,9 +302,25 @@ function registerIpc() {
     for (const flavor of ENGINE_FLAVORS) {
       status[flavor] = engineDownloadState.has(flavor)
         ? 'downloading'
-        : (engine.engineInstalled(flavor) ? 'ready' : 'missing');
+        : engine.engineState(flavor);
     }
     return status;
+  });
+  ipcMain.handle('activate-engine', (event, flavor) => {
+    // Explicit user override: switch to an installed engine without
+    // re-proving it (used for builds marked incompatible on this PC).
+    assertTrustedSender(event);
+    const { validateFlavor } = require('./backend/engine-manifest.cjs');
+    validateFlavor(flavor);
+    if (process.platform !== 'win32') throw new Error('Engine downloads are Windows-only in this version');
+    const engine = require('./backend/engine-download.cjs');
+    if (!engine.engineInstalled(flavor)) throw new Error('That engine is not downloaded');
+    const exePath = engine.engineBinaryPath(flavor);
+    const settings = loadSettings();
+    settings.whisperBinaryPath = exePath;
+    const saved = saveSettings(settings);
+    sendToWindows('settings-updated', saved);
+    return exePath;
   });
   ipcMain.handle('detect-gpu', async (event) => {
     assertTrustedSender(event);

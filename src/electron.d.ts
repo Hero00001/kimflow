@@ -86,7 +86,8 @@ interface Window {
     checkModelDownloaded: (modelSize: string) => Promise<boolean>;
     downloadModel: (modelSize: string) => Promise<void>;
     downloadEngine: (flavor: string) => Promise<string>;
-    engineStatus: () => Promise<Record<string, 'missing' | 'ready' | 'downloading'>>;
+    activateEngine: (flavor: string) => Promise<string>;
+    engineStatus: () => Promise<Record<string, 'missing' | 'ready' | 'downloading' | 'incompatible'>>;
     detectGpu: () => Promise<string>;
     selectWhisperBinary: () => Promise<string | null>;
     checkWhisperBinary: (binaryPath: string) => Promise<boolean>;

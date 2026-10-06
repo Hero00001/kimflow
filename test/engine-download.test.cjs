@@ -191,3 +191,25 @@ test('extraction keeps sibling DLLs next to the binary', async (t) => {
   assert.equal(fs.readFileSync(path.join(dir, 'engines', 'cpu', 'Release', 'ggml.dll'), 'utf8'), 'FAKE-DLL');
 });
 
+
+test('engineState reports missing/ready/incompatible', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  assert.equal(downloader.engineState('cpu'), 'missing');
+  const exeDir = path.join(dir, 'engines', 'cpu');
+  fs.mkdirSync(exeDir, { recursive: true });
+  fs.writeFileSync(path.join(exeDir, 'whisper-cli.exe'), 'x');
+  assert.equal(downloader.engineState('cpu'), 'ready');
+  downloader.markEngineIncompatible('cpu', 'needs newer CPU');
+  assert.equal(downloader.engineState('cpu'), 'incompatible');
+  downloader.clearEngineIncompatible('cpu');
+  assert.equal(downloader.engineState('cpu'), 'ready');
+});
+
+test('orphan marker without a binary still reads missing', async (t) => {
+  const { downloader, dir } = useIsolatedDownloader(t, async () => { throw new Error('must not fetch'); });
+  const flavorDir = path.join(dir, 'engines', 'amd');
+  fs.mkdirSync(flavorDir, { recursive: true });
+  downloader.markEngineIncompatible('amd', 'stale');
+  assert.equal(downloader.engineState('amd'), 'missing');
+});
+
