@@ -6,6 +6,7 @@ const { cleanupText } = require('../cleanup.cjs');
 const { whisperPrompt } = require('../vocabulary.cjs');
 const { CONFIG_DIR } = require('../settings.cjs');
 const { validateModelSize, modelFilename } = require('../model-download.cjs');
+const { isAbortError } = require('../recorder-decisions.cjs');
 
 const execFileAsync = promisify(execFile);
 
@@ -112,7 +113,7 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal, po
     const detectedLanguage = detectedLanguageFromOutput(stderr) || detectedLanguageFromOutput(stdout);
     return { text: cleanupText(stdout.trim(), polishMode), detectedLanguage };
   } catch (error) {
-    if (signal?.aborted || error?.name === 'AbortError' || /abort/i.test(errorText(error))) {
+    if (isAbortError(error, signal)) {
       const abortError = new Error('Transcription aborted');
       abortError.name = 'AbortError';
       throw abortError;

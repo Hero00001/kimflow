@@ -9,6 +9,7 @@ const translationService = require('./translation.service.cjs');
 const { CONFIG_DIR } = require('./settings.cjs');
 const { getSecret } = require('./secrets.cjs');
 const history = require('./history.cjs');
+const { selectPasteText, isAbortError } = require('./recorder-decisions.cjs');
 
 const STATE = {
   READY: 'ready',
@@ -201,7 +202,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     } catch (error) {
       // Cancel aborts the in-flight request; a late abort must look like a
       // dropped result, not a transcription failure.
-      if (signal.aborted || error?.name === 'AbortError' || /aborted/i.test(error?.message || '')) return { text: '', aborted: true };
+      if (isAbortError(error, signal)) return { text: '', aborted: true };
       throw error;
     }
 
@@ -246,7 +247,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Without translation the transcript pastes immediately. With
     // translation enabled the paste waits below for the translated text —
     // pasting the original first would defeat the feature.
-    if (!settings.translationEnabled) doPaste(finalText);
+    if (!settings.translationEnabled) doPaste(selectPasteText({ translationEnabled: false, translation: null, finalText }));
     let historyId = null;
     try {
       const entry = history.addSession({
@@ -284,7 +285,7 @@ async function stopRecording(settings, windows, audioBuffer) {
       } catch (error) {
         translationError = error instanceof Error && error.message ? error.message : String(error);
       }
-      doPaste(translation || finalText);
+      doPaste(selectPasteText({ translationEnabled: true, translation, finalText }));
       if (historyId) {
         try {
           history.updateSession(historyId, {
