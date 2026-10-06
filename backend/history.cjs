@@ -11,17 +11,28 @@ function emptyHistory() {
 }
 
 function load() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
-    if (parsed && Array.isArray(parsed.sessions)) return parsed;
-  } catch {
-    // Fall back to an empty history when the file is missing or malformed.
+  // A corrupt main file falls back to the previous good generation before
+  // giving up to empty — one bad byte must not discard the whole history.
+  for (const candidate of [HISTORY_PATH, `${HISTORY_PATH}.bak`]) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+      if (parsed && Array.isArray(parsed.sessions)) return parsed;
+    } catch {
+      // Try the backup next, then fall back to an empty history.
+    }
   }
   return emptyHistory();
 }
 
 function save(history) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  // Rotate the last good file aside first: a crash between write and rename
+  // must never leave corruption as the only copy on disk.
+  try {
+    if (fs.existsSync(HISTORY_PATH)) fs.copyFileSync(HISTORY_PATH, `${HISTORY_PATH}.bak`);
+  } catch {
+    // Backup is best-effort; the atomic write below is the real guarantee.
+  }
   const tempPath = `${HISTORY_PATH}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(history, null, 2), 'utf8');
   try {
