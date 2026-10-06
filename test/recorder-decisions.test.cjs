@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { selectPasteText, isAbortError } = require('../backend/recorder-decisions.cjs');
+const { selectPasteText, isAbortError, awaitAbortable } = require('../backend/recorder-decisions.cjs');
 
 test('pastes the transcript when translation is disabled', () => {
   assert.equal(
@@ -46,5 +46,29 @@ test('tolerates a missing signal', () => {
 test('rejects ordinary failures', () => {
   assert.equal(isAbortError(new Error('whisper.cpp failed: exit code 1'), { aborted: false }), false);
   assert.equal(isAbortError(null, null), false);
+});
+
+
+test('awaitAbortable passes resolution through', async () => {
+  const controller = new AbortController();
+  assert.equal(await awaitAbortable(Promise.resolve('ok'), controller.signal), 'ok');
+});
+
+test('awaitAbortable passes through without a signal', async () => {
+  assert.equal(await awaitAbortable(Promise.resolve('ok'), undefined), 'ok');
+});
+
+test('awaitAbortable rejects with AbortError on abort', async () => {
+  const controller = new AbortController();
+  const pending = new Promise(() => {});
+  const failed = assert.rejects(awaitAbortable(pending, controller.signal), (error) => error.name === 'AbortError');
+  controller.abort();
+  await failed;
+});
+
+test('awaitAbortable throws immediately when already aborted', () => {
+  const controller = new AbortController();
+  controller.abort();
+  assert.throws(() => awaitAbortable(Promise.resolve('x'), controller.signal), (error) => error.name === 'AbortError');
 });
 

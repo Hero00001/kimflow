@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { cleanupText } = require('../cleanup.cjs');
 const { deepgramVocabParams } = require('../vocabulary.cjs');
+const { awaitAbortable } = require('../recorder-decisions.cjs');
 
 const DEEPGRAM_MODELS = {
   'nova-3': { label: 'Nova 3', value: 'nova-3' },
@@ -58,7 +59,7 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
 
   let response;
   try {
-    response = await deepgram.listen.prerecorded.transcribeFile(audioBuffer, options);
+    response = await awaitAbortable(deepgram.listen.prerecorded.transcribeFile(audioBuffer, options), signal);
   } catch (error) {
     throwIfAborted(signal);
     throw new Error(`Deepgram request failed: ${error?.message || error}`);

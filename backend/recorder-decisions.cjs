@@ -27,4 +27,28 @@ function isAbortError(error, signal) {
   return /abort/i.test(errorMessageText(error));
 }
 
-module.exports = { selectPasteText, isAbortError };
+// Builds the shared AbortError without throwing, for promise-race rejection.
+function abortError() {
+  const error = new Error('Transcription aborted');
+  error.name = 'AbortError';
+  return error;
+}
+
+// Races a promise against an AbortSignal for SDKs with no signal support
+// (e.g. Deepgram). The loser is dropped: late success is ignored, late
+// failure is already handled by the attached handlers, so nothing rejects
+// unobserved and temp files still clean up in the caller's finally.
+function awaitAbortable(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) throw abortError();
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value); },
+      (error) => { signal.removeEventListener('abort', onAbort); reject(error); },
+    );
+  });
+}
+
+module.exports = { selectPasteText, isAbortError, awaitAbortable, abortError };
