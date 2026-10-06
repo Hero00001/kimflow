@@ -16,6 +16,16 @@ function isWavBuffer(buffer) {
     && buffer.toString('ascii', 8, 12) === 'WAVE';
 }
 
+// Byte size of an IPC audio payload in any accepted shape (Buffer,
+// ArrayBuffer, or typed-array view). Measured BEFORE copying so the
+// stop-recording handler can reject absurd payloads instead of OOMing.
+function audioByteLength(input) {
+  if (Buffer.isBuffer(input)) return input.length;
+  if (input instanceof ArrayBuffer) return input.byteLength;
+  if (ArrayBuffer.isView(input)) return input.byteLength;
+  return 0;
+}
+
 // Best-effort free-space guard run before writing the WAV file. It must never
 // throw: platforms without fs.statfsSync (or any stat failure) skip silently
 // so recording can never crash on an unsupported platform.
@@ -100,4 +110,4 @@ class AudioRecorder {
   }
 }
 
-module.exports = { listMicrophones, AudioRecorder, isWavBuffer, ensureDiskSpace, MIN_FREE_DISK_BYTES };
+module.exports = { listMicrophones, AudioRecorder, isWavBuffer, ensureDiskSpace, MIN_FREE_DISK_BYTES, audioByteLength };

@@ -15,6 +15,7 @@ const {
 const { getSecret } = require('./backend/secrets.cjs');
 const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
 const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
+const { audioByteLength } = require('./backend/audio.cjs');
 const history = require('./backend/history.cjs');
 
 let mainWindow;
@@ -24,6 +25,9 @@ let rendererReady = false;
 let pendingHotkey = null;
 let pendingOverlayActions = [];
 const APP_NAME = 'KimFlow';
+// 10 minutes of 16 kHz mono 16-bit WAV is under 20 MB; anything far beyond
+// that is a malformed or abusive payload, rejected before Buffer allocation.
+const MAX_STOP_AUDIO_BYTES = 64 * 1024 * 1024;
 const ICON_PATH = path.join(__dirname, 'app icon', 'icon.ico');
 app.setName(APP_NAME);
 
@@ -260,6 +264,11 @@ function registerIpc() {
     if (!(audioBuffer instanceof ArrayBuffer) && !ArrayBuffer.isView(audioBuffer)
       && !Buffer.isBuffer(audioBuffer)) {
       throw new Error('A WAV audio buffer is required to stop recording');
+    }
+    // Measure before copying: a 10-minute 16 kHz mono WAV is under 20 MB, so
+    // anything far beyond that is rejected instead of exhausting memory.
+    if (audioByteLength(audioBuffer) > MAX_STOP_AUDIO_BYTES) {
+      throw new Error('Audio is too large to process');
     }
     const buffer = Buffer.isBuffer(audioBuffer)
       ? Buffer.from(audioBuffer)
