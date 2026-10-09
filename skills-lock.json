@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "wait-what": {
+      "source": "vinvcn/mattpocock-skills-zh-cn",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/wait-what/SKILL.md",
+      "computedHash": "4db3deac9351c4d3b1659f75cd9fff9c0f7be19974ba9b56bba0e6edd15b51e4"
+    }
+  }
+}
