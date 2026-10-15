@@ -10,6 +10,10 @@ const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const LEGACY_CONFIG_DIR = path.join(os.homedir(), '.typr');
 const LEGACY_CONFIG_PATH = path.join(LEGACY_CONFIG_DIR, 'config.json');
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+// The languages the interface can be rendered in. This is the UI language
+// only — it is never validated against the STT/translation map in
+// languages.cjs and never read by the transcription pipeline.
+const UI_LANGUAGES = ['en', 'ar', 'zh'];
 
 const DEFAULT_SETTINGS = {
   microphone: 'default',
@@ -33,6 +37,10 @@ const DEFAULT_SETTINGS = {
   inputLanguage: AUTO,
   inputLanguageMigrated: false,
   translationTarget: 'en',
+  // '' means "the user has not chosen yet" and triggers a one-time OS locale
+  // detection in main.cjs. It is NOT the same as 'en' (a deliberate English
+  // choice), which must never be re-detected back to the OS language.
+  uiLanguage: '',
 };
 
 function stringValue(value, fallback) {
@@ -66,6 +74,8 @@ function normalizeSettings(settings) {
     inputLanguage: isKnownLanguage(merged.inputLanguage) ? merged.inputLanguage : DEFAULT_SETTINGS.inputLanguage,
     inputLanguageMigrated: merged.inputLanguageMigrated === true,
     translationTarget: targetLanguage,
+    // Only the three supported UI languages (or '' = not chosen yet) survive.
+    uiLanguage: UI_LANGUAGES.includes(merged.uiLanguage) ? merged.uiLanguage : '',
   };
 }
 

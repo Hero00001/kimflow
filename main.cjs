@@ -25,11 +25,35 @@ let rendererReady = false;
 let pendingHotkey = null;
 let pendingOverlayActions = [];
 const APP_NAME = 'KimFlow';
+// UI languages the renderer can display. Kept in sync with
+// backend/settings.cjs's UI_LANGUAGES and src/i18n's UILanguage union.
+const UI_LANGUAGES = ['en', 'ar', 'zh'];
 // 10 minutes of 16 kHz mono 16-bit WAV is under 20 MB; anything far beyond
 // that is a malformed or abusive payload, rejected before Buffer allocation.
 const MAX_STOP_AUDIO_BYTES = 64 * 1024 * 1024;
 const ICON_PATH = path.join(__dirname, 'app icon', 'icon.ico');
 app.setName(APP_NAME);
+
+// First-run UI-language detection.
+//
+// '' means "the user has never chosen a UI language". We resolve it once from
+// the OS locale and persist the concrete value, so this runs exactly once.
+// Because '' and 'en' are distinct, a user who deliberately picks English on
+// an Arabic machine is never re-detected back to Arabic. Mirrors the
+// inputLanguageMigrated one-time-migration pattern in backend/settings.cjs.
+function ensureUiLanguage(settings) {
+  if (settings && settings.uiLanguage === '') {
+    const code = String(app.getLocale() || '').slice(0, 2).toLowerCase();
+    settings.uiLanguage = UI_LANGUAGES.includes(code) ? code : 'en';
+    try {
+      saveSettings(settings);
+    } catch {
+      // A read-only config must never break startup; the value still reaches
+      // the renderer for this session.
+    }
+  }
+  return settings;
+}
 
 function destroyOverlayWindow() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -168,7 +192,9 @@ function registerIpc() {
 
   ipcMain.handle('get-settings', (event) => {
     assertTrustedSender(event);
-    return loadSettings();
+    // Resolve a never-chosen UI language before the renderer sees it, so the
+    // renderer always receives a concrete value.
+    return ensureUiLanguage(loadSettings());
   });
   ipcMain.handle('save-settings', (event, settings) => {
     assertTrustedSender(event);
@@ -470,7 +496,7 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   createWindows();
 
-  const settings = loadSettings();
+  const settings = ensureUiLanguage(loadSettings());
   setHotkeyCallbacks(() => requestRendererHotkey(true));
   const startupHotkey = settings.hotkey || 'CmdOrCtrl+Shift+Space';
   if (!registerHotkeys(startupHotkey)) {

@@ -1,6 +1,7 @@
 import { historyList, historyEmpty, historySearch, clearHistoryBtn, statusError } from './dom';
 import { showError } from './status';
 import { errorDetails, friendlyError } from './utils';
+import { getLanguage, t } from './i18n';
 
 let historyData: HistoryData = { sessions: [] };
 let historyQuery = '';
@@ -10,17 +11,19 @@ function formatDuration(ms: number) {
   const totalSeconds = Math.max(1, Math.round(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  if (minutes === 0) return `${seconds} sec`;
-  return seconds ? `${minutes} min ${seconds} sec` : `${minutes} min`;
+  if (minutes === 0) return t('history.seconds', { count: seconds });
+  return seconds
+    ? t('history.minutesSeconds', { minutes, seconds })
+    : t('history.minutes', { count: minutes });
 }
 
 function formatRelativeTime(timestamp: number) {
   const diff = Date.now() - timestamp;
   const day = 24 * 60 * 60 * 1000;
-  if (diff < day) return 'Today';
-  if (diff < 2 * day) return 'Yesterday';
-  if (diff < 7 * day) return `${Math.floor(diff / day)} days ago`;
-  return new Date(timestamp).toLocaleDateString();
+  if (diff < day) return t('history.today');
+  if (diff < 2 * day) return t('history.yesterday');
+  if (diff < 7 * day) return t('history.daysAgo', { count: Math.floor(diff / day) });
+  return new Date(timestamp).toLocaleDateString(getLanguage());
 }
 
 export function renderHistory() {
@@ -76,8 +79,8 @@ function normalizeHistoryData(data: HistoryData): HistoryData {
   return { sessions: [] };
 }
 
-function reportHistoryError(error: unknown, fallback: string) {
-  const friendly = friendlyError(error, fallback);
+function reportHistoryError(error: unknown, fallbackKey: string) {
+  const friendly = friendlyError(error, fallbackKey);
   if (friendly) showError(friendly);
   statusError.title = errorDetails(error) ?? '';
 }
@@ -86,7 +89,7 @@ export function refreshHistory() {
   void window.api.getHistory().then((data) => {
     historyData = normalizeHistoryData(data);
     renderHistory();
-  }).catch((error) => reportHistoryError(error, 'Unable to load history'));
+  }).catch((error) => reportHistoryError(error, 'error.loadHistory'));
 }
 
 export function wireHistory(onSelect: (entry: HistoryEntry) => void) {
@@ -99,6 +102,6 @@ export function wireHistory(onSelect: (entry: HistoryEntry) => void) {
     void window.api.clearHistory().then((data) => {
       historyData = normalizeHistoryData(data);
       renderHistory();
-    }).catch((error) => reportHistoryError(error, 'Unable to clear history'));
+    }).catch((error) => reportHistoryError(error, 'error.clearHistory'));
   });
 }

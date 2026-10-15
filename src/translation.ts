@@ -15,11 +15,12 @@ import {
 } from './dom';
 import { getSettings } from './store';
 import { showError, showToast } from './status';
+import { t } from './i18n';
 
 export function showTranslation(translation: string | null, error: string | null = null) {
   translationText.textContent = translation || '';
   if (error) {
-    translationError.textContent = `Translation failed: ${error}`;
+    translationError.textContent = t('translation.failed', { error });
     translationError.classList.remove('hidden');
   } else {
     translationError.classList.add('hidden');
@@ -29,7 +30,7 @@ export function showTranslation(translation: string | null, error: string | null
 
 export function showTranslating() {
   if (!getSettings()?.translationEnabled) return;
-  translationText.textContent = 'Translating…';
+  translationText.textContent = t('translation.translating');
   translationError.classList.add('hidden');
   translationArea.classList.remove('hidden');
 }
@@ -70,7 +71,7 @@ export function syncTranslationControls() {
   });
   setTranslationUi(settings.translationEnabled);
   if (!settings.geminiModel) {
-    setModelStatus('neutral', 'Leave empty for automatic model selection.');
+    setModelStatus('neutral', t('settings.translation.modelAuto'));
   } else {
     void validateModelField();
   }
@@ -88,17 +89,17 @@ export async function validateModelField() {
   // of a newer value typed after it started.
   const seq = ++modelValidationSeq;
   if (!value) {
-    setModelStatus('neutral', 'Leave empty for automatic model selection.');
+    setModelStatus('neutral', t('settings.translation.modelAuto'));
     return;
   }
-  setModelStatus('neutral', 'Checking…');
+  setModelStatus('neutral', t('settings.translation.checking'));
   try {
     const status = await window.api.validateGeminiModel(value);
     if (seq !== modelValidationSeq) return;
     setModelStatus(status.ok ? 'ok' : 'err', status.message);
   } catch {
     if (seq !== modelValidationSeq) return;
-    setModelStatus('neutral', 'Could not validate model right now. It will be checked before translating.');
+    setModelStatus('neutral', t('settings.translation.validateFailed'));
   }
 }
 
@@ -120,8 +121,8 @@ export async function populateLanguages() {
       translateToSelect.appendChild(new Option(option.label, option.value));
     }
   } catch {
-    inputLanguageSelect.replaceChildren(new Option('Auto Detect', 'auto'));
-    translateToSelect.replaceChildren(new Option('English', 'en'));
+    inputLanguageSelect.replaceChildren(new Option(t('languages.auto'), 'auto'));
+    translateToSelect.replaceChildren(new Option(t('languages.en'), 'en'));
   }
 }
 
@@ -131,9 +132,9 @@ export function wireTranslationControls() {
     if (!text) return;
     try {
       await window.api.copyText(text);
-      showToast('Copied!');
+      showToast(t('toast.copied'));
     } catch {
-      showError('Unable to copy translation');
+      showError(t('error.copyTranslation'));
     }
   });
 }

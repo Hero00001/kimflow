@@ -19,6 +19,7 @@ interface Settings {
   geminiModel: string;
   inputLanguage: string;
   translationTarget: string;
+  uiLanguage: string;
 }
 
 interface LanguageOption {

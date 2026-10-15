@@ -16,7 +16,11 @@
   --border:         rgba(255, 255, 255, 0.06);
   --border-strong:  rgba(255, 255, 255, 0.12);
   --radius:         12px;
-  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Latin keeps the bundled IBM Plex face; Arabic and Chinese borrow system
+     fonts via per-glyph fallback (no webfonts are bundled — see spec §8). */
+  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI",
+                    "Noto Sans Arabic", "Segoe UI Arabic", "Microsoft YaHei",
+                    "PingFang SC", "Noto Sans SC", sans-serif;
   --transition:     160ms ease;
 }
 
@@ -67,6 +71,9 @@ input, select { font-family: var(--font); }
   align-items: center;
   height: 100%;
   -webkit-app-region: no-drag;
+  /* DELIBERATELY PHYSICAL (not margin-inline-end). #titlebar is pinned to
+     dir="ltr" so these OS buttons stay top-right in every language — see the
+     comment in index.html. Do not migrate this to a logical property. */
   margin-right: 8px;
   gap: 2px;
 }
@@ -110,7 +117,7 @@ body.platform-mac #window-controls { display: none; }
   padding: 20px 14px;
   gap: 28px;
   background: var(--panel);
-  border-right: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
 }
 
 #brand {
@@ -157,7 +164,7 @@ body.platform-mac #window-controls { display: none; }
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background var(--transition), color var(--transition);
 }
@@ -238,7 +245,7 @@ body.platform-mac #window-controls { display: none; }
 #status-error {
   color: var(--danger);
   font-size: 12px;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   white-space: normal;
   word-break: break-word;
   min-width: 0;
@@ -365,7 +372,9 @@ body.platform-mac #window-controls { display: none; }
 }
 
 #transcript-text:empty::after {
-  content: 'Your transcription will appear here…\A\AStart speaking to begin.';
+  /* Text is injected as a CSS custom property so it can be localised — a
+     pseudo-element cannot carry a data-i18n attribute. Set by main.ts. */
+  content: var(--i18n-empty-transcript, '');
   color: var(--text-tertiary);
   white-space: pre;
 }
@@ -414,7 +423,7 @@ body.platform-mac #window-controls { display: none; }
 }
 
 #translation-text:empty::after {
-  content: 'Waiting for a translation…';
+  content: var(--i18n-empty-translation, '');
   color: var(--text-tertiary);
   white-space: pre;
 }
@@ -553,7 +562,7 @@ kbd {
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition);
 }
@@ -603,6 +612,37 @@ kbd {
   border-radius: var(--radius);
   padding: 4px 20px;
 }
+
+/* ── Settings sections (native <details>, no JS accordion) ────────────── */
+
+.settings-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-of-type { border-bottom: none; }
+
+.settings-section-summary {
+  padding: 14px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.settings-section-summary::-webkit-details-marker { display: none; }
+.settings-section-summary::before { content: '▸ '; }
+.settings-section[open] > .settings-section-summary::before { content: '▾ '; }
+/* Mirror the disclosure triangle's direction under RTL so it points at the
+   label, which now sits on the right. */
+[dir="rtl"] .settings-section-summary::before { content: '◂ '; }
+[dir="rtl"] .settings-section[open] > .settings-section-summary::before { content: '▾ '; }
+
+.settings-section-content { padding-bottom: 4px; }
+.settings-section-content > .s-row:last-of-type { border-bottom: none; }
 
 .s-row {
   display: flex;
@@ -678,7 +718,7 @@ kbd {
 
 .setup-steps {
   margin: 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.8;
@@ -808,9 +848,17 @@ select {
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238f8f98' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
+  /* The native arrow cannot be expressed with logical keywords, so the LTR
+     placement is physical and the RTL flip below re-places it on the left. */
   background-position: right 12px center;
-  padding-right: 32px;
+  padding-inline-end: 32px;
   cursor: pointer;
+}
+
+[dir="rtl"] select {
+  background-position: left 12px center;
+  padding-inline-end: 12px;
+  padding-inline-start: 32px;
 }
 
 select:focus, input[type="password"]:focus, input[type="text"]:focus, textarea:focus {

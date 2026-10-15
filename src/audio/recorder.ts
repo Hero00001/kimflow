@@ -2,6 +2,7 @@ import { errorDetails, friendlyError } from '../utils';
 import { micSelect, micLevel, micLevelFill, statusError } from '../dom';
 import { getSettings } from '../store';
 import { showError } from '../status';
+import { t } from '../i18n';
 
 let mediaRecorder: MediaRecorder | null = null;let mediaStream: MediaStream | null = null;
 let recordingChunks: Blob[] = [];
@@ -288,20 +289,20 @@ export async function stopCapture(): Promise<ArrayBuffer> {
   try {
     return await encodeWav(webm);
   } catch (error) {
-    throw new Error(`Unable to decode microphone audio: ${friendlyError(error, 'unsupported audio format')}`);
+    throw new Error(`Unable to decode microphone audio: ${friendlyError(error, 'error.unsupportedAudio')}`);
   }
 }
 
 export async function requestMicPermission(): Promise<void> {
   if (!navigator.mediaDevices?.getUserMedia) {
-    showError('Microphone access is unavailable in this Electron window');
+    showError(t('error.micUnavailable'));
     return;
   }
   try {
     const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     permissionStream.getTracks().forEach((track) => track.stop());
   } catch (error) {
-    const friendly = friendlyError(error, 'Microphone permission was not granted');
+    const friendly = friendlyError(error, 'error.micPermission');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   }

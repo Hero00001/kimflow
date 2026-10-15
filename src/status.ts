@@ -11,6 +11,7 @@ import {
   micBtn,
   transcriptText,
 } from './dom';
+import { t } from './i18n';
 
 let currentState = 'ready';
 
@@ -33,6 +34,30 @@ export function onStateChange(listener: StateListener): () => void {
   return () => { stateListeners.delete(listener); };
 }
 
+/** Set the status text and pause/resume label for the current state. */
+function applyStateText(state: string): void {
+  if (state === STATES.RECORDING) {
+    statusText.textContent = t('status.recording');
+    pauseBtn.textContent = t('status.pause');
+  } else if (state === STATES.PAUSED) {
+    statusText.textContent = t('status.paused');
+    pauseBtn.textContent = t('status.resume');
+  } else if (state === STATES.TRANSCRIBING) {
+    statusText.textContent = t('status.transcribing');
+  } else {
+    statusText.textContent = t('status.ready');
+  }
+  recordBtn.setAttribute('aria-label', state === STATES.RECORDING ? t('status.stopRecording') : t('status.startRecording'));
+}
+
+/**
+ * Re-apply the current state's text after a UI-language change. Does not touch
+ * classes or disabled state, so it is safe to call at any time.
+ */
+export function refreshStatusText(): void {
+  applyStateText(currentState);
+}
+
 export function setState(state: string) {
   currentState = state;
   recordBtn.classList.remove('recording', 'transcribing');
@@ -49,26 +74,21 @@ export function setState(state: string) {
     recordIconMic.style.display = 'none';
     recordIconStop.style.display = 'block';
     statusDot.classList.add('recording');
-    statusText.textContent = 'Recording';
-    pauseBtn.textContent = 'Pause';
   } else if (state === STATES.PAUSED) {
     recordBtn.classList.add('recording');
     recordIconMic.style.display = 'none';
     recordIconStop.style.display = 'block';
     statusDot.classList.add('recording');
-    statusText.textContent = 'Paused';
-    pauseBtn.textContent = 'Resume';
   } else if (state === STATES.TRANSCRIBING) {
     recordBtn.classList.add('transcribing');
     statusDot.classList.add('transcribing');
-    statusText.textContent = 'Transcribing…';
   } else {
     statusDot.classList.add('ready');
-    statusText.textContent = 'Ready';
   }
 
+  applyStateText(state);
+
   recordBtn.disabled = !interactive;
-  recordBtn.setAttribute('aria-label', state === STATES.RECORDING ? 'Stop Recording' : 'Start Recording');
   micBtn.disabled = !interactive;
   pauseBtn.disabled = !active;
   stopBtn.disabled = !active;
@@ -102,5 +122,5 @@ export function showToast(message: string) {
 }
 
 export function showPasteFallback() {
-  showToast('Paste failed — text copied to clipboard, press Ctrl+V');
+  showToast(t('toast.pasteFallback'));
 }

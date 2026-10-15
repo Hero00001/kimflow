@@ -41,7 +41,7 @@ export async function beginRecording() {
     abortCapture();
     await window.api.cancelRecording().catch(() => undefined);
     setState(STATES.READY);
-    const friendly = friendlyError(error, 'Unable to start recording');
+    const friendly = friendlyError(error, 'error.startRecording');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   } finally {
@@ -72,7 +72,7 @@ export async function finishRecording() {
     abortCapture();
     await window.api.cancelRecording().catch(() => undefined);
     setState(STATES.READY);
-    const friendly = friendlyError(error, 'Transcription failed');
+    const friendly = friendlyError(error, 'error.transcriptionFailed');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   }
@@ -84,7 +84,7 @@ async function pauseFromOverlay() {
     await window.api.pauseRecording();
   } catch (error) {
     if (captureState() === 'paused') resumeCapture();
-    const friendly = friendlyError(error, 'Unable to pause recording');
+    const friendly = friendlyError(error, 'error.pauseRecording');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   }
@@ -96,7 +96,7 @@ async function resumeFromOverlay() {
     await window.api.resumeRecording();
   } catch (error) {
     if (captureState() === 'recording') pauseCapture();
-    const friendly = friendlyError(error, 'Unable to resume recording');
+    const friendly = friendlyError(error, 'error.resumeRecording');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   }
@@ -186,7 +186,7 @@ export function wireRecordingControls() {
     // idle throws "not active" and flashes a bogus error at the user.
     if (getCurrentState() !== STATES.RECORDING) return;
     void window.api.pauseRecording().catch((error) => {
-      const friendly = friendlyError(error, 'Unable to pause recording');
+      const friendly = friendlyError(error, 'error.pauseRecording');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
     });

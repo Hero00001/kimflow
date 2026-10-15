@@ -9,12 +9,20 @@
   </head>
   <body>
     <div id="app">
-      <div id="titlebar">
+      <!--
+        #titlebar carries an explicit dir="ltr" and is EXEMPT from RTL
+        mirroring. It uses justify-content: flex-end, so under dir="rtl" the
+        window buttons would flip to the top-left. They must stay top-right in
+        every language: the close button is the one control where muscle memory
+        prevents mis-clicks. Do NOT "fix" this in an RTL audit.
+        (macOS is unaffected — it hides #window-controls entirely.)
+      -->
+      <div id="titlebar" dir="ltr">
         <div id="titlebar-drag"></div>
         <div id="window-controls">
-          <button id="win-min" class="win-btn" title="Minimize" aria-label="Minimize window">&#x2212;</button>
-          <button id="win-max" class="win-btn" title="Maximize" aria-label="Maximize window">&#x25A1;</button>
-          <button id="win-close" class="win-btn win-close" title="Close" aria-label="Close window">&#x2715;</button>
+          <button id="win-min" class="win-btn" data-i18n-title="titlebar.minimize" data-i18n-aria-label="titlebar.minimizeAria">&#x2212;</button>
+          <button id="win-max" class="win-btn" data-i18n-title="titlebar.maximize" data-i18n-aria-label="titlebar.maximizeAria">&#x25A1;</button>
+          <button id="win-close" class="win-btn win-close" data-i18n-title="titlebar.close" data-i18n-aria-label="titlebar.closeAria">&#x2715;</button>
         </div>
       </div>
       <div id="layout">
@@ -26,7 +34,7 @@
                 <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </div>
-            <span id="brand-name">KimFlow</span>
+            <span id="brand-name" data-i18n="app.name"></span>
           </div>
           <nav id="nav">
             <button class="nav-item active" data-page="transcribe">
@@ -34,21 +42,21 @@
                 <rect x="8" y="1" width="8" height="14" rx="4" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
                 <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
-              Transcribe
+              <span data-i18n="nav.transcribe"></span>
             </button>
             <button class="nav-item" data-page="history">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
                 <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
-              History
+              <span data-i18n="nav.history"></span>
             </button>
             <button class="nav-item" data-page="settings">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
                 <path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1m0-14.2-2.1 2.1m-10 10-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
-              Settings
+              <span data-i18n="nav.settings"></span>
             </button>
           </nav>
         </aside>
@@ -57,12 +65,12 @@
           <section id="page-transcribe" class="page">
             <div id="status-row">
               <span id="status-dot"></span>
-              <span id="status-text">Ready</span>
+              <span id="status-text" data-i18n="status.ready"></span>
               <span id="mic-level" class="hidden" aria-hidden="true"><span id="mic-level-fill"></span></span>
               <span id="status-error" class="hidden"></span>
             </div>
 
-            <button id="record-btn" aria-label="Start Recording">
+            <button id="record-btn" data-i18n-aria-label="status.startRecording">
               <svg id="record-icon-mic" viewBox="0 0 24 24" fill="none">
                 <rect x="8" y="1" width="8" height="14" rx="4" stroke="currentColor" stroke-width="1.8" fill="currentColor" fill-opacity="0.2"/>
                 <path d="M20 10v1a8 8 0 01-16 0v-1M12 19v3M8 22h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -74,253 +82,296 @@
 
             <div id="transcript-area">
               <div id="transcript-toolbar">
-                <span id="transcript-label">Transcript</span>
-                <button id="copy-btn" class="text-btn" type="button">Copy</button>
+                <span id="transcript-label" data-i18n="transcribe.transcriptLabel"></span>
+                <button id="copy-btn" class="text-btn" type="button" data-i18n="common.copy"></button>
               </div>
               <div id="transcript-text" aria-live="polite"></div>
             </div>
 
             <div id="translation-area" class="hidden">
               <div id="translation-toolbar">
-                <span id="translation-label">Translation</span>
-                <button id="copy-translation-btn" class="text-btn" type="button">Copy</button>
+                <span id="translation-label" data-i18n="translation.label"></span>
+                <button id="copy-translation-btn" class="text-btn" type="button" data-i18n="common.copy"></button>
               </div>
               <div id="translation-text" aria-live="polite"></div>
               <div id="translation-error" class="hidden"></div>
             </div>
 
             <div id="controls-bar">
-              <button id="pause-btn" class="ctrl-btn" type="button" disabled>Pause</button>
-              <button id="mic-btn" class="ctrl-btn primary" type="button">Mic</button>
-              <button id="stop-btn" class="ctrl-btn" type="button" disabled>Stop</button>
-              <button id="end-btn" class="ctrl-btn danger" type="button">End Session</button>
+              <button id="pause-btn" class="ctrl-btn" type="button" disabled data-i18n="status.pause"></button>
+              <button id="mic-btn" class="ctrl-btn primary" type="button" data-i18n="transcribe.mic"></button>
+              <button id="stop-btn" class="ctrl-btn" type="button" disabled data-i18n="status.stop"></button>
+              <button id="end-btn" class="ctrl-btn danger" type="button" data-i18n="transcribe.endSession"></button>
             </div>
 
             <div id="hint">
-              <kbd id="hotkey-display">Ctrl+Shift+Space</kbd> to start
+              <kbd id="hotkey-display"></kbd>
+              <span data-i18n="transcribe.hintStart"></span>
               <span class="hint-sep">·</span>
-              <kbd>Esc</kbd> to stop
+              <kbd data-i18n="transcribe.hintEsc"></kbd>
+              <span data-i18n="transcribe.hintStop"></span>
             </div>
           </section>
 
           <section id="page-history" class="page hidden">
             <div id="history-header">
-              <div id="history-title">History</div>
+              <div id="history-title" data-i18n="history.title"></div>
               <div id="history-actions">
-                <input id="history-search" type="text" placeholder="Search history…" aria-label="Search history" />
-                <button id="clear-history-btn" class="text-btn" type="button">Clear</button>
+                <input id="history-search" type="text" data-i18n-placeholder="history.search" data-i18n-aria-label="history.searchAria" />
+                <button id="clear-history-btn" class="text-btn" type="button" data-i18n="history.clear"></button>
               </div>
             </div>
             <div id="history-empty" class="hidden">
-              <div id="history-empty-title">No recordings yet</div>
-              <div id="history-empty-sub">Finished transcripts will appear here.</div>
+              <div id="history-empty-title" data-i18n="history.emptyTitle"></div>
+              <div id="history-empty-sub" data-i18n="history.emptySub"></div>
             </div>
             <div id="history-list"></div>
           </section>
 
           <section id="page-settings" class="page hidden">
-            <div id="settings-heading">Settings</div>
+            <div id="settings-heading" data-i18n="settings.heading"></div>
             <div class="settings-panel">
-              <div class="s-row" id="mic-row">
-                <span class="s-label">Microphone</span>
-                <select id="mic-select"></select>
-              </div>
 
-              <div class="s-row" id="engine-row">
-                <span class="s-label">Engine</span>
-                <div class="toggle-group" id="engine-group">
-                  <button class="toggle-btn active" data-value="local">Local Whisper</button>
-                  <button class="toggle-btn" data-value="speechmatics">Speechmatics</button>
-                  <button class="toggle-btn" data-value="deepgram">Deepgram</button>
-                </div>
-              </div>
+              <!-- ── Section: Input ─────────────────────────────────── -->
+              <details class="settings-section" open>
+                <summary class="settings-section-summary"><span data-i18n="settings.section.input"></span></summary>
+                <div class="settings-section-content">
+                  <div class="s-row" id="mic-row">
+                    <span class="s-label" data-i18n="settings.input.microphone"></span>
+                    <select id="mic-select"></select>
+                  </div>
 
-              <!-- Local Whisper Settings -->
-              <div class="engine-settings hidden" id="local-row">
-                <div class="engine-settings-header">Local Whisper</div>
-                <div class="s-row">
-                  <span class="s-label">Whisper Model</span>
-                  <div class="model-row">
-                    <select id="model-select">
-                      <option value="tiny">Tiny (~75 MB)</option>
-                      <option value="base">Base (~142 MB)</option>
-                      <option value="small">Small (~466 MB)</option>
-                      <option value="medium">Medium (~1.5 GB)</option>
-                    </select>
-                    <button id="download-btn" class="btn-primary" type="button">Download</button>
+                  <div class="s-row" id="mode-row">
+                    <span class="s-label" data-i18n="settings.input.mode"></span>
+                    <div class="toggle-group" id="mode-group">
+                      <button class="toggle-btn active" data-mode="toggle" data-i18n="settings.mode.toggle"></button>
+                      <button class="toggle-btn" data-mode="push-to-talk" data-i18n="settings.mode.pushToTalk"></button>
+                    </div>
+                  </div>
+
+                  <div class="s-row" id="hotkey-row">
+                    <span class="s-label" data-i18n="settings.input.hotkey"></span>
+                    <div class="hotkey-editor">
+                      <input id="hotkey-input" type="text" data-i18n-aria-label="settings.input.hotkeyAria" data-i18n-placeholder="settings.hotkey.placeholder" />
+                      <button id="hotkey-record" class="text-btn" type="button" data-i18n="settings.hotkey.record"></button>
+                    </div>
                   </div>
                 </div>
-                <div class="s-row" id="engine-download-row">
-                  <span class="s-label">Engine</span>
-                  <div class="model-row">
-                    <button id="engine-cpu-btn" class="btn-secondary" type="button">Download CPU (~8 MB)</button>
-                    <button id="engine-nvidia-btn" class="btn-secondary" type="button">Download NVIDIA (~273 MB)</button>
-                    <button id="engine-amd-btn" class="btn-secondary" type="button">Download AMD (~18 MB)</button>
+              </details>
+
+              <!-- ── Section: Transcription engine ──────────────────── -->
+              <details class="settings-section">
+                <summary class="settings-section-summary"><span data-i18n="settings.section.engine"></span></summary>
+                <div class="settings-section-content">
+                  <div class="s-row" id="engine-row">
+                    <span class="s-label" data-i18n="settings.engine.label"></span>
+                    <div class="toggle-group" id="engine-group">
+                      <button class="toggle-btn active" data-value="local" data-i18n="settings.engine.local"></button>
+                      <button class="toggle-btn" data-value="speechmatics" data-i18n="settings.engine.speechmatics"></button>
+                      <button class="toggle-btn" data-value="deepgram" data-i18n="settings.engine.deepgram"></button>
+                    </div>
                   </div>
-                </div>
-                <div class="s-row" id="engine-suggestion-row">
-                  <span class="s-label"></span>
-                  <span id="engine-suggestion" class="engine-suggestion hidden"></span>
-                </div>
-                <div id="download-progress" class="hidden">
-                  <span id="download-label" class="download-label"></span>
-                  <div id="progress-bar"><div id="progress-fill"></div></div>
-                </div>
-                <details class="engine-setup-section">
-                  <summary class="setup-summary">Advanced (custom binary)</summary>
-                  <div class="setup-content">
-                    <div class="s-row binary-row">
-                      <span class="s-label">Select Binary</span>
+
+                  <!-- Local Whisper Settings -->
+                  <div class="engine-settings hidden" id="local-row">
+                    <div class="engine-settings-header" data-i18n="settings.engine.local"></div>
+                    <div class="s-row">
+                      <span class="s-label" data-i18n="settings.engine.whisperModel"></span>
                       <div class="model-row">
-                        <span id="binary-path-display" class="binary-path">Not selected</span>
-                        <button id="select-binary-btn" class="btn-primary" type="button">Browse…</button>
-                        <button id="recheck-binary-btn" class="btn-secondary" type="button">Recheck</button>
-                        <button id="clear-binary-btn" class="btn-danger-sm" type="button" title="Clear custom binary">✕</button>
+                        <select id="model-select">
+                          <option value="tiny" data-i18n="settings.model.tiny"></option>
+                          <option value="base" data-i18n="settings.model.base"></option>
+                          <option value="small" data-i18n="settings.model.small"></option>
+                          <option value="medium" data-i18n="settings.model.medium"></option>
+                        </select>
+                        <button id="download-btn" class="btn-primary" type="button" data-i18n="settings.download.download"></button>
+                      </div>
+                    </div>
+                    <div class="s-row" id="engine-download-row">
+                      <span class="s-label" data-i18n="settings.engine.label"></span>
+                      <div class="model-row">
+                        <button id="engine-cpu-btn" class="btn-secondary" type="button"></button>
+                        <button id="engine-nvidia-btn" class="btn-secondary" type="button"></button>
+                        <button id="engine-amd-btn" class="btn-secondary" type="button"></button>
+                      </div>
+                    </div>
+                    <div class="s-row" id="engine-suggestion-row">
+                      <span class="s-label"></span>
+                      <span id="engine-suggestion" class="engine-suggestion hidden"></span>
+                    </div>
+                    <div id="download-progress" class="hidden">
+                      <span id="download-label" class="download-label"></span>
+                      <div id="progress-bar"><div id="progress-fill"></div></div>
+                    </div>
+                    <details class="engine-setup-section">
+                      <summary class="setup-summary" data-i18n="settings.engine.advanced"></summary>
+                      <div class="setup-content">
+                        <div class="s-row binary-row">
+                          <span class="s-label" data-i18n="settings.binary.selectLabel"></span>
+                          <div class="model-row">
+                            <span id="binary-path-display" class="binary-path" data-i18n="settings.binary.notSelected"></span>
+                            <button id="select-binary-btn" class="btn-primary" type="button" data-i18n="settings.binary.browse"></button>
+                            <button id="recheck-binary-btn" class="btn-secondary" type="button" data-i18n="settings.binary.recheck"></button>
+                            <button id="clear-binary-btn" class="btn-danger-sm" type="button" data-i18n-title="settings.binary.clearTitle">✕</button>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+
+                  <!-- Speechmatics Settings -->
+                  <div class="engine-settings hidden" id="speechmatics-row">
+                    <div class="engine-settings-header" data-i18n="settings.engine.speechmatics"></div>
+                    <div class="s-row">
+                      <span class="s-label" data-i18n="settings.key.apiKey"></span>
+                      <div class="api-key-row">
+                        <input type="password" id="speechmatics-key" data-i18n-placeholder="settings.key.speechmaticsPlaceholder" />
+                        <button id="speechmatics-remove-key" class="btn-danger-sm" type="button" data-i18n-title="settings.key.removeTitle">✕</button>
+                      </div>
+                    </div>
+                    <div class="s-row">
+                      <span class="s-label"></span>
+                      <div class="api-key-footer">
+                        <span class="api-key-notice" id="speechmatics-key-status" data-i18n="settings.key.none"></span>
+                        <button id="speechmatics-test-btn" class="btn-secondary" type="button" data-i18n="settings.key.testConnection"></button>
                       </div>
                     </div>
                   </div>
-                </details>
-              </div>
 
-              <!-- Speechmatics Settings -->
-              <div class="engine-settings hidden" id="speechmatics-row">
-                <div class="engine-settings-header">Speechmatics</div>
-                <div class="s-row">
-                  <span class="s-label">API Key</span>
-                  <div class="api-key-row">
-                    <input type="password" id="speechmatics-key" placeholder="Enter your Speechmatics API key" />
-                    <button id="speechmatics-remove-key" class="btn-danger-sm" type="button" title="Remove key">✕</button>
+                  <!-- Deepgram Settings -->
+                  <div class="engine-settings hidden" id="deepgram-row">
+                    <div class="engine-settings-header" data-i18n="settings.engine.deepgram"></div>
+                    <div class="s-row">
+                      <span class="s-label" data-i18n="settings.key.apiKey"></span>
+                      <div class="api-key-row">
+                        <input type="password" id="deepgram-key" data-i18n-placeholder="settings.key.deepgramPlaceholder" />
+                        <button id="deepgram-remove-key" class="btn-danger-sm" type="button" data-i18n-title="settings.key.removeTitle">✕</button>
+                      </div>
+                    </div>
+                    <div class="s-row">
+                      <span class="s-label"></span>
+                      <div class="api-key-footer">
+                        <span class="api-key-notice" id="deepgram-key-status" data-i18n="settings.key.none"></span>
+                      </div>
+                    </div>
+                    <div class="s-row">
+                      <span class="s-label" data-i18n="settings.engine.modelLabel"></span>
+                      <select id="deepgram-model-select">
+                        <option value="nova-3" data-i18n="settings.model.nova3"></option>
+                        <option value="nova-2" data-i18n="settings.model.nova2"></option>
+                        <option value="whisper" data-i18n="settings.model.whisperCloud"></option>
+                      </select>
+                    </div>
+                    <div class="s-row">
+                      <span class="s-label"></span>
+                      <button id="deepgram-test-btn" class="btn-secondary" type="button" data-i18n="settings.key.testConnection"></button>
+                    </div>
                   </div>
                 </div>
-                <div class="s-row">
-                  <span class="s-label"></span>
-                  <div class="api-key-footer">
-                    <span class="api-key-notice" id="speechmatics-key-status">No key saved</span>
-                    <button id="speechmatics-test-btn" class="btn-secondary" type="button">Test Connection</button>
+              </details>
+
+              <!-- ── Section: Language & translation ────────────────── -->
+              <details class="settings-section">
+                <summary class="settings-section-summary"><span data-i18n="settings.section.language"></span></summary>
+                <div class="settings-section-content">
+                  <div class="s-row" id="input-language-row">
+                    <span class="s-label" data-i18n="settings.translation.inputLanguage"></span>
+                    <select id="input-language-select"></select>
+                  </div>
+
+                  <div class="s-row" id="translation-row">
+                    <span class="s-label" data-i18n="settings.translation.label"></span>
+                    <div class="toggle-group" id="translation-group">
+                      <button class="toggle-btn" data-value="off" data-i18n="common.off"></button>
+                      <button class="toggle-btn" data-value="on" data-i18n="common.on"></button>
+                    </div>
+                  </div>
+
+                  <div class="s-row hidden" id="provider-row">
+                    <span class="s-label" data-i18n="settings.translation.provider"></span>
+                    <select id="provider-select">
+                      <option value="gemini" data-i18n="settings.translation.providerGemini"></option>
+                    </select>
+                  </div>
+
+                  <div class="s-row hidden" id="translate-to-row">
+                    <span class="s-label" data-i18n="settings.translation.translateTo"></span>
+                    <select id="translate-to-select"></select>
+                  </div>
+
+                  <div class="s-row hidden" id="gemini-row">
+                    <span class="s-label" data-i18n="settings.translation.geminiKey"></span>
+                    <input type="password" id="gemini-key" data-i18n-placeholder="settings.key.geminiKeyPlaceholder" />
+                  </div>
+
+                  <div class="s-row hidden" id="gemini-key-status-row">
+                    <span class="s-label"></span>
+                    <div class="api-key-footer">
+                      <span class="api-key-notice" id="gemini-key-status" data-i18n="settings.key.none"></span>
+                    </div>
+                  </div>
+
+                  <div class="s-row hidden" id="gemini-model-row">
+                    <span class="s-label" data-i18n="settings.translation.geminiModel"></span>
+                    <div class="model-field">
+                      <input type="text" id="gemini-model" data-i18n-placeholder="settings.translation.geminiModelPlaceholder" data-i18n-aria-label="settings.translation.geminiModelAria" />
+                      <div id="gemini-model-status" class="model-status neutral" aria-live="polite"></div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </details>
 
-              <!-- Deepgram Settings -->
-              <div class="engine-settings hidden" id="deepgram-row">
-                <div class="engine-settings-header">Deepgram</div>
-                <div class="s-row">
-                  <span class="s-label">API Key</span>
-                  <div class="api-key-row">
-                    <input type="password" id="deepgram-key" placeholder="key-..." />
-                    <button id="deepgram-remove-key" class="btn-danger-sm" type="button" title="Remove key">✕</button>
+              <!-- ── Section: Text cleanup ──────────────────────────── -->
+              <details class="settings-section">
+                <summary class="settings-section-summary"><span data-i18n="settings.section.cleanup"></span></summary>
+                <div class="settings-section-content">
+                  <div class="s-row" id="polish-row">
+                    <span class="s-label" data-i18n="settings.cleanup.speechCleanup"></span>
+                    <div class="toggle-group" id="polish-group">
+                      <button class="toggle-btn" data-value="off" data-i18n="settings.cleanup.off"></button>
+                      <button class="toggle-btn" data-value="light" data-i18n="settings.cleanup.light"></button>
+                      <button class="toggle-btn active" data-value="thorough" data-i18n="settings.cleanup.thorough"></button>
+                    </div>
+                  </div>
+
+                  <div class="s-row" id="ai-polish-row">
+                    <span class="s-label" data-i18n="settings.cleanup.aiPolish"></span>
+                    <div class="toggle-group" id="ai-polish-group">
+                      <button class="toggle-btn active" data-value="off" data-i18n="common.off"></button>
+                      <button class="toggle-btn" data-value="on" data-i18n="common.on"></button>
+                    </div>
+                  </div>
+
+                  <div class="s-row" id="vocab-row">
+                    <span class="s-label" data-i18n="settings.cleanup.myWords"></span>
+                    <div class="model-field">
+                      <textarea id="vocab-input" rows="3" data-i18n-placeholder="settings.cleanup.vocabPlaceholder" data-i18n-aria-label="settings.cleanup.vocabAria"></textarea>
+                      <div class="api-key-notice" data-i18n="settings.cleanup.vocabHint"></div>
+                    </div>
                   </div>
                 </div>
-                <div class="s-row">
-                  <span class="s-label"></span>
-                  <div class="api-key-footer">
-                    <span class="api-key-notice" id="deepgram-key-status">No key saved</span>
+              </details>
+
+              <!-- ── Section: Appearance ────────────────────────────── -->
+              <details class="settings-section">
+                <summary class="settings-section-summary"><span data-i18n="settings.section.appearance"></span></summary>
+                <div class="settings-section-content">
+                  <div class="s-row" id="ui-language-row">
+                    <span class="s-label" data-i18n="settings.appearance.uiLanguage"></span>
+                    <select id="ui-language-select">
+                      <option value="en" data-i18n="languages.en"></option>
+                      <option value="ar" data-i18n="languages.ar"></option>
+                      <option value="zh" data-i18n="languages.zh"></option>
+                    </select>
+                  </div>
+
+                  <div class="s-row" id="accent-row">
+                    <span class="s-label" data-i18n="settings.appearance.accent"></span>
+                    <input type="color" id="accent-color" value="#8b5cf6" data-i18n-aria-label="settings.appearance.accentAria" />
                   </div>
                 </div>
-                <div class="s-row">
-                  <span class="s-label">Model</span>
-                  <select id="deepgram-model-select">
-                    <option value="nova-3">Nova 3</option>
-                    <option value="nova-2">Nova 2</option>
-                    <option value="whisper">Whisper (Cloud)</option>
-                  </select>
-                </div>
-                <div class="s-row">
-                  <span class="s-label"></span>
-                  <button id="deepgram-test-btn" class="btn-secondary" type="button">Test Connection</button>
-                </div>
-              </div>
+              </details>
 
-              <div class="s-row" id="mode-row">
-                <span class="s-label">Recording Mode</span>
-                <div class="toggle-group" id="mode-group">
-                  <button class="toggle-btn active" data-mode="toggle">Toggle</button>
-                  <button class="toggle-btn" data-mode="push-to-talk">Push-to-Talk</button>
-                </div>
-              </div>
-
-              <div class="s-row" id="polish-row">
-                <span class="s-label">Speech Cleanup</span>
-                <div class="toggle-group" id="polish-group">
-                  <button class="toggle-btn" data-value="off">Off</button>
-                  <button class="toggle-btn" data-value="light">Light</button>
-                  <button class="toggle-btn active" data-value="thorough">Thorough</button>
-                </div>
-              </div>
-
-              <div class="s-row" id="vocab-row">
-                <span class="s-label">My Words</span>
-                <div class="model-field">
-                  <textarea id="vocab-input" rows="3" placeholder="One name or term per line, e.g.&#10;KimFlow&#10;Ahmed" aria-label="Custom vocabulary, one term per line"></textarea>
-                  <div class="api-key-notice">Names &amp; terms you say often — sent to the engine so it hears them right.</div>
-                </div>
-              </div>
-
-              <div class="s-row" id="translation-row">
-                <span class="s-label">Translation</span>
-                <div class="toggle-group" id="translation-group">
-                  <button class="toggle-btn" data-value="off">Off</button>
-                  <button class="toggle-btn" data-value="on">On</button>
-                </div>
-              </div>
-
-              <div class="s-row" id="ai-polish-row">
-                <span class="s-label">AI Polish</span>
-                <div class="toggle-group" id="ai-polish-group">
-                  <button class="toggle-btn active" data-value="off">Off</button>
-                  <button class="toggle-btn" data-value="on">On</button>
-                </div>
-              </div>
-
-              <div class="s-row hidden" id="provider-row">
-                <span class="s-label">Translation Provider</span>
-                <select id="provider-select">
-                  <option value="gemini">Gemini</option>
-                </select>
-              </div>
-
-              <div class="s-row" id="input-language-row">
-                <span class="s-label">Input Language</span>
-                <select id="input-language-select"></select>
-              </div>
-
-              <div class="s-row hidden" id="translate-to-row">
-                <span class="s-label">Translate To</span>
-                <select id="translate-to-select"></select>
-              </div>
-
-              <div class="s-row hidden" id="gemini-row">
-                <span class="s-label">Gemini API Key</span>
-                <input type="password" id="gemini-key" placeholder="AIza..." />
-              </div>
-
-              <div class="s-row hidden" id="gemini-key-status-row">
-                <span class="s-label"></span>
-                <div class="api-key-footer">
-                  <span class="api-key-notice" id="gemini-key-status">No key saved</span>
-                </div>
-              </div>
-
-              <div class="s-row hidden" id="gemini-model-row">
-                <span class="s-label">Gemini Model</span>
-                <div class="model-field">
-                  <input type="text" id="gemini-model" placeholder="gemini-3.6-flash (empty = automatic)" aria-label="Gemini model" />
-                  <div id="gemini-model-status" class="model-status neutral" aria-live="polite"></div>
-                </div>
-              </div>
-
-              <div class="s-row" id="accent-row">
-                <span class="s-label">Accent Color</span>
-                <input type="color" id="accent-color" value="#8b5cf6" aria-label="Choose accent color" />
-              </div>
-
-              <div class="s-row" id="hotkey-row">
-                <span class="s-label">Capture Hotkey</span>
-                <div class="hotkey-editor">
-                  <input id="hotkey-input" type="text" value="Ctrl+Shift+Space" aria-label="Capture hotkey" placeholder="Ctrl+Shift+Space" />
-                  <button id="hotkey-record" class="text-btn" type="button">Record</button>
-                </div>
-              </div>
             </div>
           </section>
         </main>

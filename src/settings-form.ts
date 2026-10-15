@@ -24,6 +24,7 @@ import {
   hotkeyInput,
   hotkeyRecord,
   accentColor,
+  uiLanguageSelect,
   engineGroup,
   localRow,
   speechmaticsRow,
@@ -48,8 +49,10 @@ import {
 } from './dom';
 import { getSettings, setSettings } from './store';
 import { applyAccentColor } from './theme';
-import { STATES, getCurrentState, onStateChange, showError, showToast } from './status';
-import { errorDetails, friendlyError } from './utils';
+import { STATES, getCurrentState, onStateChange, refreshStatusText, showError, showToast } from './status';
+import { errorDetails, errorText, friendlyError } from './utils';
+import { applyLanguage, cssContentValue, normalizeUILanguage, renderStatic, t } from './i18n';
+import { renderHistory } from './history';
 import {
   clearTranslation,
   populateLanguages,
@@ -67,9 +70,29 @@ function schedulePersist() {
   persistTimer = window.setTimeout(() => { void persist(); }, 500);
 }
 
+// Modifier key names match the physical keycaps, so they are never translated.
 function formatHotkey(hotkey: string) {
   const isWindows = /win/i.test(navigator.platform || navigator.userAgent);
   return hotkey.replace(/CmdOrCtrl|CommandOrControl/g, isWindows ? 'Ctrl' : 'Cmd');
+}
+
+/** Drive the `:empty::after` placeholders, which cannot carry data-i18n. */
+function applyEmptyStateText() {
+  const root = document.documentElement;
+  root.style.setProperty('--i18n-empty-transcript', cssContentValue(t('transcribe.empty')));
+  root.style.setProperty('--i18n-empty-translation', cssContentValue(t('translation.empty')));
+}
+
+/**
+ * Apply the UI language and re-render every piece of dynamic text that is not
+ * covered by a `data-i18n` attribute (status row, history list, ...).
+ */
+function applyLanguageToUi(language: string): void {
+  applyLanguage(language);
+  renderStatic();
+  applyEmptyStateText();
+  refreshStatusText();
+  renderHistory();
 }
 
 function setModeActive(mode: string) {
@@ -125,12 +148,12 @@ async function refreshKeyStatus(name: 'deepgramApiKey' | 'speechmaticsApiKey' | 
   try {
     const state = await window.api.secretState(name);
     targets[name].textContent = state === 'saved'
-      ? '🔒 Key saved on this device ✓'
+      ? t('settings.key.saved')
       : state === 'unreadable'
-        ? '⚠ Saved key cannot be read — re-enter it below'
-        : 'No key saved';
+        ? t('settings.key.unreadable')
+        : t('settings.key.none');
   } catch {
-    targets[name].textContent = 'Key status unavailable';
+    targets[name].textContent = t('settings.key.unavailable');
   }
 }
 
@@ -142,6 +165,8 @@ function refreshAllKeyStatus() {
 
 export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setSettings(settings);
+  uiLanguageSelect.value = normalizeUILanguage(settings.uiLanguage);
+  applyLanguageToUi(settings.uiLanguage);
   setEngine(settings.engine);
   modelSelect.value = settings.whisperModel || 'small';
   showBinaryName(settings.whisperBinaryPath || '');
@@ -167,12 +192,15 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
 
 export function applySettingsToUi(settings: Settings): void {
   setSettings(settings);
+  uiLanguageSelect.value = normalizeUILanguage(settings.uiLanguage);
+  applyLanguageToUi(settings.uiLanguage);
   accentColor.value = settings.accentColor;
   applyAccentColor(settings.accentColor);
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   setTranslationUiFromSettings(settings.translationEnabled);
   syncTranslationControls();
+  refreshAllKeyStatus();
   // Engine labels + binary display must follow every save broadcast,
   // otherwise they freeze on pre-change state.
   void refreshEngineButtons();
@@ -206,12 +234,15 @@ async function runPersist(): Promise<void> {
   settings.customVocabulary = vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 100);
   settings.hotkey = hotkeyInput.value.trim() || settings.hotkey;
   settings.accentColor = accentColor.value;
+  // The UI language is independent of inputLanguage / translationTarget:
+  // it only changes how the interface renders.
+  settings.uiLanguage = uiLanguageSelect.value || settings.uiLanguage;
   applyAccentColor(settings.accentColor);
   try {
     setSettings(await window.api.saveSettings(settings));
     refreshAllKeyStatus();
   } catch (error) {
-    const friendly = friendlyError(error, 'Unable to save settings');
+    const friendly = friendlyError(error, 'error.saveSettings');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   }
@@ -222,11 +253,11 @@ export async function checkModelStatus() {
   if (!settings || settings.engine !== 'local') return;
   try {
     const downloaded = await window.api.checkModelDownloaded(modelSelect.value);
-    downloadBtn.textContent = downloaded ? '✓ Ready' : 'Download';
+    downloadBtn.textContent = downloaded ? t('settings.download.ready') : t('settings.download.download');
     downloadBtn.disabled = downloaded;
   } catch (error) {
     downloadBtn.disabled = false;
-    const friendly = friendlyError(error, 'Unable to check model');
+    const friendly = friendlyError(error, 'error.checkModel');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
   }
@@ -256,15 +287,15 @@ function hideDownloadProgress() {
 function wireDownload() {
   downloadBtn.addEventListener('click', async () => {
     downloadBtn.disabled = true;
-    downloadBtn.textContent = 'Downloading…';
-    showDownloadProgress(`Downloading ${modelSelect.value} model`);
+    downloadBtn.textContent = t('settings.download.downloading');
+    showDownloadProgress(t('settings.model.downloading', { model: modelSelect.value }));
     try {
       await window.api.downloadModel(modelSelect.value);
-      downloadBtn.textContent = '✓ Ready';
+      downloadBtn.textContent = t('settings.download.ready');
     } catch (error) {
-      downloadBtn.textContent = 'Retry';
+      downloadBtn.textContent = t('settings.download.retry');
       downloadBtn.disabled = false;
-      const friendly = friendlyError(error, 'Download failed');
+      const friendly = friendlyError(error, 'error.downloadFailed');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
     } finally {
@@ -275,7 +306,7 @@ function wireDownload() {
 
 async function updateBinaryStatus(binaryPath: string) {
   if (!binaryPath) {
-    binaryPathDisplay.textContent = 'Not selected';
+    binaryPathDisplay.textContent = t('settings.binary.notSelected');
     binaryPathDisplay.title = '';
     return;
   }
@@ -289,7 +320,7 @@ async function updateBinaryStatus(binaryPath: string) {
 
 function showBinaryName(fullPath: string, ok?: boolean) {
   if (!fullPath) {
-    binaryPathDisplay.textContent = 'Not selected';
+    binaryPathDisplay.textContent = t('settings.binary.notSelected');
     binaryPathDisplay.title = '';
     return;
   }
@@ -312,17 +343,20 @@ function isTranscribingNow(): boolean {
   return getCurrentState() === STATES.TRANSCRIBING;
 }
 
+// Flavor display names and sizes are stable product data; only the surrounding
+// sentence is localised (via settings.engine.download.flavor / useFlavor).
+const ENGINE_FLAVORS: Array<{ button: HTMLButtonElement; flavor: string; display: string; size: string }> = [
+  { button: engineCpuBtn, flavor: 'cpu', display: 'CPU', size: '8 MB' },
+  { button: engineNvidiaBtn, flavor: 'nvidia', display: 'NVIDIA', size: '273 MB' },
+  { button: engineAmdBtn, flavor: 'amd', display: 'AMD', size: '18 MB' },
+];
+
 async function refreshEngineButtons(): Promise<void> {
   if (!isWindowsEngineHost()) return;
   let status: Record<string, string> = {};
   try { status = await window.api.engineStatus(); } catch { status = {}; }
   const activePath = getSettings()?.whisperBinaryPath || '';
-  const entries: Array<{ button: HTMLButtonElement; flavor: string; label: string }> = [
-    { button: engineCpuBtn, flavor: 'cpu', label: 'Download CPU (~8 MB)' },
-    { button: engineNvidiaBtn, flavor: 'nvidia', label: 'Download NVIDIA (~273 MB)' },
-    { button: engineAmdBtn, flavor: 'amd', label: 'Download AMD (~18 MB)' },
-  ];
-  for (const { button, flavor, label } of entries) {
+  for (const { button, flavor, display, size } of ENGINE_FLAVORS) {
     const state = status[flavor] || 'missing';
     // Engine installs nest the binary (e.g. engines/cpu/Release/...) — match
     // the flavor folder + filename, not an exact tail path.
@@ -333,13 +367,13 @@ async function refreshEngineButtons(): Promise<void> {
     // Accent highlight + text: color is never the only active signal.
     button.classList.toggle('active', isActive);
     button.title = '';
-    if (state === 'downloading') button.textContent = 'Downloading…';
-    else if (isActive) button.textContent = '✓ Active';
+    if (state === 'downloading') button.textContent = t('settings.download.downloading');
+    else if (isActive) button.textContent = t('settings.engine.active');
     else if (state === 'incompatible') {
-      button.textContent = '✗ Incompatible';
-      button.title = 'This build cannot start on this PC';
-    } else if (state === 'ready') button.textContent = 'Use ' + label.replace('Download ', '');
-    else button.textContent = label;
+      button.textContent = t('settings.engine.incompatible');
+      button.title = t('settings.engine.incompatibleTooltip');
+    } else if (state === 'ready') button.textContent = t('settings.engine.useFlavor', { flavor: display, size });
+    else button.textContent = t('settings.engine.download.flavor', { flavor: display, size });
   }
 }
 
@@ -355,11 +389,11 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
       const settings = getSettings();
       if (settings) settings.whisperBinaryPath = exePath;
       showBinaryName(exePath, true);
-      showToast('Switched — this build cannot start on this PC');
+      showToast(t('settings.engine.switchedIncompatible'));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error ?? '');
-      showError(message.split('\n')[0]);
-      statusError.title = message;
+      // Translate the summary; keep the full backend message in the tooltip.
+      showError(friendlyError(error, 'error.engineStartupFailed'));
+      statusError.title = errorText(error);
     } finally {
       await refreshEngineButtons();
       await updateBinaryStatus(getSettings()?.whisperBinaryPath || '');
@@ -367,23 +401,23 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
     return;
   }
   clicked.disabled = true;
-  clicked.textContent = 'Downloading…';
-  showDownloadProgress(`Downloading ${flavor} engine`);
+  clicked.textContent = t('settings.download.downloading');
+  showDownloadProgress(t('settings.engine.downloading', { flavor }));
   try {
     const exePath = await window.api.downloadEngine(flavor);
     const settings = getSettings();
     if (settings) settings.whisperBinaryPath = exePath;
     showBinaryName(exePath, true);
-    showToast('Engine installed ✓');
+    showToast(t('settings.engine.installed'));
   } catch (error) {
     // Engine failures already speak human (fingerprint, startup check) —
-    // show the first line, keep the whole message in the tooltip.
-    const message = error instanceof Error ? error.message : String(error ?? '');
+    // show the translated summary, keep the whole message in the tooltip.
+    const message = errorText(error);
     if (/^Engine /.test(message)) {
-      showError(message.split('\n')[0]);
+      showError(t('error.engineStartupFailed'));
       statusError.title = message;
     } else {
-      const friendly = friendlyError(error, 'Engine download failed');
+      const friendly = friendlyError(error, 'error.engineDownloadFailed');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
     }
@@ -399,7 +433,7 @@ async function refreshEngineSuggestion(): Promise<void> {
   try {
     const gpu = await window.api.detectGpu();
     const names: Record<string, string> = { nvidia: 'NVIDIA', amd: 'AMD', cpu: 'CPU' };
-    engineSuggestion.textContent = `Suggested for your PC: ${names[gpu] || 'CPU'}`;
+    engineSuggestion.textContent = t('settings.engine.suggested', { gpu: names[gpu] || 'CPU' });
     engineSuggestion.classList.remove('hidden');
   } catch {
     engineSuggestion.classList.add('hidden');
@@ -460,6 +494,15 @@ export function wireSettingsControls() {
     void persist();
   });
 
+  // Changing the UI language applies immediately, then persists; the
+  // settings-updated broadcast re-applies it to the overlay as well.
+  uiLanguageSelect.addEventListener('change', () => {
+    const settings = getSettings();
+    if (settings) settings.uiLanguage = uiLanguageSelect.value;
+    applyLanguageToUi(uiLanguageSelect.value);
+    void persist();
+  });
+
   providerSelect.addEventListener('change', () => { void persist(); });
   inputLanguageSelect.addEventListener('change', () => { void persist(); });
   translateToSelect.addEventListener('change', () => { void persist(); });
@@ -482,21 +525,21 @@ export function wireSettingsControls() {
   // Deepgram test connection
   deepgramTestBtn.addEventListener('click', async () => {
     const key = deepgramKey.value.trim();
-    if (!key) { showError('Enter a Deepgram API key first.'); return; }
+    if (!key) { showError(t('settings.key.enterDeepgram')); return; }
     deepgramTestBtn.disabled = true;
-    deepgramTestBtn.textContent = 'Testing…';
+    deepgramTestBtn.textContent = t('settings.key.testing');
     try {
-      const result = await window.api.testDeepgramConnection(key);
-      showToast(result.message);
+      await window.api.testDeepgramConnection(key);
+      showToast(t('settings.key.connectionSuccessful'));
       void persist();
       void refreshKeyStatus('deepgramApiKey');
-      deepgramTestBtn.textContent = '✓ Connected';
-      setTimeout(() => { deepgramTestBtn.textContent = 'Test Connection'; }, 2500);
+      deepgramTestBtn.textContent = t('settings.key.connected');
+      setTimeout(() => { deepgramTestBtn.textContent = t('settings.key.testConnection'); }, 2500);
     } catch (error) {
-      const friendly = friendlyError(error, 'Connection failed');
+      const friendly = friendlyError(error, 'error.connectionFailed');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
-      deepgramTestBtn.textContent = 'Test Connection';
+      deepgramTestBtn.textContent = t('settings.key.testConnection');
     } finally {
       deepgramTestBtn.disabled = false;
     }
@@ -505,21 +548,21 @@ export function wireSettingsControls() {
   // Speechmatics test connection
   speechmaticsTestBtn.addEventListener('click', async () => {
     const key = speechmaticsKey.value.trim();
-    if (!key) { showError('Enter a Speechmatics API key first.'); return; }
+    if (!key) { showError(t('settings.key.enterSpeechmatics')); return; }
     speechmaticsTestBtn.disabled = true;
-    speechmaticsTestBtn.textContent = 'Testing…';
+    speechmaticsTestBtn.textContent = t('settings.key.testing');
     try {
-      const result = await window.api.testSpeechmaticsConnection(key);
-      showToast(result.message);
+      await window.api.testSpeechmaticsConnection(key);
+      showToast(t('settings.key.connectionSuccessful'));
       void persist();
       void refreshKeyStatus('speechmaticsApiKey');
-      speechmaticsTestBtn.textContent = '✓ Connected';
-      setTimeout(() => { speechmaticsTestBtn.textContent = 'Test Connection'; }, 2500);
+      speechmaticsTestBtn.textContent = t('settings.key.connected');
+      setTimeout(() => { speechmaticsTestBtn.textContent = t('settings.key.testConnection'); }, 2500);
     } catch (error) {
-      const friendly = friendlyError(error, 'Connection failed');
+      const friendly = friendlyError(error, 'error.connectionFailed');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
-      speechmaticsTestBtn.textContent = 'Test Connection';
+      speechmaticsTestBtn.textContent = t('settings.key.testConnection');
     } finally {
       speechmaticsTestBtn.disabled = false;
     }
@@ -531,7 +574,7 @@ export function wireSettingsControls() {
     void window.api.deleteSecret('deepgramApiKey').catch(() => undefined);
     void persist();
     void refreshKeyStatus('deepgramApiKey');
-    showToast('Deepgram key removed');
+    showToast(t('settings.key.deepgramRemoved'));
   });
 
   speechmaticsRemoveKey.addEventListener('click', () => {
@@ -539,7 +582,7 @@ export function wireSettingsControls() {
     void window.api.deleteSecret('speechmaticsApiKey').catch(() => undefined);
     void persist();
     void refreshKeyStatus('speechmaticsApiKey');
-    showToast('Speechmatics key removed');
+    showToast(t('settings.key.speechmaticsRemoved'));
   });
 
   selectBinaryBtn.addEventListener('click', async () => {
@@ -554,7 +597,7 @@ export function wireSettingsControls() {
         showBinaryName(binaryPath);
       }
     } catch (error) {
-      const friendly = friendlyError(error, 'Unable to select binary');
+      const friendly = friendlyError(error, 'error.selectBinary');
       if (friendly) showError(friendly);
       statusError.title = errorDetails(error) ?? '';
     }
@@ -565,7 +608,7 @@ export function wireSettingsControls() {
     if (settings?.whisperBinaryPath) {
       await updateBinaryStatus(settings.whisperBinaryPath);
     } else {
-      showError('No binary selected. Use Select Binary first.');
+      showError(t('settings.binary.noneSelected'));
     }
   });
 
@@ -578,7 +621,7 @@ export function wireSettingsControls() {
       void persist();
     }
     showBinaryName('');
-    showToast('Custom binary cleared');
+    showToast(t('settings.binary.cleared'));
     void refreshEngineButtons();
   });
 
@@ -592,12 +635,12 @@ export function wireSettingsControls() {
   hotkeyInput.addEventListener('change', () => { void persist(); });
   function stopHotkeyRecord() {
     recordingHotkey = false;
-    hotkeyRecord.textContent = 'Record';
+    hotkeyRecord.textContent = t('settings.hotkey.record');
     hotkeyInput.classList.remove('recording');
   }
   hotkeyRecord.addEventListener('click', () => {
     recordingHotkey = !recordingHotkey;
-    hotkeyRecord.textContent = recordingHotkey ? 'Press keys…' : 'Record';
+    hotkeyRecord.textContent = recordingHotkey ? t('settings.hotkey.pressKeys') : t('settings.hotkey.record');
     hotkeyInput.classList.toggle('recording', recordingHotkey);
     if (recordingHotkey) hotkeyInput.focus();
   });

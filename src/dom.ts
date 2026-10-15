@@ -46,6 +46,7 @@ export const vocabInput = document.getElementById('vocab-input') as HTMLTextArea
 export const hotkeyInput = document.getElementById('hotkey-input') as HTMLInputElement;
 export const hotkeyRecord = document.getElementById('hotkey-record') as HTMLButtonElement;
 export const accentColor = document.getElementById('accent-color') as HTMLInputElement;
+export const uiLanguageSelect = document.getElementById('ui-language-select') as HTMLSelectElement;
 export const historySearch = document.getElementById('history-search') as HTMLInputElement;
 export const historyList = document.getElementById('history-list')!;
 export const historyEmpty = document.getElementById('history-empty')!;

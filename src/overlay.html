@@ -11,12 +11,18 @@
       body {
         color: #ececf1;
         background: transparent;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        /* Arabic and CJK fall back to system faces via per-glyph fallback. */
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                     "Noto Sans Arabic", "Segoe UI Arabic", "Microsoft YaHei",
+                     "PingFang SC", "Noto Sans SC", sans-serif;
         user-select: none;
         -webkit-user-select: none;
       }
       .widget {
-        width: 100%; height: 100%; padding: 4px 8px 4px 5px;
+        width: 100%; height: 100%;
+        /* Logical padding so the pill mirrors correctly under dir="rtl". */
+        padding-block: 4px;
+        padding-inline: 5px 8px;
         display: flex; align-items: center; gap: 7px;
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 999px;
@@ -81,66 +87,25 @@
     </style>
   </head>
   <body>
-    <section class="widget" aria-label="KimFlow floating controls">
-      <div class="drag-handle" title="Drag to move KimFlow">
-        <div class="mic" id="mic" aria-label="Microphone status">
+    <section class="widget" data-i18n-aria-label="overlay.widgetAria">
+      <div class="drag-handle" data-i18n-title="overlay.dragTitle">
+        <div class="mic" id="mic" data-i18n-aria-label="overlay.micAria">
           <span class="waves" aria-hidden="true"></span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/>
             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
           </svg>
         </div>
-        <div class="state"><span class="state-text" id="state-text">Ready</span></div>
+        <div class="state"><span class="state-text" id="state-text" data-i18n="status.ready"></span></div>
       </div>
-      <div class="controls" aria-label="Recording controls">
-        <button class="control" id="start-btn" title="Start recording" aria-label="Start recording">▶</button>
-        <button class="control hidden" id="pause-btn" title="Pause recording" aria-label="Pause recording">Ⅱ</button>
-        <button class="control hidden" id="resume-btn" title="Resume recording" aria-label="Resume recording">▶</button>
-        <button class="control hidden" id="stop-btn" title="Stop and transcribe" aria-label="Stop and transcribe">■</button>
-        <button class="control cancel" id="cancel-btn" title="Cancel recording" aria-label="Cancel recording">×</button>
+      <div class="controls" data-i18n-aria-label="overlay.controlsAria">
+        <button class="control" id="start-btn" data-i18n-title="overlay.start" data-i18n-aria-label="overlay.start">▶</button>
+        <button class="control hidden" id="pause-btn" data-i18n-title="overlay.pause" data-i18n-aria-label="overlay.pause">Ⅱ</button>
+        <button class="control hidden" id="resume-btn" data-i18n-title="overlay.resume" data-i18n-aria-label="overlay.resume">▶</button>
+        <button class="control hidden" id="stop-btn" data-i18n-title="overlay.stop" data-i18n-aria-label="overlay.stop">■</button>
+        <button class="control cancel" id="cancel-btn" data-i18n-title="overlay.cancel" data-i18n-aria-label="overlay.cancel">×</button>
       </div>
     </section>
-    <script>
-      const mic = document.getElementById('mic');
-      const stateText = document.getElementById('state-text');
-      const startBtn = document.getElementById('start-btn');
-      const pauseBtn = document.getElementById('pause-btn');
-      const resumeBtn = document.getElementById('resume-btn');
-      const stopBtn = document.getElementById('stop-btn');
-      const cancelBtn = document.getElementById('cancel-btn');
-      const buttons = [startBtn, pauseBtn, resumeBtn, stopBtn, cancelBtn];
-
-      function update(state) {
-        mic.className = 'mic';
-        if (state === 'recording') mic.classList.add('recording');
-        if (state === 'paused') mic.classList.add('paused');
-        if (state === 'transcribing') mic.classList.add('transcribing');
-        stateText.textContent = state === 'recording' ? 'Listening…' : state[0].toUpperCase() + state.slice(1);
-        buttons.forEach((button) => { button.disabled = state === 'transcribing'; });
-        startBtn.classList.toggle('hidden', state !== 'ready');
-        pauseBtn.classList.toggle('hidden', state !== 'recording');
-        resumeBtn.classList.toggle('hidden', state !== 'paused');
-        stopBtn.classList.toggle('hidden', state !== 'recording' && state !== 'paused');
-        cancelBtn.classList.toggle('hidden', state === 'ready');
-      }
-
-      [
-        [startBtn, 'start'], [pauseBtn, 'pause'], [resumeBtn, 'resume'],
-        [stopBtn, 'stop'], [cancelBtn, 'cancel'],
-      ].forEach(([button, action]) => button.addEventListener('click', async () => {
-        try { await window.api.overlayAction(action); }
-        catch (error) { stateText.textContent = error instanceof Error ? error.message : 'Action unavailable'; }
-      }));
-      window.api.onRecordingState(update);
-      window.api.onSettingsUpdated((settings) => {
-        document.documentElement.style.setProperty('--accent', settings.accentColor);
-        document.documentElement.style.setProperty('--accent-glow', `${settings.accentColor}66`);
-      });
-      window.api.getSettings().then((settings) => {
-        document.documentElement.style.setProperty('--accent', settings.accentColor);
-        document.documentElement.style.setProperty('--accent-glow', `${settings.accentColor}66`);
-      }).catch(() => {});
-      window.api.getRecordingState().then(update).catch(() => update('ready'));
-    </script>
+    <script type="module" src="/src/overlay.ts"></script>
   </body>
 </html>
