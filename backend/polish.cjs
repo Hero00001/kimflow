@@ -28,8 +28,20 @@ function collapseRepeats(text) {
   return text.replace(/\b(\w+)(?:\s+\1\b)+/gi, '$1');
 }
 
+// Subject pronouns. When one of these immediately precedes "actually", the
+// marker is an intensifier ("I actually needed it"), not a self-correction.
+const SUBJECT_PRONOUNS = new Set([
+  'i', 'we', 'you', 'he', 'she', 'they', 'it', 'that', 'this', 'there', 'here',
+]);
+
 // "X actually Y" / "X I mean Y" is treated as a restart: only Y survives.
 // A leading marker ("actually, I agree") is emphasis, not a correction.
+//
+// "actually" is also a common English intensifier, and the rule used to fire
+// on it unconditionally, deleting the sentence prefix: "The report I actually
+// needed was the blue one" became "needed was the blue one". A subject
+// pronoun right before the marker marks it as emphasis. "I mean" is
+// unambiguous and always restarts.
 function resolveCorrections(text) {
   return text
     .split(/(?<=[.!?])\s+/)
@@ -39,6 +51,10 @@ function resolveCorrections(text) {
       const before = sentence.slice(0, match.index).trim();
       const after = sentence.slice(match.index + match[0].length).trim();
       if (!before || !after) return sentence;
+      if (match[0].toLowerCase() === 'actually') {
+        const previousWord = (before.match(/([A-Za-z']+)$/) || [])[1] || '';
+        if (SUBJECT_PRONOUNS.has(previousWord.toLowerCase())) return sentence;
+      }
       return after;
     })
     .join(' ');
