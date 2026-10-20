@@ -216,7 +216,7 @@ export const ar: Record<LocaleKey, string> = {
   'error.copyTranslation': 'تعذّر نسخ الترجمة', // Unable to copy translation
   'error.loadSettings': 'تعذّر تحميل الإعدادات', // Unable to load settings
   'error.saveSettings': 'تعذّر حفظ الإعدادات', // Unable to save settings
-  'error.hotkeyInUse': 'مفتاح الالتقاط هذا مستخدم بالفعل من تطبيق آخر. تم حفظ بقية إعداداتك.', // That capture hotkey is already in use by another app. Your other settings were saved.
+  'error.hotkeyInUse': 'تعذّر تطبيق مفتاح الالتقاط — قد يكون تطبيق آخر يستخدمه أو قد يكون غير صالح. تم حفظ بقية إعداداتك.', // Capture hotkey could not be applied - another application may already use it, or it may be invalid. Your other settings were saved.
   'error.checkModel': 'تعذّر التحقق من الطراز', // Unable to check model
   'error.downloadFailed': 'فشل التنزيل', // Download failed
   'error.engineDownloadFailed': 'فشل تنزيل المحرّك', // Engine download failed

@@ -94,8 +94,15 @@ function createStore(initial) {
   };
 }
 
-/** An api whose saveSettings snapshots the payload at SEND time, like IPC does. */
-function createApi() {
+/**
+ * An api whose saveSettings snapshots the payload at SEND time, like IPC
+ * does.
+ *
+ * `deferred` holds each save open until the returned `pending` list is
+ * released — that is how a save can be kept in flight while the user does
+ * something else.
+ */
+function createApi({ deferred = false } = {}) {
   const saved = [];
   const pending = [];
   return {
@@ -106,6 +113,7 @@ function createApi() {
         // The wire serialises now; the reply carries that snapshot.
         const snapshot = { ...settings };
         saved.push(snapshot);
+        if (!deferred) return Promise.resolve(snapshot);
         return new Promise((resolve) => pending.push(() => resolve(snapshot)));
       },
       secretState: async () => 'missing',
@@ -152,7 +160,7 @@ function createSettingsDom() {
 test('the engine selection survives a save response carrying an older snapshot', async () => {
   const dom = createSettingsDom();
   const store = createStore(BASE_SETTINGS);
-  const { api, saved, pending } = createApi();
+  const { api, saved, pending } = createApi({ deferred: true });
   const { form, restore } = loadForm(dom, store, api);
   try {
     await form.loadSettingsIntoUi(store.peek());
@@ -187,6 +195,8 @@ test('the engine selection survives a save response carrying an older snapshot',
 test('a settings broadcast does not undo a translation toggle the user just made', async () => {
   const dom = createSettingsDom();
   const store = createStore(BASE_SETTINGS);
+  // Saves resolve immediately, so the save asserted on below is the one issued
+  // AFTER the broadcast — not the one issued before it.
   const { api, saved } = createApi();
   const { form, restore } = loadForm(dom, store, api);
   try {
@@ -206,6 +216,7 @@ test('a settings broadcast does not undo a translation toggle the user just made
     // The next save must still carry the user's choice.
     dom.byId('accent-color').value = '#ff0000';
     dom.dispatch('accent-color', 'input');
+    await tick();
     await tick();
     await tick();
 

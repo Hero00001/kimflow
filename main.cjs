@@ -210,16 +210,19 @@ function registerIpc() {
     // renderer always receives a concrete value.
     return ensureUiLanguage(loadSettings());
   });
-  ipcMain.handle('save-settings', (event, settings) => {
+  // `async` so a failure is always a rejected promise, exactly as Electron
+  // reports it to the renderer.
+  ipcMain.handle('save-settings', async (event, settings) => {
     assertTrustedSender(event);
     const candidate = normalizeSettings(settings);
     // A capture hotkey owned by another application must not block the rest
     // of the settings from being saved — otherwise the user cannot save their
-    // API key either, and the app becomes unconfigurable. Fall back to the
-    // hotkey that is actually working; the renderer reports the difference so
-    // the user knows their new shortcut was not applied.
+    // API key either, and the app becomes unconfigurable. The hotkey is
+    // reported separately below.
     const requestedHotkey = candidate.hotkey;
-    if (!isValidHotkey(requestedHotkey) || !registerHotkeys(requestedHotkey)) {
+    const applied = isValidHotkey(requestedHotkey) && registerHotkeys(requestedHotkey);
+    if (!applied) {
+      // Keep the hotkey that is actually working, so the app stays usable.
       candidate.hotkey = getActiveHotkey() || requestedHotkey;
     }
     const saved = saveSettings(candidate);
@@ -231,6 +234,14 @@ function registerIpc() {
         model: saved.geminiModel || undefined,
         provider: saved.translationProvider,
       });
+    }
+    if (!applied) {
+      // The settings ARE saved. The hotkey is reported separately, because
+      // the saved value can equal the requested one when there was no working
+      // hotkey to fall back to — the renderer could not tell them apart.
+      const error = new Error('Capture hotkey could not be applied - another application may already use it, or it may be invalid. Your other settings were saved.');
+      error.details = `Requested: ${requestedHotkey}. In effect: ${saved.hotkey}`;
+      throw error;
     }
     return saved;
   });

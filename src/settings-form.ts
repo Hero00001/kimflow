@@ -110,6 +110,19 @@ function setOwnedSettings(settings: Settings): void {
   setSettings({ ...settings, ...ownedSettings() });
 }
 
+/**
+ * Change the custom binary in effect.
+ *
+ * The store is updated too, so it never holds a path that is no longer the
+ * one in use — "Recheck" validates the store's path, and a stale one made it
+ * report a false failure next to the engine that had just been installed.
+ */
+function setCurrentBinaryPath(path: string): void {
+  currentBinaryPath = path;
+  const settings = getSettings();
+  if (settings) setSettings({ ...settings, whisperBinaryPath: path });
+}
+
 function schedulePersist() {
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(() => { void persist(); }, 500);
@@ -224,7 +237,7 @@ function refreshAllKeyStatus() {
 
 export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setSettings(settings);
-  currentBinaryPath = settings.whisperBinaryPath || '';
+  setCurrentBinaryPath(settings.whisperBinaryPath || '');
   uiLanguageSelect.value = normalizeUILanguage(settings.uiLanguage);
   applyLanguageToUi(settings.uiLanguage);
   setEngine(settings.engine);
@@ -311,7 +324,6 @@ async function runPersist(): Promise<void> {
   Object.assign(settings, ownedSettings());
   applyAccentColor(settings.accentColor);
   try {
-    const requestedHotkey = settings.hotkey;
     const saved = await window.api.saveSettings(settings);
     setOwnedSettings(saved);
     refreshAllKeyStatus();
@@ -320,19 +332,18 @@ async function runPersist(): Promise<void> {
     // applies a snapshot over the editable controls — so it would keep
     // showing the previous hotkey until the app restarted.
     hotkeyDisplay.textContent = formatHotkey(saved.hotkey);
-    // The hotkey is the one setting that can fail to apply: another
-    // application may already own the shortcut. The main process falls back
-    // to the hotkey that is working, so the saved hotkey differs from the
-    // requested one — tell the user, rather than silently ignoring it.
-    if (saved.hotkey !== requestedHotkey) {
-      hotkeyInput.value = saved.hotkey;
-      hotkeyDisplay.textContent = formatHotkey(saved.hotkey);
-      showError(t('error.hotkeyInUse'));
-    }
   } catch (error) {
     const friendly = friendlyError(error, 'error.saveSettings');
     if (friendly) showError(friendly);
     statusError.title = errorDetails(error) ?? '';
+    // The hotkey that is actually in effect is in the store — the broadcast
+    // that carried it was delivered before the rejection — so the input must
+    // show that rather than the shortcut that could not be claimed.
+    const effective = getSettings()?.hotkey;
+    if (effective && effective !== hotkeyInput.value) {
+      hotkeyInput.value = effective;
+      hotkeyDisplay.textContent = formatHotkey(effective);
+    }
   }
 }
 
@@ -474,7 +485,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   if (preState === 'incompatible') {
     try {
       const exePath = await window.api.activateEngine(flavor);
-      currentBinaryPath = exePath;
+      setCurrentBinaryPath(exePath);
       showBinaryName(exePath, true);
       showToast(t('settings.engine.switchedIncompatible'));
     } catch (error) {
@@ -492,7 +503,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   showDownloadProgress(t('settings.engine.downloading', { flavor }));
   try {
     const exePath = await window.api.downloadEngine(flavor);
-    currentBinaryPath = exePath;
+    setCurrentBinaryPath(exePath);
     showBinaryName(exePath, true);
     showToast(t('settings.engine.installed'));
   } catch (error) {
@@ -659,7 +670,7 @@ export function wireSettingsControls() {
     try {
       const binaryPath = await window.api.selectWhisperBinary();
       if (binaryPath) {
-        currentBinaryPath = binaryPath;
+        setCurrentBinaryPath(binaryPath);
         void persist();
         showBinaryName(binaryPath);
       }
@@ -682,7 +693,7 @@ export function wireSettingsControls() {
   clearBinaryBtn.addEventListener('click', () => {
     // Clearing hands control back: pick any engine button (or Browse again)
     // to choose what transcribes next. The file itself is left on disk.
-    currentBinaryPath = '';
+    setCurrentBinaryPath('');
     void persist();
     showBinaryName('');
     showToast(t('settings.binary.cleared'));

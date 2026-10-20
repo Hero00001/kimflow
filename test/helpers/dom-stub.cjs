@@ -98,7 +98,42 @@ function createElement(props = {}) {
   Object.assign(element, props);
 
   element.classList = createClassList(element);
+
+  // `className` and `classList` are two views of the same state in a
+  // browser: assigning `className` replaces the classes, and clearing it
+  // removes them. Modelling only one direction would let a test pass while
+  // the real element kept its old classes.
+  let classNameValue = [...element._classes].join(' ');
+  Object.defineProperty(element, 'className', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return classNameValue;
+    },
+    set(value) {
+      classNameValue = String(value || '');
+      element._classes = new Set(classNames(classNameValue));
+    },
+  });
   element.className = [...element._classes].join(' ');
+
+  // `setAttribute('data-x', v)` is visible as `dataset.x`, the way the
+  // browser exposes it.
+  element.setAttribute = (name, value) => {
+    element._attributes = element._attributes || {};
+    element._attributes[name] = String(value);
+    const match = /^data-([a-z0-9-]+)$/i.exec(name);
+    if (match) {
+      const key = match[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      element.dataset[key] = String(value);
+    }
+  };
+  element.getAttribute = (name) => (
+    element._attributes && name in element._attributes ? element._attributes[name] : null
+  );
+  element.removeAttribute = (name) => {
+    if (element._attributes) delete element._attributes[name];
+  };
 
   // A <select>'s `options` is derived from its OPTION children, exactly as
   // the browser derives it.
@@ -115,6 +150,11 @@ function createElement(props = {}) {
       element.children.push(node);
     }
   };
+  element.appendChild = (node) => {
+    node.parent = element;
+    element.children.push(node);
+    return node;
+  };
   element.replaceChildren = (...nodes) => {
     element.children = [];
     for (const node of nodes) {
@@ -128,18 +168,24 @@ function createElement(props = {}) {
   };
 
   /**
-   * Match a selector against an element's own classes.
+   * Match a selector against an element's own attributes and classes.
    *
-   * Only class selectors are supported, and a compound selector
-   * (`.toggle-btn.active`) requires every listed class to be present.
+   * Supported: a compound selector made of `.class` and `[attribute]` parts,
+   * e.g. `.toggle-btn.active` or `[data-i18n]`. Every part must match.
    */
   const matches = (element, selector) => {
-    if (typeof selector !== 'string' || !selector.startsWith('.')) return false;
-    return selector
-      .slice(1)
-      .split('.')
-      .filter(Boolean)
-      .every((name) => element._classes.has(name));
+    if (typeof selector !== 'string' || !selector) return false;
+    return selector.split(/(?=[.\[])/).every((part) => {
+      if (part.startsWith('.')) return element._classes.has(part.slice(1));
+      const attribute = /^\[([^\]=]+)(?:=["']?([^\]"']*)["']?)?\]$/.exec(part);
+      if (!attribute) return false;
+      const [, name, expected] = attribute;
+      const actual = element._attributes && name in element._attributes
+        ? element._attributes[name]
+        : undefined;
+      if (actual === undefined) return false;
+      return expected === undefined || actual === expected;
+    });
   };
 
   element.querySelectorAll = (selector) => {

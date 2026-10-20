@@ -224,7 +224,7 @@ export const zh: Record<LocaleKey, string> = {
   'error.copyTranslation': '无法复制翻译', // Unable to copy translation
   'error.loadSettings': '无法加载设置', // Unable to load settings
   'error.saveSettings': '无法保存设置', // Unable to save settings
-  'error.hotkeyInUse': '该捕获快捷键已被其他应用占用。其余设置已保存。', // That capture hotkey is already in use by another app. Your other settings were saved.
+  'error.hotkeyInUse': '无法应用捕获快捷键 — 可能已被其他应用占用，或格式无效。其余设置已保存。', // Capture hotkey could not be applied - another application may already use it, or it may be invalid. Your other settings were saved.
   'error.checkModel': '无法检查模型', // Unable to check model
   'error.downloadFailed': '下载失败', // Download failed
   'error.engineDownloadFailed': '引擎下载失败', // Engine download failed

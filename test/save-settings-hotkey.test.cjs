@@ -52,15 +52,17 @@ test('a taken hotkey does not stop the other settings from being saved', async (
   t.after(() => harness.restore());
   const event = { sender: { id: harness.instances[0].webContents.id } };
 
-  const saved = harness.handlers.get('save-settings')(event, {
-    engine: 'deepgram',
-    accentColor: '#123456',
-    hotkey: 'Ctrl+Shift+Space',
-  });
+  // The hotkey failure is reported, but the save already happened.
+  await assert.rejects(
+    () => harness.handlers.get('save-settings')(event, {
+      engine: 'deepgram',
+      accentColor: '#123456',
+      hotkey: 'Ctrl+Shift+Space',
+    }),
+    /hotkey/i,
+  );
 
   // The settings the user changed must be persisted.
-  assert.equal(saved.engine, 'deepgram');
-  assert.equal(saved.accentColor, '#123456');
   const onDisk = readConfig(home);
   assert.equal(onDisk.engine, 'deepgram');
   assert.equal(onDisk.accentColor, '#123456');
@@ -76,13 +78,13 @@ test('the hotkey falls back to the one that is actually working', async (t) => {
   t.after(() => harness.restore());
   const event = { sender: { id: harness.instances[0].webContents.id } };
 
-  const saved = harness.handlers.get('save-settings')(event, {
-    hotkey: 'Ctrl+Shift+Space',
-  });
+  await assert.rejects(
+    () => harness.handlers.get('save-settings')(event, { hotkey: 'Ctrl+Shift+Space' }),
+    /hotkey/i,
+  );
 
   // The app must keep a hotkey that actually works, so the user is not left
   // with no capture shortcut at all.
-  assert.equal(saved.hotkey, 'Ctrl+Alt+Space');
   assert.equal(readConfig(home).hotkey, 'Ctrl+Alt+Space');
 });
 
@@ -92,12 +94,45 @@ test('a hotkey that registers is saved as requested', async (t) => {
   t.after(() => harness.restore());
   const event = { sender: { id: harness.instances[0].webContents.id } };
 
-  const saved = harness.handlers.get('save-settings')(event, {
+  const saved = await harness.handlers.get('save-settings')(event, {
     hotkey: 'Ctrl+Shift+Space',
   });
 
   assert.equal(saved.hotkey, 'Ctrl+Shift+Space');
   assert.equal(readConfig(home).hotkey, 'Ctrl+Shift+Space');
+});
+
+test('a hotkey that cannot be applied is reported even with no fallback', async (t) => {
+  const home = withTempHome(t);
+  // No hotkey is registered and none can be: the user picked a shortcut
+  // another application owns. The app must say so — not silently keep an
+  // unusable shortcut and only mention it at the next launch.
+  const harness = await loadMain({
+    locale: 'en-US',
+    home,
+    overrides: {
+      'hotkeys.cjs': {
+        registerHotkeys: () => false,
+        unregisterHotkeys: () => {},
+        setHotkeyCallbacks: () => {},
+        isValidHotkey: () => true,
+        getActiveHotkey: () => '',
+      },
+    },
+  });
+  t.after(() => harness.restore());
+  const event = { sender: { id: harness.instances[0].webContents.id } };
+
+  // The other settings are still saved, and the failure is reported.
+  let thrown = null;
+  try {
+    await harness.handlers.get('save-settings')(event, { engine: 'deepgram', hotkey: 'Ctrl+Shift+Space' });
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown, 'the unusable hotkey must be reported, not silently kept');
+  assert.match(thrown.message, /hotkey/i);
+  assert.equal(readConfig(home).engine, 'deepgram', 'the other settings must still be saved');
 });
 
 test('the renderer tells the user when the hotkey could not be applied', async () => {
@@ -109,20 +144,26 @@ test('the renderer tells the user when the hotkey could not be applied', async (
   globalThis.document = dom.document;
   globalThis.window = {
     api: {
-      // The main process fell back to the working hotkey.
+      // The main process saved the settings and then reported that the
+      // shortcut could not be claimed. The broadcast that carried the
+      // effective hotkey arrives before the rejection.
       saveSettings: async (settings) => {
         saved.push({ ...settings });
-        return { ...settings, hotkey: 'Ctrl+Alt+Space' };
+        shared = { ...shared, hotkey: 'Ctrl+Alt+Space' };
+        throw new Error('Capture hotkey could not be applied - another application may already use it, or it may be invalid. Your other settings were saved.');
       },
       secretState: async () => 'missing',
       checkModelDownloaded: async () => true,
       getLanguages: async () => ({ input: [], target: [] }),
       detectGpu: async () => 'cpu',
     },
+    setTimeout,
+    clearTimeout,
   };
   const storePath = path.resolve('src/store.ts');
   const statusPath = path.resolve('src/status.ts');
-  let shared = { hotkey: 'Ctrl+Shift+Space', engine: 'local' };
+  // The store holds the hotkey that is actually in effect.
+  let shared = { hotkey: 'Ctrl+Alt+Space', engine: 'local' };
   try {
     const form = loadTs('src/settings-form.ts', (resolved) => {
       if (resolved === storePath) {
@@ -149,7 +190,7 @@ test('the renderer tells the user when the hotkey could not be applied', async (
 
     assert.equal(saved.length, 1, 'a save was attempted');
     assert.equal(errors.length, 1, 'the user was told');
-    assert.match(errors[0], /already in use/i);
+    assert.match(errors[0], /hotkey/i);
     // The field must show the hotkey that is actually in effect.
     assert.equal(dom.byId('hotkey-input').value, 'Ctrl+Alt+Space');
   } finally {
