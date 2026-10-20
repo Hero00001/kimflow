@@ -5,6 +5,12 @@ function cleanupText(text, polishMode = 'thorough') {
   const trimmed = text.trim();
   if (!trimmed) return '';
 
+  // "Off" means off. The UI offers it as a Speech Cleanup mode, so a user who
+  // selects it expects the transcript verbatim — not number words converted,
+  // sentences re-capitalised and a full stop appended. polishText already
+  // honours the mode; this is the other half of the same contract.
+  if (polishMode === 'off') return trimmed;
+
   const polished = polishText(formatNumberWords(trimmed), polishMode);
   // Collapse whitespace per line so spoken "new line"/"new paragraph"
   // commands survive as real line breaks.
