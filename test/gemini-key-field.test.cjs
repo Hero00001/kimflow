@@ -89,3 +89,74 @@ test('a full key survives a settings broadcast unchanged', () => {
   translation.syncTranslationControls();
   assert.equal(dom.byId('gemini-key').value, 'AIzaSyABC123');
 });
+
+test('every key input is write-only, not just the Gemini one', async () => {
+  // The same wipe could be reintroduced for the other two key fields, which
+  // have no write-back in `syncTranslationControls` but used to be
+  // repopulated by `loadSettingsIntoUi`. Assert the whole set.
+  const dom = createDom({});
+  const storePath = path.resolve('src/store.ts');
+  const domPath = path.resolve('src/dom.ts');
+  const cache = new Map();
+  const form = loadTs('src/settings-form.ts', (resolved) => {
+    if (resolved === domPath) {
+      // Every element name resolves lazily, so the test does not have to
+      // enumerate the ids the renderer imports.
+      return dom.exports();
+    }
+    if (resolved === storePath) {
+      return {
+        getSettings: () => ({
+          microphone: 'default', engine: 'local', whisperModel: 'small',
+          whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
+          deepgramApiKey: '', deepgramModel: 'nova-3', speechmaticsApiKey: '',
+          recordingMode: 'toggle', polishMode: 'thorough', customVocabulary: [],
+          aiPolish: false, hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
+          translationEnabled: false, translationProvider: 'gemini',
+          geminiApiKey: '', geminiModel: '', inputLanguage: 'auto',
+          translationTarget: 'en', uiLanguage: 'en',
+        }),
+        setSettings() {},
+      };
+    }
+    return undefined;
+  }, cache);
+
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  const previousNavigator = globalThis.navigator;
+  globalThis.document = dom.document;
+  globalThis.window = {
+    api: {
+      secretState: async () => 'missing',
+      checkModelDownloaded: async () => true,
+      getLanguages: async () => ({ input: [], target: [] }),
+      detectGpu: async () => 'cpu',
+      engineStatus: async () => ({}),
+    },
+    setTimeout,
+    clearTimeout,
+  };
+  if (!previousNavigator) globalThis.navigator = { platform: 'Linux x86_64', userAgent: 'node' };
+  try {
+    await form.loadSettingsIntoUi({
+      microphone: 'default', engine: 'local', whisperModel: 'small',
+      whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
+      // A backend that somehow still returned a key value must not write it
+      // into the field.
+      deepgramApiKey: 'should-not-appear', speechmaticsApiKey: 'should-not-appear',
+      geminiApiKey: 'should-not-appear',
+      deepgramModel: 'nova-3', recordingMode: 'toggle', polishMode: 'thorough',
+      customVocabulary: [], aiPolish: false, hotkey: 'CmdOrCtrl+Shift+Space',
+      accentColor: '#8b5cf6', translationEnabled: false, translationProvider: 'gemini',
+      geminiModel: '', inputLanguage: 'auto', translationTarget: 'en', uiLanguage: 'en',
+    });
+    assert.equal(dom.byId('deepgram-key').value, '', 'the Deepgram key input stays empty');
+    assert.equal(dom.byId('speechmatics-key').value, '', 'the Speechmatics key input stays empty');
+    assert.equal(dom.byId('gemini-key').value, '', 'the Gemini key input stays empty');
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    if (!previousNavigator) delete globalThis.navigator;
+  }
+});

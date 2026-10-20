@@ -303,12 +303,25 @@ function createDom(elements = {}) {
    * kebab-casing the camelCase binding (`providerSelect` -> `provider-select`);
    * pass an explicit `{ name: id }` map to override.
    *
-   * @param {string[]|object} names
+   * With no argument every name resolves lazily, so a test does not have to
+   * enumerate the ~70 ids the renderer imports.
+   *
+   * @param {string[]|object} [names]
    * @returns {object} module exports
    */
   const exports = (names) => {
+    const idFor = (name) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+    if (names === undefined) {
+      // Lazy: any element name resolves to an element.
+      return new Proxy({}, {
+        get(_target, name) {
+          if (typeof name !== 'string') return undefined;
+          return byId(idFor(name));
+        },
+      });
+    }
     const entries = Array.isArray(names)
-      ? names.map((name) => [name, name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)])
+      ? names.map((name) => [name, idFor(name)])
       : Object.entries(names);
     const module = {};
     for (const [name, id] of entries) module[name] = byId(id);
