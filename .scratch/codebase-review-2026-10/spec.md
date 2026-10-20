@@ -7,9 +7,14 @@ candidate re-verified by reading the code and, where possible, executed.
 Baseline before this work: `npm test` = 139 passing, `npx tsc --noEmit` = clean.
 
 **Status: all P0 and P1 findings below are fixed.** The P2 findings are
-recorded as tracker issues under `.scratch/codebase-review-2026-10/issues/`.
+recorded as tracker issues under `.scratch/codebase-review-2026-10/issues/`
+(29 files, numbered `01`–`29`).
 See `docs/superpowers/plans/2026-10-20-codebase-review-fixes.md` for the plan
 and the fixes; every fix is pinned by a test that failed first.
+
+**Every new test is a proven detector.** A revert matrix runs each new test
+against the pre-change production code and confirms it fails — a test that
+still passed would have been asserting nothing.
 
 Every finding below is labelled with how it was confirmed:
 

@@ -284,6 +284,82 @@ const ISSUES = [
     fix: 'Add a remove button for the Gemini key that calls `deleteSecret`, and make an explicitly cleared field delete the stored key.',
     test: 'A settings-form test that removes the Gemini key and asserts `deleteSecret` is called.',
   },
+
+  // ── Second review round ────────────────────────────────────────────────────
+  {
+    slug: 'store-microphone-can-disagree-with-the-form',
+    title: 'The shared store can hold a different microphone than the settings form shows',
+    severity: 'LOW',
+    where: '`src/settings-form.ts:110` (setOwnedSettings), `src/audio/recorder.ts:73`, `src/recording.ts:36`',
+    context:
+      '`runPersist` reads the microphone from the DOM, but the STORE keeps the value from the broadcast snapshot until the next save. `beginRecording` -> `startCapture(settings.microphone)` reads the store, not the form.',
+    failure:
+      'A user who switches microphone and hits record before the save round-trip completes records with the previous microphone.',
+    fix:
+      'Include the microphone in the set of values the settings form owns, or read the selection from the DOM at record time.',
+    test: 'A settings-form test that changes the microphone, applies a broadcast, and asserts the store agrees.',
+  },
+  {
+    slug: 'electron-harness-overrides-can-stub-the-module-under-test',
+    title: 'The Electron harness override can replace the module it is meant to exercise',
+    severity: 'LOW',
+    where: '`test/helpers/electron-main-harness.cjs:29-31`',
+    context:
+      '`overrides` is consulted before the default stub switch and is keyed by module basename only, so an override named `settings.cjs` would replace `backend/settings.cjs` — the one module the harness deliberately does not stub ("the module under test").',
+    failure:
+      'A test that overrides `settings.cjs` by mistake silently stops exercising the real settings persistence, and the failure looks like a product bug.',
+    fix: 'Refuse an override for `settings.cjs`, or require an explicit opt-in for it.',
+    test: 'A harness test asserting an override for `settings.cjs` is rejected.',
+  },
+  {
+    slug: 'electron-harness-stubs-missing-members',
+    title: 'The Electron harness stubs are missing members main.cjs actually calls',
+    severity: 'LOW',
+    where: '`test/helpers/electron-main-harness.cjs:42-43`, `:57-58`',
+    context:
+      'The `secrets.cjs` stub has no `describeSecret`/`SECRET_NAMES`, so the `secret-state` handler throws a TypeError under the harness — the new `volatile` secret state cannot be exercised over IPC. The `engine-download.cjs` stub is `{}`, so `download-engine`/`activate-engine` would throw too.',
+    failure:
+      'The IPC surface for the secret status and the engine buttons cannot be tested; a test that reaches them fails with a stub error rather than an assertion.',
+    fix: 'Complete the stub members main.cjs calls, or derive the stub surface from main.cjs.',
+    test: 'A harness test that invokes every registered handler once and asserts none of them throws.',
+  },
+  {
+    slug: 'dom-stub-getelementbyid-autocreates',
+    title: 'The DOM stub creates unknown ids instead of returning null',
+    severity: 'LOW',
+    where: '`test/helpers/dom-stub.cjs` (getElementById)',
+    context:
+      'The real DOM returns `null` for an unknown id. The stub creates an element on demand, because `src/dom.ts` resolves ~70 ids at import time with a non-null assertion.',
+    failure:
+      'A typo\'d id in the renderer yields a phantom element in a test, so `getElementById(\'engine-download-row\')?.classList.toggle(...)` appears to work while being a no-op in the app.',
+    fix:
+      'Return null for ids outside a declared set, and let the harness declare the ids the renderer is allowed to resolve.',
+    test: 'A stub test asserting an undeclared id resolves to null.',
+  },
+  {
+    slug: 'dom-stub-select-value-and-option-tag',
+    title: 'The DOM stub does not model <select> value semantics or lowercase option tags',
+    severity: 'LOW',
+    where: '`test/helpers/dom-stub.cjs` (select value, createElement)',
+    context:
+      '`select.value` is a plain string: it keeps a value no OPTION matches (a browser resets it to `\'\'`) and does not auto-select the first option. Separately, `document.createElement(\'option\')` yields `tagName === \'option\'` (lowercase), so it would not appear in `select.options` — and `src/audio/recorder.ts:65` uses exactly that form.',
+    failure:
+      'The "the stored value is not shown" case in `setSelectValue` is never exercised, and microphone enumeration would build an empty option list in a test while working in the app.',
+    fix: 'Model `select.value` against the option list, and normalise `tagName` to upper case.',
+    test: 'A stub test asserting `select.value` resets when no option matches.',
+  },
+  {
+    slug: 'dom-stub-dispatch-does-not-bubble',
+    title: 'The DOM stub does not bubble dispatched events',
+    severity: 'LOW',
+    where: '`test/helpers/dom-stub.cjs` (dispatch)',
+    context:
+      'The renderer uses delegated handlers on the toggle groups, so a test must dispatch on the group with an explicit `target`. Events never reach an ancestor listener.',
+    failure:
+      'A test proves the handler works but not that the buttons really live inside that group in `index.html`, nor that a real click bubbles.',
+    fix: 'Bubble the event up the parent chain, as a browser does.',
+    test: 'A stub test asserting a delegated parent listener receives the event.',
+  },
 ];
 
 fs.mkdirSync(OUT, { recursive: true });
