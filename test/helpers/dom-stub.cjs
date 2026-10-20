@@ -29,6 +29,7 @@ class Option {
     this.textContent = text;
     this.value = value;
     this.parent = null;
+    this.children = [];
   }
 }
 
@@ -126,10 +127,19 @@ function createElement(props = {}) {
     node.parent = null;
   };
 
-  /** Match a `.class` selector against an element's own classes. */
+  /**
+   * Match a selector against an element's own classes.
+   *
+   * Only class selectors are supported, and a compound selector
+   * (`.toggle-btn.active`) requires every listed class to be present.
+   */
   const matches = (element, selector) => {
-    if (!selector.startsWith('.')) return false;
-    return element._classes.has(selector.slice(1));
+    if (typeof selector !== 'string' || !selector.startsWith('.')) return false;
+    return selector
+      .slice(1)
+      .split('.')
+      .filter(Boolean)
+      .every((name) => element._classes.has(name));
   };
 
   element.querySelectorAll = (selector) => {
@@ -194,7 +204,10 @@ function createDom(elements = {}) {
   const document = {
     documentElement: createElement(),
     body: createElement(),
-    getElementById: (id) => registry.has(id) ? registry.get(id) : null,
+    // Every id resolves, creating the element on demand: the real document
+    // has all of the app's ids, and `src/dom.ts` resolves them all at import
+    // time with a non-null assertion.
+    getElementById: (id) => byId(id),
     querySelectorAll: (selector) => {
       const found = [];
       for (const element of registry.values()) {

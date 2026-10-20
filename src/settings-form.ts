@@ -65,6 +65,51 @@ import {
 let recordingHotkey = false;
 let persistTimer: number | undefined;
 
+/**
+ * The custom Whisper binary currently selected.
+ *
+ * This is one of six settings with no form control of their own, so their
+ * value cannot be re-read from the DOM like every other field. The settings
+ * form owns them: the toggle groups are read from their active button, and
+ * the binary path is kept here.
+ *
+ * They are owned deliberately. The shared settings object is replaced
+ * wholesale by every save response and every 'settings-updated' broadcast,
+ * and those snapshots are serialised at send time — so a snapshot can
+ * predate the user's latest change and silently undo it. Reading these six
+ * from the UI instead of from the shared object makes that impossible.
+ */
+let currentBinaryPath = '';
+
+/** The `data-value`/`data-mode` of a toggle group's active button. */
+function activeToggleValue(group: HTMLElement, attribute: 'value' | 'mode'): string {
+  const active = group.querySelector('.toggle-btn.active') as HTMLElement | null;
+  return active?.dataset[attribute] || '';
+}
+
+/** The six settings the settings form owns, read from the UI. */
+function ownedSettings(): Pick<
+  Settings,
+  'engine' | 'recordingMode' | 'polishMode' | 'translationEnabled' | 'aiPolish' | 'whisperBinaryPath'
+> {
+  return {
+    engine: activeToggleValue(engineGroup, 'value') || 'local',
+    recordingMode: activeToggleValue(modeGroup, 'mode') || 'toggle',
+    polishMode: activeToggleValue(polishGroup, 'value') || 'thorough',
+    translationEnabled: activeToggleValue(translationGroup, 'value') === 'on',
+    aiPolish: activeToggleValue(aiPolishGroup, 'value') === 'on',
+    whisperBinaryPath: currentBinaryPath,
+  };
+}
+
+/**
+ * Write settings to the shared store without letting a server snapshot undo
+ * the values the settings form owns.
+ */
+function setOwnedSettings(settings: Settings): void {
+  setSettings({ ...settings, ...ownedSettings() });
+}
+
 function schedulePersist() {
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(() => { void persist(); }, 500);
@@ -113,10 +158,19 @@ function setAiPolishActive(enabled: boolean) {
   });
 }
 
+/**
+ * The translation toggle's active class is owned by this form. The
+ * translation module reads the enabled state from the DOM rather than
+ * re-deriving it from a settings snapshot, which may be stale.
+ */
+function setTranslationActive(enabled: boolean) {
+  translationGroup.querySelectorAll('.toggle-btn').forEach((button) => {
+    button.classList.toggle('active', (button as HTMLElement).dataset.value === (enabled ? 'on' : 'off'));
+  });
+}
+
 function setEngine(engine: string) {
-  const settings = getSettings();
-  if (!settings) return;
-  settings.engine = engine;
+  if (!getSettings()) return;
   localRow.classList.toggle('hidden', engine !== 'local');
   speechmaticsRow.classList.toggle('hidden', engine !== 'speechmatics');
   deepgramRow.classList.toggle('hidden', engine !== 'deepgram');
@@ -165,6 +219,7 @@ function refreshAllKeyStatus() {
 
 export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setSettings(settings);
+  currentBinaryPath = settings.whisperBinaryPath || '';
   uiLanguageSelect.value = normalizeUILanguage(settings.uiLanguage);
   applyLanguageToUi(settings.uiLanguage);
   setEngine(settings.engine);
@@ -179,6 +234,10 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setPolishActive(settings.polishMode || 'thorough');
   vocabInput.value = (settings.customVocabulary || []).join('\n');
   setAiPolishActive(settings.aiPolish === true);
+  // The translation toggle's active class is owned by this form (the
+  // translation module must not re-derive it from a possibly stale snapshot),
+  // so it is set here on first load.
+  setTranslationActive(settings.translationEnabled === true);
   hotkeyInput.value = settings.hotkey;
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
   accentColor.value = settings.accentColor;
@@ -192,21 +251,23 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   await refreshEngineSuggestion();
 }
 
+/**
+ * React to a settings snapshot broadcast from the main process.
+ *
+ * A snapshot is serialised at send time, so it can predate whatever the user
+ * has done since. Only fields that cannot lose information are applied here;
+ * the editable controls keep whatever the user has entered, and the six
+ * settings the form owns keep their UI state.
+ */
 export function applySettingsToUi(settings: Settings): void {
-  setSettings(settings);
-  uiLanguageSelect.value = normalizeUILanguage(settings.uiLanguage);
-  applyLanguageToUi(settings.uiLanguage);
-  accentColor.value = settings.accentColor;
-  applyAccentColor(settings.accentColor);
-  hotkeyInput.value = settings.hotkey;
-  hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
-  setTranslationUiFromSettings(settings.translationEnabled);
-  syncTranslationControls();
+  setOwnedSettings(settings);
+  // Key status is a fact about the OS keychain, not a user edit, so it is
+  // safe — and necessary — to refresh it from every snapshot.
   refreshAllKeyStatus();
   // Engine labels + binary display must follow every save broadcast,
   // otherwise they freeze on pre-change state.
   void refreshEngineButtons();
-  void updateBinaryStatus(settings.whisperBinaryPath || '');
+  void updateBinaryStatus(currentBinaryPath);
 }
 
 let persistChain: Promise<void> = Promise.resolve();
@@ -239,9 +300,14 @@ async function runPersist(): Promise<void> {
   // The UI language is independent of inputLanguage / translationTarget:
   // it only changes how the interface renders.
   settings.uiLanguage = uiLanguageSelect.value || settings.uiLanguage;
+  // The six settings with no form control are read from the UI, not from the
+  // shared settings object: the object is replaced by every save response and
+  // broadcast, and those snapshots can predate the user's latest change.
+  Object.assign(settings, ownedSettings());
   applyAccentColor(settings.accentColor);
   try {
-    setSettings(await window.api.saveSettings(settings));
+    const saved = await window.api.saveSettings(settings);
+    setOwnedSettings(saved);
     refreshAllKeyStatus();
   } catch (error) {
     const friendly = friendlyError(error, 'error.saveSettings');
@@ -357,7 +423,7 @@ async function refreshEngineButtons(): Promise<void> {
   if (!isWindowsEngineHost()) return;
   let status: Record<string, string> = {};
   try { status = await window.api.engineStatus(); } catch { status = {}; }
-  const activePath = getSettings()?.whisperBinaryPath || '';
+  const activePath = currentBinaryPath;
   for (const { button, flavor, display, size } of ENGINE_FLAVORS) {
     const state = status[flavor] || 'missing';
     // Engine installs nest the binary (e.g. engines/cpu/Release/...) — match
@@ -388,8 +454,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   if (preState === 'incompatible') {
     try {
       const exePath = await window.api.activateEngine(flavor);
-      const settings = getSettings();
-      if (settings) settings.whisperBinaryPath = exePath;
+      currentBinaryPath = exePath;
       showBinaryName(exePath, true);
       showToast(t('settings.engine.switchedIncompatible'));
     } catch (error) {
@@ -398,7 +463,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
       statusError.title = errorText(error);
     } finally {
       await refreshEngineButtons();
-      await updateBinaryStatus(getSettings()?.whisperBinaryPath || '');
+      await updateBinaryStatus(currentBinaryPath);
     }
     return;
   }
@@ -407,8 +472,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   showDownloadProgress(t('settings.engine.downloading', { flavor }));
   try {
     const exePath = await window.api.downloadEngine(flavor);
-    const settings = getSettings();
-    if (settings) settings.whisperBinaryPath = exePath;
+    currentBinaryPath = exePath;
     showBinaryName(exePath, true);
     showToast(t('settings.engine.installed'));
   } catch (error) {
@@ -426,7 +490,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   } finally {
     hideDownloadProgress();
     await refreshEngineButtons();
-    await updateBinaryStatus(getSettings()?.whisperBinaryPath || '');
+    await updateBinaryStatus(currentBinaryPath);
   }
 }
 
@@ -454,33 +518,22 @@ export function wireSettingsControls() {
   modeGroup.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
     if (!button?.dataset.mode) return;
-    const settings = getSettings();
-    if (!settings) return;
-    settings.recordingMode = button.dataset.mode;
-    setModeActive(settings.recordingMode);
+    setModeActive(button.dataset.mode);
     void persist();
   });
 
   polishGroup.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
     if (!button?.dataset.value) return;
-    const settings = getSettings();
-    if (!settings) return;
-    settings.polishMode = button.dataset.value;
-    setPolishActive(settings.polishMode);
+    setPolishActive(button.dataset.value);
     void persist();
   });
 
   translationGroup.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
     if (!button?.dataset.value) return;
-    const settings = getSettings();
-    if (!settings) return;
     const enabled = button.dataset.value === 'on';
-    settings.translationEnabled = enabled;
-    translationGroup.querySelectorAll('.toggle-btn').forEach((item) => {
-      item.classList.toggle('active', (item as HTMLElement).dataset.value === (enabled ? 'on' : 'off'));
-    });
+    setTranslationActive(enabled);
     setTranslationUiFromSettings(enabled);
     if (!enabled) clearTranslation();
     void persist();
@@ -489,18 +542,13 @@ export function wireSettingsControls() {
   aiPolishGroup.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
     if (!button?.dataset.value) return;
-    const settings = getSettings();
-    if (!settings) return;
-    settings.aiPolish = button.dataset.value === 'on';
-    setAiPolishActive(settings.aiPolish);
+    setAiPolishActive(button.dataset.value === 'on');
     void persist();
   });
 
   // Changing the UI language applies immediately, then persists; the
   // settings-updated broadcast re-applies it to the overlay as well.
   uiLanguageSelect.addEventListener('change', () => {
-    const settings = getSettings();
-    if (settings) settings.uiLanguage = uiLanguageSelect.value;
     applyLanguageToUi(uiLanguageSelect.value);
     void persist();
   });
@@ -591,11 +639,8 @@ export function wireSettingsControls() {
     try {
       const binaryPath = await window.api.selectWhisperBinary();
       if (binaryPath) {
-        const settings = getSettings();
-        if (settings) {
-          settings.whisperBinaryPath = binaryPath;
-          void persist();
-        }
+        currentBinaryPath = binaryPath;
+        void persist();
         showBinaryName(binaryPath);
       }
     } catch (error) {
@@ -617,11 +662,8 @@ export function wireSettingsControls() {
   clearBinaryBtn.addEventListener('click', () => {
     // Clearing hands control back: pick any engine button (or Browse again)
     // to choose what transcribes next. The file itself is left on disk.
-    const settings = getSettings();
-    if (settings) {
-      settings.whisperBinaryPath = '';
-      void persist();
-    }
+    currentBinaryPath = '';
+    void persist();
     showBinaryName('');
     showToast(t('settings.binary.cleared'));
     void refreshEngineButtons();

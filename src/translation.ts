@@ -9,7 +9,6 @@ import {
   translateToSelect,
   geminiModel,
   geminiModelStatus,
-  translationGroup,
   copyTranslationBtn,
 } from './dom';
 import { getSettings } from './store';
@@ -70,10 +69,10 @@ export function syncTranslationControls() {
   // corrupt the stored key. Key values never leave the main process; the
   // key-status indicator is what tells the user a key is stored.
   geminiModel.value = settings.geminiModel || '';
-  translationGroup.querySelectorAll('.toggle-btn').forEach((button) => {
-    button.classList.toggle('active', (button as HTMLElement).dataset.value === (settings.translationEnabled ? 'on' : 'off'));
-  });
-  setTranslationUi(settings.translationEnabled);
+  // The translation toggle's active class is owned by the settings form: it
+  // must not be re-derived here, because a settings snapshot can predate the
+  // user's latest toggle and would silently switch translation back off.
+  setTranslationUi(settings.translationEnabled === true);
   if (!settings.geminiModel) {
     setModelStatus('neutral', t('settings.translation.modelAuto'));
   } else {
