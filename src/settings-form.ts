@@ -315,6 +315,11 @@ async function runPersist(): Promise<void> {
     const saved = await window.api.saveSettings(settings);
     setOwnedSettings(saved);
     refreshAllKeyStatus();
+    // The read-only hotkey display follows the saved hotkey. It used to be
+    // refreshed by the settings broadcast, but the broadcast no longer
+    // applies a snapshot over the editable controls — so it would keep
+    // showing the previous hotkey until the app restarted.
+    hotkeyDisplay.textContent = formatHotkey(saved.hotkey);
     // The hotkey is the one setting that can fail to apply: another
     // application may already own the shortcut. The main process falls back
     // to the hotkey that is working, so the saved hotkey differs from the
