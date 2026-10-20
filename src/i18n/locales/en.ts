@@ -145,6 +145,7 @@ export const en = {
   'settings.key.removeTitle': 'Remove key',
   'settings.key.none': 'No key saved',
   'settings.key.saved': '🔒 Key saved on this device ✓',
+  'settings.key.volatile': '⚠ Key held for this session only — it will be lost when KimFlow restarts',
   'settings.key.unreadable': '⚠ Saved key cannot be read — re-enter it below',
   'settings.key.unavailable': 'Key status unavailable',
   'settings.key.testConnection': 'Test Connection',

@@ -154,6 +154,7 @@ export const zh: Record<LocaleKey, string> = {
   'settings.key.removeTitle': '移除密钥', // Remove key
   'settings.key.none': '未保存密钥', // No key saved
   'settings.key.saved': '🔒 密钥已保存在此设备上 ✓', // 🔒 Key saved on this device ✓
+  'settings.key.volatile': '⚠ 密钥仅保留在本次会话中 — KimFlow 重启后将丢失', // ⚠ Key held for this session only — it will be lost when KimFlow restarts
   'settings.key.unreadable': '⚠ 无法读取已保存的密钥 — 请在下方重新输入', // ⚠ Saved key cannot be read — re-enter it below
   'settings.key.unavailable': '密钥状态不可用', // Key status unavailable
   'settings.key.testConnection': '测试连接', // Test Connection

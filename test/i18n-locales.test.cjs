@@ -50,9 +50,9 @@ test('no locale value is an empty string', () => {
   }
 });
 
-test('the locale set is exactly en/ar/zh with 185 keys each', () => {
+test('the locale set is exactly en/ar/zh with 186 keys each', () => {
   assert.deepEqual(Object.keys(LOCALES).sort(), ['ar', 'en', 'zh']);
-  assert.equal(Object.keys(EN).length, 185);
+  assert.equal(Object.keys(EN).length, 186);
 });
 
 // ── Category 2: placeholder parity ──────────────────────────────────────────

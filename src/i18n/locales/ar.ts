@@ -146,6 +146,7 @@ export const ar: Record<LocaleKey, string> = {
   'settings.key.removeTitle': 'إزالة المفتاح', // Remove key
   'settings.key.none': 'لا يوجد مفتاح محفوظ', // No key saved
   'settings.key.saved': '🔒 المفتاح محفوظ على هذا الجهاز ✓', // 🔒 Key saved on this device ✓
+  'settings.key.volatile': '⚠ المفتاح محفوظ لهذه الجلسة فقط — سيُفقد عند إعادة تشغيل KimFlow', // ⚠ Key held for this session only — it will be lost when KimFlow restarts
   'settings.key.unreadable': '⚠ تعذّر قراءة المفتاح المحفوظ — أعد إدخاله أدناه', // ⚠ Saved key cannot be read — re-enter it below
   'settings.key.unavailable': 'حالة المفتاح غير متاحة', // Key status unavailable
   'settings.key.testConnection': 'اختبار الاتصال', // Test Connection

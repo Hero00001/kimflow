@@ -206,9 +206,11 @@ async function refreshKeyStatus(name: 'deepgramApiKey' | 'speechmaticsApiKey' | 
     const state = await window.api.secretState(name);
     targets[name].textContent = state === 'saved'
       ? t('settings.key.saved')
-      : state === 'unreadable'
-        ? t('settings.key.unreadable')
-        : t('settings.key.none');
+      : state === 'volatile'
+        ? t('settings.key.volatile')
+        : state === 'unreadable'
+          ? t('settings.key.unreadable')
+          : t('settings.key.none');
   } catch {
     targets[name].textContent = t('settings.key.unavailable');
   }
