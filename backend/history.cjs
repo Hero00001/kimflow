@@ -24,14 +24,20 @@ function load() {
   return emptyHistory();
 }
 
-function save(history) {
+function save(history, options = {}) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   // Rotate the last good file aside first: a crash between write and rename
   // must never leave corruption as the only copy on disk.
-  try {
-    if (fs.existsSync(HISTORY_PATH)) fs.copyFileSync(HISTORY_PATH, `${HISTORY_PATH}.bak`);
-  } catch {
-    // Backup is best-effort; the atomic write below is the real guarantee.
+  //
+  // `keepBackup: false` skips the rotation. Clearing the history uses it, so
+  // the transcripts the user asked to delete are not copied into the backup
+  // first — which would leave them on disk and let `load()` resurrect them.
+  if (options.keepBackup !== false) {
+    try {
+      if (fs.existsSync(HISTORY_PATH)) fs.copyFileSync(HISTORY_PATH, `${HISTORY_PATH}.bak`);
+    } catch {
+      // Backup is best-effort; the atomic write below is the real guarantee.
+    }
   }
   const tempPath = `${HISTORY_PATH}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(history, null, 2), 'utf8');
@@ -95,7 +101,12 @@ function updateSession(id, { translation, translationTarget, translationError } 
 }
 
 function clear() {
-  return save(emptyHistory());
+  // Removing the backup is part of clearing: it holds the previous
+  // generation, which is exactly the data the user asked to delete.
+  try {
+    fs.rmSync(`${HISTORY_PATH}.bak`, { force: true });
+  } catch { /* best-effort */ }
+  return save(emptyHistory(), { keepBackup: false });
 }
 
 module.exports = {
