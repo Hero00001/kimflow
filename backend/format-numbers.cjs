@@ -32,33 +32,53 @@ function baseWord(token) {
 }
 
 // Parse a run of number WORDS (no whitespace entries) starting at `start`.
+//
 // Returns null when the run is not a number, otherwise
-// { value, next, unitSuffix } with `next` past the last consumed word.
+// { value, next, unitSuffix, trailing } with `next` past the last consumed
+// word, `unitSuffix` the unit symbol that follows ("%", "$") and `trailing`
+// the punctuation that ended the run (",", ".").
+//
+// Two rules make English number words parse correctly:
+//
+//   - "and" continues a number only after a scale word ("two hundred and
+//     five"); otherwise it separates two numbers ("five and six").
+//   - A word carrying trailing punctuation ends the run, and that punctuation
+//     is kept so it can follow the digits ("one, two" is 1 and 2, not 12).
 function parseRun(words, start) {
   let total = 0;
   let current = 0;
   let hasNumber = false;
+  let sawScale = false;
+  let trailing = '';
   let i = start;
 
   for (; i < words.length; i += 1) {
-    const lower = baseWord(words[i]);
-    if (lower === 'and') continue;
+    const { word, suffix } = splitPunctuation(words[i]);
+    const lower = word.toLowerCase();
+
+    if (lower === 'and') {
+      // "and" only joins a number after a scale ("two thousand and nineteen").
+      // Without one it separates two numbers, so the run ends before it.
+      if (!hasNumber || !sawScale) break;
+      continue;
+    }
     if (lower === 'a' || lower === 'an') {
-      if (baseWord(words[i + 1] || '') in SCALES) {
-        current += 1;
-        hasNumber = true;
-        continue;
-      }
-      break;
+      if (!(baseWord(words[i + 1] || '') in SCALES)) break;
+      current += 1;
+      hasNumber = true;
+      if (suffix) { trailing = suffix; i += 1; break; }
+      continue;
     }
     if (lower in ONES) {
       current += ONES[lower];
       hasNumber = true;
+      if (suffix) { trailing = suffix; i += 1; break; }
       continue;
     }
     if (lower in TENS) {
       current += TENS[lower];
       hasNumber = true;
+      if (suffix) { trailing = suffix; i += 1; break; }
       continue;
     }
     if (lower in SCALES) {
@@ -70,6 +90,8 @@ function parseRun(words, start) {
         current = 0;
       }
       hasNumber = true;
+      sawScale = true;
+      if (suffix) { trailing = suffix; i += 1; break; }
       continue;
     }
     if (lower === 'point' && hasNumber) {
@@ -80,25 +102,25 @@ function parseRun(words, start) {
         j += 1;
       }
       if (!digits) return null;
-      return finishWithUnit(words, `${total + current}.${digits}`, j);
+      return finishWithUnit(words, `${total + current}.${digits}`, j, trailing);
     }
     break;
   }
 
   if (!hasNumber) return null;
-  return finishWithUnit(words, String(total + current), i);
+  return finishWithUnit(words, String(total + current), i, trailing);
 }
 
-function finishWithUnit(words, value, next) {
+function finishWithUnit(words, value, next, trailing = '') {
   const unit = baseWord(words[next] || '');
   const { suffix } = splitPunctuation(words[next] || '');
   if (unit === 'percent' || unit === 'percentage') {
-    return { value: `${value}%`, next: next + 1, unitSuffix: suffix };
+    return { value: `${value}%`, next: next + 1, unitSuffix: suffix, trailing };
   }
   if (unit === 'dollar' || unit === 'dollars' || unit === 'buck' || unit === 'bucks') {
-    return { value: `$${value}`, next: next + 1, unitSuffix: suffix };
+    return { value: `$${value}`, next: next + 1, unitSuffix: suffix, trailing };
   }
-  return { value, next, unitSuffix: '' };
+  return { value, next, unitSuffix: '', trailing };
 }
 
 function formatNumberWords(text) {
@@ -122,7 +144,10 @@ function formatNumberWords(text) {
   const consumed = new Set();
   let w = 0;
   while (w < words.length) {
-    if (!NUMBER_WORDS.has(baseWord(words[w]))) {
+    const base = baseWord(words[w]);
+    // A run never starts at "and": the conjunction belongs between two
+    // numbers ("five and six"), so it stays in the text.
+    if (base === 'and' || !NUMBER_WORDS.has(base)) {
       w += 1;
       continue;
     }
@@ -131,8 +156,8 @@ function formatNumberWords(text) {
       w += 1;
       continue;
     }
-    const { suffix } = splitPunctuation(words[w]);
-    replacement.set(w, parsed.value + (parsed.unitSuffix || suffix));
+    // The punctuation that ended the run follows the digits.
+    replacement.set(w, parsed.value + (parsed.unitSuffix || parsed.trailing));
     for (let k = w + 1; k < parsed.next; k += 1) consumed.add(k);
     w = parsed.next;
   }
