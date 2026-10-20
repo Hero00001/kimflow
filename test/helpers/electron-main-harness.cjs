@@ -23,10 +23,15 @@ function resolveFile(basePath) {
 
 // Backend modules replaced by inert stubs. `settings.cjs` is intentionally NOT
 // stubbed: it is the module under test.
-function backendStub(resolvedPath) {
+//
+// `overrides` lets a test replace one of these stubs — the hotkey stub, for
+// instance, has to be able to report that registration failed.
+function backendStub(resolvedPath, overrides = {}) {
+  const override = overrides[path.basename(resolvedPath)];
+  if (override !== undefined) return override;
   switch (path.basename(resolvedPath)) {
     case 'hotkeys.cjs':
-      return { registerHotkeys: () => true, unregisterHotkeys: () => {}, setHotkeyCallbacks: () => {}, isValidHotkey: () => true };
+      return { registerHotkeys: () => true, unregisterHotkeys: () => {}, setHotkeyCallbacks: () => {}, isValidHotkey: () => true, getActiveHotkey: () => '' };
     case 'recorder.cjs':
       return {
         startRecording: async () => {}, stopRecording: async () => ({ aborted: true }),
@@ -113,7 +118,7 @@ function createElectronStub(locale) {
   };
 }
 
-function loadWithStubs(entryPath, electron) {
+function loadWithStubs(entryPath, electron, overrides = {}) {
   const cache = new Map();
   function load(absPath) {
     if (cache.has(absPath)) return cache.get(absPath).exports;
@@ -126,7 +131,7 @@ function loadWithStubs(entryPath, electron) {
       if (request.startsWith('.')) {
         const resolved = resolveFile(path.resolve(dir, request));
         if (!resolved) throw new Error(`Cannot resolve ${request} from ${dir}`);
-        const stub = backendStub(resolved);
+        const stub = backendStub(resolved, overrides);
         if (stub !== undefined) return stub;
         return load(resolved);
       }
@@ -142,15 +147,18 @@ function loadWithStubs(entryPath, electron) {
 /**
  * Load main.cjs with a stubbed Electron and the given OS locale, isolated to
  * `home`. Returns the registered IPC handlers and the created windows.
+ *
+ * @param {{locale: string, home: string, overrides?: object}} options
+ *   `overrides` replaces backend stubs by module basename (e.g. 'hotkeys.cjs').
  */
-async function loadMain({ locale, home }) {
+async function loadMain({ locale, home, overrides = {} }) {
   const previousUserProfile = process.env.USERPROFILE;
   const previousHome = process.env.HOME;
   process.env.USERPROFILE = home;
   process.env.HOME = home;
 
   const { electron, handlers, instances, app } = createElectronStub(locale);
-  loadWithStubs(path.resolve('main.cjs'), electron);
+  loadWithStubs(path.resolve('main.cjs'), electron, overrides);
   // Flush the `app.whenReady().then(...)` microtask chain.
   await new Promise((resolve) => setImmediate(resolve));
 

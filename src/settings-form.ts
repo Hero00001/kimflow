@@ -306,9 +306,19 @@ async function runPersist(): Promise<void> {
   Object.assign(settings, ownedSettings());
   applyAccentColor(settings.accentColor);
   try {
+    const requestedHotkey = settings.hotkey;
     const saved = await window.api.saveSettings(settings);
     setOwnedSettings(saved);
     refreshAllKeyStatus();
+    // The hotkey is the one setting that can fail to apply: another
+    // application may already own the shortcut. The main process falls back
+    // to the hotkey that is working, so the saved hotkey differs from the
+    // requested one — tell the user, rather than silently ignoring it.
+    if (saved.hotkey !== requestedHotkey) {
+      hotkeyInput.value = saved.hotkey;
+      hotkeyDisplay.textContent = formatHotkey(saved.hotkey);
+      showError(t('error.hotkeyInUse'));
+    }
   } catch (error) {
     const friendly = friendlyError(error, 'error.saveSettings');
     if (friendly) showError(friendly);

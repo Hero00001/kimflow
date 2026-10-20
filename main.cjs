@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, session, Menu, clipboard, dialog } = requir
 const fs = require('fs');
 const path = require('path');
 
-const { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, isValidHotkey } = require('./backend/hotkeys.cjs');
+const { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, isValidHotkey, getActiveHotkey } = require('./backend/hotkeys.cjs');
 const {
   startRecording,
   stopRecording,
@@ -199,8 +199,14 @@ function registerIpc() {
   ipcMain.handle('save-settings', (event, settings) => {
     assertTrustedSender(event);
     const candidate = normalizeSettings(settings);
-    if (!isValidHotkey(candidate.hotkey) || !registerHotkeys(candidate.hotkey)) {
-      throw new Error(`Unable to register capture hotkey: ${candidate.hotkey}`);
+    // A capture hotkey owned by another application must not block the rest
+    // of the settings from being saved — otherwise the user cannot save their
+    // API key either, and the app becomes unconfigurable. Fall back to the
+    // hotkey that is actually working; the renderer reports the difference so
+    // the user knows their new shortcut was not applied.
+    const requestedHotkey = candidate.hotkey;
+    if (!isValidHotkey(requestedHotkey) || !registerHotkeys(requestedHotkey)) {
+      candidate.hotkey = getActiveHotkey() || requestedHotkey;
     }
     const saved = saveSettings(candidate);
     sendToWindows('settings-updated', saved);

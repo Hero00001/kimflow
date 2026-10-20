@@ -217,6 +217,7 @@ export const en = {
   'error.copyTranslation': 'Unable to copy translation',
   'error.loadSettings': 'Unable to load settings',
   'error.saveSettings': 'Unable to save settings',
+  'error.hotkeyInUse': 'That capture hotkey is already in use by another app. Your other settings were saved.',
   'error.checkModel': 'Unable to check model',
   'error.downloadFailed': 'Download failed',
   'error.engineDownloadFailed': 'Engine download failed',

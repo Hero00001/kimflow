@@ -2,6 +2,9 @@ const { globalShortcut } = require('electron');
 
 let onHotkeyPressed = null;
 let activeHotkey = null;
+// The hotkey as the user configured it, kept alongside the normalized form so
+// a failed re-registration can restore exactly what was working before.
+let configuredHotkey = null;
 
 function normalizeHotkey(hotkey) {
   const aliases = {
@@ -38,6 +41,7 @@ function registerHotkeys(hotkey) {
   if (!isValidHotkey(hotkey)) return false;
   if (!normalized) return false;
   const previous = activeHotkey;
+  const previousConfigured = configuredHotkey;
   unregisterHotkeys();
 
   try {
@@ -46,6 +50,7 @@ function registerHotkeys(hotkey) {
     });
     if (registered) {
       activeHotkey = normalized;
+      configuredHotkey = hotkey;
       return true;
     }
     console.error(`[KimFlow] Hotkey could not be registered: ${normalized}`);
@@ -54,6 +59,7 @@ function registerHotkeys(hotkey) {
         if (onHotkeyPressed) onHotkeyPressed();
       });
       activeHotkey = previous;
+      configuredHotkey = previousConfigured;
     }
     return false;
   } catch (error) {
@@ -63,14 +69,26 @@ function registerHotkeys(hotkey) {
         if (onHotkeyPressed) onHotkeyPressed();
       });
       activeHotkey = previous;
+      configuredHotkey = previousConfigured;
     }
     return false;
   }
 }
 
+/**
+ * The hotkey currently registered, as the user configured it.
+ *
+ * Used to fall back to a working shortcut when a new one cannot be claimed,
+ * so an unavailable hotkey never leaves the app without one.
+ */
+function getActiveHotkey() {
+  return configuredHotkey || '';
+}
+
 function unregisterHotkeys() {
   globalShortcut.unregisterAll();
   activeHotkey = null;
+  configuredHotkey = null;
 }
 
 function setHotkeyCallbacks(pressed) {
@@ -80,4 +98,4 @@ function setHotkeyCallbacks(pressed) {
   onHotkeyPressed = pressed;
 }
 
-module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey };
+module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey, getActiveHotkey };
