@@ -116,9 +116,12 @@ function schedulePersist() {
 }
 
 // Modifier key names match the physical keycaps, so they are never translated.
+function isWindows(): boolean {
+  return /win/i.test(navigator.platform || navigator.userAgent);
+}
+
 function formatHotkey(hotkey: string) {
-  const isWindows = /win/i.test(navigator.platform || navigator.userAgent);
-  return hotkey.replace(/CmdOrCtrl|CommandOrControl/g, isWindows ? 'Ctrl' : 'Cmd');
+  return hotkey.replace(/CmdOrCtrl|CommandOrControl/g, isWindows() ? 'Ctrl' : 'Cmd');
 }
 
 /** Drive the `:empty::after` placeholders, which cannot carry data-i18n. */
@@ -408,7 +411,7 @@ function showBinaryName(fullPath: string, ok?: boolean) {
 }
 
 function isWindowsEngineHost(): boolean {
-  return /win/i.test(navigator.platform || navigator.userAgent);
+  return isWindows();
 }
 
 function applyEngineWindowsGate(): void {
@@ -704,8 +707,13 @@ export function wireSettingsControls() {
     // Escape or focus loss cancels capture instead of sticking on "Press keys…".
     if (event.key === 'Escape') { stopHotkeyRecord(); return; }
     const modifiers = [
-      event.ctrlKey ? 'Ctrl' : '', event.metaKey ? 'Command' : '',
-      event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '',
+      event.ctrlKey ? 'Ctrl' : '',
+      // The meta key is the Command key on macOS and the Super/Windows key
+      // elsewhere. Electron documents that the "Command" modifier has no effect
+      // on Windows and Linux, so emitting it there would bind the bare key.
+      event.metaKey ? (isWindows() ? 'Super' : 'Command') : '',
+      event.altKey ? 'Alt' : '',
+      event.shiftKey ? 'Shift' : '',
     ].filter(Boolean);
     const key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
     if (!['Control', 'Meta', 'Alt', 'Shift'].includes(event.key)) {

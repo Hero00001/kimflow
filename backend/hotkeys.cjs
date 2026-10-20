@@ -10,10 +10,19 @@ function normalizeHotkey(hotkey) {
   const aliases = {
     CmdOrCtrl: process.platform === 'darwin' ? 'Command' : 'Control',
     CommandOrControl: process.platform === 'darwin' ? 'Command' : 'Control',
+    // Electron documents that the Command modifier has no effect on Windows
+    // and Linux, so it must not be left there: a hotkey recorded on Windows
+    // would silently bind the bare key.
     Cmd: process.platform === 'darwin' ? 'Command' : 'Control',
+    Command: process.platform === 'darwin' ? 'Command' : 'Control',
     Ctrl: 'Control',
-    Command: 'Command',
     Control: 'Control',
+    // Electron's documented aliases for the platform's primary modifier.
+    Meta: 'Super',
+    Super: 'Super',
+    Option: 'Alt',
+    Alt: 'Alt',
+    AltGr: 'AltGr',
   };
 
   return String(hotkey || '')
@@ -25,7 +34,13 @@ function normalizeHotkey(hotkey) {
 // A hotkey is a bare key ("1", "F5", "Space") or modifier(s)
 // plus a key ("Ctrl+Shift+Space"). Every part before the final
 // key must be a modifier; a lone modifier is not a hotkey.
-const MODIFIERS = new Set(['Control', 'Command', 'Alt', 'Shift', 'Super', 'Ctrl', 'Cmd', 'CmdOrCtrl', 'CommandOrControl']);
+//
+// The modifier set is exactly the one Electron's accelerator parser
+// accepts, so a valid shortcut is never rejected by KimFlow.
+const MODIFIERS = new Set([
+  'Control', 'Command', 'Alt', 'AltGr', 'Option', 'Shift', 'Super', 'Meta',
+  'Ctrl', 'Cmd', 'CmdOrCtrl', 'CommandOrControl',
+]);
 const KEY_PATTERN = /^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|Space|Tab|Enter|Escape|Backspace|Delete|Insert|Home|End|PageUp|PageDown|Up|Down|Left|Right|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|VolumeUp|VolumeDown|VolumeMute)$/;
 
 function isValidHotkey(hotkey) {
