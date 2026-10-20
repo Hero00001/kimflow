@@ -76,10 +76,15 @@ function isDevelopment() {
   return Boolean(process.env.ELECTRON_DEV_HOST) || !app.isPackaged;
 }
 
+/** True when the renderer is served by the Vite dev server. */
+function isDevServer() {
+  return process.argv.includes('--dev') || Boolean(process.env.ELECTRON_DEV_HOST);
+}
+
 function getRendererEntry() {
   const devHost = process.env.ELECTRON_DEV_HOST || 'localhost';
   const builtIndex = path.join(__dirname, 'dist', 'index.html');
-  if (process.argv.includes('--dev') || process.env.ELECTRON_DEV_HOST) {
+  if (isDevServer()) {
     return { type: 'url', value: `http://${devHost}:1420` };
   }
   if (isDevelopment() && !fs.existsSync(builtIndex)) return { type: 'url', value: `http://${devHost}:1420` };
@@ -87,6 +92,15 @@ function getRendererEntry() {
 }
 
 function getOverlayEntry() {
+  const devHost = process.env.ELECTRON_DEV_HOST || 'localhost';
+  // In development the overlay must come from the dev server too, like the
+  // main window. Loading the source `src/overlay.html` over file:// would
+  // resolve its `<script src="/src/overlay.ts">` to the filesystem root, so
+  // the overlay would render with no JavaScript at all: dead buttons and a
+  // state text that never changes.
+  if (isDevServer()) {
+    return { type: 'url', value: `http://${devHost}:1420/src/overlay.html` };
+  }
   const builtOverlay = path.join(__dirname, 'dist', 'src', 'overlay.html');
   return fs.existsSync(builtOverlay)
     ? { type: 'file', value: builtOverlay }

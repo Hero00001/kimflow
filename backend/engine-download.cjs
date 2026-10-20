@@ -83,10 +83,21 @@ function findEngineBinary(dir, binaryName = 'whisper-cli.exe') {
   return null;
 }
 
+/**
+ * Hash a file by streaming it.
+ *
+ * The engine zips reach 273 MB. Reading one into memory synchronously would
+ * block the Electron main thread — and with it the window, the overlay and
+ * the global hotkey — for the duration of the hash.
+ */
 function sha256File(filePath) {
-  const hash = crypto.createHash('sha256');
-  hash.update(fs.readFileSync(filePath));
-  return hash.digest('hex');
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', reject);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
 }
 
 async function downloadEngineZip(mainWindow, flavor) {
@@ -122,7 +133,7 @@ async function downloadEngineZip(mainWindow, flavor) {
     if (total > 0 && downloaded !== total) {
       throw new Error(`Engine download incomplete: received ${downloaded} of ${total} bytes`);
     }
-    if (sha256File(tempDest) !== spec.sha256.toLowerCase()) {
+    if (await sha256File(tempDest) !== spec.sha256.toLowerCase()) {
       throw new Error('Engine download did not match its fingerprint — deleted, please try again');
     }
     return tempDest;
@@ -201,7 +212,7 @@ function extractEngineZip(zipPath, flavor, wantedFiles) {
   });
 }
 
-module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, findEngineBinary, removeEngine, markEngineIncompatible, clearEngineIncompatible, engineState, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu };
+module.exports = { enginesRoot, engineDir, engineBinaryPath, engineInstalled, findEngineBinary, removeEngine, markEngineIncompatible, clearEngineIncompatible, engineState, downloadEngineZip, safeEntryPath, extractEngineZip, smokeTestEngine, detectGpu, sha256File };
 
 const { execFile } = require('node:child_process');
 

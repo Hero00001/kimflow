@@ -75,6 +75,9 @@ function createElectronStub(locale) {
       this.options = options || {};
       this.webContents = { id: nextId++, on() {}, send() {}, isDestroyed: () => false };
       this._destroyed = false;
+      // Recorded so a test can assert which entry a window was given.
+      this.loadedUrl = null;
+      this.loadedFile = null;
       instances.push(this);
     }
     on() {}
@@ -82,8 +85,8 @@ function createElectronStub(locale) {
     setMenuBarVisibility() {}
     setAutoHideMenuBar() {}
     setIgnoreMouseEvents() {}
-    loadURL() { return Promise.resolve(); }
-    loadFile() { return Promise.resolve(); }
+    loadURL(url) { this.loadedUrl = url; return Promise.resolve(); }
+    loadFile(file) { this.loadedFile = file; return Promise.resolve(); }
     minimize() {}
     maximize() {}
     unmaximize() {}
