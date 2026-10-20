@@ -19,6 +19,20 @@ function classNames(value) {
 }
 
 /**
+ * The browser's `Option` constructor. The renderer uses `new Option(text,
+ * value)` when populating a `<select>`, and the transpiled module looks it up
+ * as a global, so it has to exist on `globalThis`.
+ */
+class Option {
+  constructor(text, value) {
+    this.tagName = 'OPTION';
+    this.textContent = text;
+    this.value = value;
+    this.parent = null;
+  }
+}
+
+/**
  * Build a `classList` that keeps the element's `className` truthful.
  */
 function createClassList(element) {
@@ -84,6 +98,15 @@ function createElement(props = {}) {
 
   element.classList = createClassList(element);
   element.className = [...element._classes].join(' ');
+
+  // A <select>'s `options` is derived from its OPTION children, exactly as
+  // the browser derives it.
+  Object.defineProperty(element, 'options', {
+    configurable: true,
+    get() {
+      return this.children.filter((child) => child.tagName === 'OPTION');
+    },
+  });
 
   element.append = (...nodes) => {
     for (const node of nodes) {
@@ -187,9 +210,13 @@ function createDom(elements = {}) {
 
   const window = {
     document,
+    Option,
     addEventListener() {},
     removeEventListener() {},
   };
+
+  // The transpiled renderer module resolves `Option` as a bare global.
+  if (typeof globalThis.Option === 'undefined') globalThis.Option = Option;
 
   /** Dispatch an event on the element with the given id. */
   const dispatch = (id, type, extra = {}) => {
@@ -209,7 +236,27 @@ function createDom(elements = {}) {
   /** Create a standalone button element (not registered in the DOM). */
   const createButton = (props = {}) => createElement({ tagName: 'BUTTON', ...props });
 
-  return { document, window, byId, dispatch, createButton, createElement };
+  /**
+   * Build the named-export shape a renderer module imports from './dom'.
+   *
+   * `src/dom.ts` exports one binding per element id; a test replaces that
+   * module wholesale, so it needs the same shape. Names map to ids by
+   * kebab-casing the camelCase binding (`providerSelect` -> `provider-select`);
+   * pass an explicit `{ name: id }` map to override.
+   *
+   * @param {string[]|object} names
+   * @returns {object} module exports
+   */
+  const exports = (names) => {
+    const entries = Array.isArray(names)
+      ? names.map((name) => [name, name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)])
+      : Object.entries(names);
+    const module = {};
+    for (const [name, id] of entries) module[name] = byId(id);
+    return module;
+  };
+
+  return { document, window, byId, dispatch, createButton, createElement, exports };
 }
 
 module.exports = { createDom, createElement };

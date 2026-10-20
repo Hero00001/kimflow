@@ -170,9 +170,11 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setEngine(settings.engine);
   modelSelect.value = settings.whisperModel || 'small';
   showBinaryName(settings.whisperBinaryPath || '');
-  deepgramKey.value = settings.deepgramApiKey || '';
+  // The key inputs are write-only: the backend blanks key fields before
+  // returning them, so populating these from a settings payload could only
+  // ever erase what the user typed. The key-status indicator below is what
+  // tells the user a key is stored.
   deepgramModelSelect.value = settings.deepgramModel || 'nova-3';
-  speechmaticsKey.value = settings.speechmaticsApiKey || '';
   setModeActive(settings.recordingMode);
   setPolishActive(settings.polishMode || 'thorough');
   vocabInput.value = (settings.customVocabulary || []).join('\n');

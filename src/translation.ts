@@ -7,7 +7,6 @@ import {
   providerSelect,
   inputLanguageSelect,
   translateToSelect,
-  geminiKey,
   geminiModel,
   geminiModelStatus,
   translationGroup,
@@ -64,7 +63,12 @@ export function syncTranslationControls() {
   setSelectValue(providerSelect, settings.translationProvider || 'gemini', 'gemini');
   setSelectValue(inputLanguageSelect, settings.inputLanguage || 'auto', 'auto');
   setSelectValue(translateToSelect, settings.translationTarget || 'en', 'en');
-  geminiKey.value = settings.geminiApiKey || '';
+  // The Gemini key input is deliberately NOT populated from the settings.
+  // The backend blanks key fields before returning them, so writing one back
+  // would erase whatever the user had typed — and because this runs on every
+  // 'settings-updated' broadcast, it would blank the field mid-typing and
+  // corrupt the stored key. Key values never leave the main process; the
+  // key-status indicator is what tells the user a key is stored.
   geminiModel.value = settings.geminiModel || '';
   translationGroup.querySelectorAll('.toggle-btn').forEach((button) => {
     button.classList.toggle('active', (button as HTMLElement).dataset.value === (settings.translationEnabled ? 'on' : 'off'));
