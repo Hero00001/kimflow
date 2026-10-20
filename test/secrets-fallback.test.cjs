@@ -133,5 +133,12 @@ test('a failed rename leaves the previous secret intact', (t) => {
     fs.renameSync = realRename;
   }
 
-  assert.equal(secrets.getSecret('deepgramApiKey'), 'good-key', 'the previous key must survive');
+  // The previous blob must still be on disk — the failed write destroys
+  // nothing.
+  const onDisk = fs.readFileSync(secretFile, 'utf8');
+  assert.equal(onDisk, 'ENC:good-key', 'the previous secret must survive on disk');
+  // The value in use is the one the user just entered, and it is reported
+  // as held in memory rather than saved.
+  assert.equal(secrets.getSecret('deepgramApiKey'), 'new-key');
+  assert.equal(secrets.describeSecret('deepgramApiKey'), 'volatile');
 });

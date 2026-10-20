@@ -69,25 +69,45 @@ function registerHotkeys(hotkey) {
       return true;
     }
     console.error(`[KimFlow] Hotkey could not be registered: ${normalized}`);
-    if (previous) {
-      globalShortcut.register(previous, () => {
-        if (onHotkeyPressed) onHotkeyPressed();
-      });
-      activeHotkey = previous;
-      configuredHotkey = previousConfigured;
-    }
+    restoreHotkey(previous, previousConfigured);
     return false;
   } catch (error) {
     console.error('[KimFlow] Failed to register hotkey:', error);
-    if (previous) {
-      globalShortcut.register(previous, () => {
-        if (onHotkeyPressed) onHotkeyPressed();
-      });
-      activeHotkey = previous;
-      configuredHotkey = previousConfigured;
-    }
+    restoreHotkey(previous, previousConfigured);
     return false;
   }
+}
+
+/**
+ * Re-register the hotkey that was working before, if it still can be.
+ *
+ * `unregisterHotkeys()` has already released every shortcut, so the app is
+ * left with NONE when the restore fails. Claiming the old hotkey anyway would
+ * tell the user they have a working shortcut when they have none.
+ */
+function restoreHotkey(previous, previousConfigured) {
+  if (!previous) {
+    activeHotkey = null;
+    configuredHotkey = null;
+    return false;
+  }
+  let restored = false;
+  try {
+    restored = globalShortcut.register(previous, () => {
+      if (onHotkeyPressed) onHotkeyPressed();
+    });
+  } catch {
+    restored = false;
+  }
+  if (restored) {
+    activeHotkey = previous;
+    configuredHotkey = previousConfigured;
+  } else {
+    console.error(`[KimFlow] Previous hotkey could not be restored: ${previous}`);
+    activeHotkey = null;
+    configuredHotkey = null;
+  }
+  return restored;
 }
 
 /**

@@ -30,6 +30,11 @@ function migratePlaintextKeys(settings) {
   return { settings: next, migrated };
 }
 function getSecret(name) {
+  // A value held in memory takes precedence: it is the one the user entered
+  // most recently. It is only held there when it could NOT be written to
+  // disk, and serving the older on-disk value instead would silently use a
+  // key the user has already replaced.
+  if (memoryFallback[name] !== undefined) return memoryFallback[name];
   try {
     const { safeStorage } = require('electron');
     if (safeStorage && safeStorage.isEncryptionAvailable()) {
@@ -47,7 +52,7 @@ function getSecret(name) {
       console.error(`[KimFlow] Unable to read saved secret "${name}":`, message);
     }
   }
-  return memoryFallback[name] || '';
+  return '';
 }
 
 // Tri-state read: 'saved' (persisted securely), 'volatile' (held in memory
@@ -55,14 +60,15 @@ function getSecret(name) {
 // 'unreadable' (a file exists but yields no value — corrupt blob or
 // decryption failure). Lets the UI tell those last two apart.
 function describeSecret(name) {
-  let persisted = false;
+  // A value held in memory was never written to disk, so it is lost when the
+  // app restarts — the user must be told that, not shown a false "saved".
+  if (memoryFallback[name] !== undefined) return 'volatile';
+  if (getSecret(name) !== '') return 'saved';
   try {
-    persisted = fs.existsSync(secretPath(name));
+    if (fs.existsSync(secretPath(name))) return 'unreadable';
   } catch {
-    // An unreadable directory listing degrades to "not persisted".
+    // An unreadable directory listing degrades to "missing".
   }
-  if (getSecret(name) !== '') return persisted ? 'saved' : 'volatile';
-  if (persisted) return 'unreadable';
   return 'missing';
 }
 /**
@@ -102,6 +108,8 @@ function setSecret(name, value) {
         try { fs.rmSync(backup, { force: true }); } catch { /* best-effort */ }
       }
       loggedReadFailures.delete(name);
+      // The file is authoritative again, so the in-memory copy is dropped.
+      delete memoryFallback[name];
       return true;
     }
   } catch (error) {

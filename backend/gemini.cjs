@@ -66,6 +66,12 @@ async function inspectModel(apiKey, modelId) {
       result = { found: false, methods: [], error: 'not_found' };
     } else if (response.status < 200 || response.status >= 300) {
       const detail = describeError(response.data) || String(response.data || '');
+      // A server-side or rate-limit failure says nothing about the model, so
+      // it must not be cached: caching it made `validateModel` report "model
+      // not found" for the rest of the process.
+      if (response.status >= 500 || response.status === 429) {
+        return { found: false, methods: [], error: `http_${response.status}`, detail, transient: true };
+      }
       result = { found: false, methods: [], error: `http_${response.status}`, detail };
     } else {
       result = {

@@ -31,6 +31,15 @@ function baseWord(token) {
   return splitPunctuation(token).word.toLowerCase();
 }
 
+// True when the word at `index` begins a number.
+function startsNumber(words, index) {
+  const lower = baseWord(words[index] || '');
+  if (!lower) return false;
+  if (lower in ONES || lower in TENS || lower in SCALES) return true;
+  if (lower === 'a' || lower === 'an') return baseWord(words[index + 1] || '') in SCALES;
+  return false;
+}
+
 // Parse a run of number WORDS (no whitespace entries) starting at `start`.
 //
 // Returns null when the run is not a number, otherwise
@@ -57,9 +66,10 @@ function parseRun(words, start) {
     const lower = word.toLowerCase();
 
     if (lower === 'and') {
-      // "and" only joins a number after a scale ("two thousand and nineteen").
-      // Without one it separates two numbers, so the run ends before it.
-      if (!hasNumber || !sawScale) break;
+      // "and" only joins a number after a scale ("two thousand and nineteen")
+      // AND when a number actually follows it. Without one it separates two
+      // numbers, so the run ends before it.
+      if (!hasNumber || !sawScale || !startsNumber(words, i + 1)) break;
       continue;
     }
     if (lower === 'a' || lower === 'an') {
@@ -115,10 +125,12 @@ function finishWithUnit(words, value, next, trailing = '') {
   const unit = baseWord(words[next] || '');
   const { suffix } = splitPunctuation(words[next] || '');
   if (unit === 'percent' || unit === 'percentage') {
-    return { value: `${value}%`, next: next + 1, unitSuffix: suffix, trailing };
+    // The unit binds to the number, so it absorbs the punctuation that
+    // separated them and carries its own.
+    return { value: `${value}%`, next: next + 1, unitSuffix: suffix, trailing: '' };
   }
   if (unit === 'dollar' || unit === 'dollars' || unit === 'buck' || unit === 'bucks') {
-    return { value: `$${value}`, next: next + 1, unitSuffix: suffix, trailing };
+    return { value: `$${value}`, next: next + 1, unitSuffix: suffix, trailing: '' };
   }
   return { value, next, unitSuffix: '', trailing };
 }
