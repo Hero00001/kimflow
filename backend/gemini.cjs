@@ -77,7 +77,10 @@ async function inspectModel(apiKey, modelId) {
       };
     }
   } catch (error) {
-    result = { found: false, methods: [], error: 'network' };
+    // A transport failure is transient, so it must NOT be cached: caching it
+    // made `validateModel` report "model not found" for the rest of the
+    // process, after a single network blip.
+    return { found: false, methods: [], error: 'network', transient: true };
   }
   inspectedModels.set(cacheKey, result);
   return result;
@@ -109,6 +112,18 @@ async function validateModel(apiKey, modelId) {
   }
 
   if (!info.found) {
+    // A transport failure says nothing about the model, so it must not be
+    // reported as "not found" — that diagnosis sends the user off to change
+    // a model id that is perfectly fine.
+    if (info.transient) {
+      return {
+        ok: false,
+        found: false,
+        transient: true,
+        model: normalized,
+        message: `Could not reach Gemini to check the model "${normalized}". Check your connection and try again.`,
+      };
+    }
     return {
       ok: false,
       found: false,

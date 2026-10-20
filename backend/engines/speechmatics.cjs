@@ -21,6 +21,22 @@ function throwIfAborted(signal) {
   }
 }
 
+/**
+ * The `transcription_config` for a job.
+ *
+ * Speechmatics Batch supports `language: "auto"` (Language Identification),
+ * so Auto Detect is passed straight through. Forcing `en` here — which the
+ * app's default input language used to trigger — made every transcription
+ * English-only.
+ */
+function speechmaticsConfig(language, vocabulary) {
+  const lang = language && language !== 'auto' ? language : 'auto';
+  const config = { language: lang };
+  const additionalVocab = speechmaticsVocab(vocabulary);
+  if (additionalVocab.length > 0) config.additional_vocab = additionalVocab;
+  return config;
+}
+
 async function transcribe(apiKey, audioPath, language, signal, polishMode, vocabulary) {
   throwIfAborted(signal);
   const key = String(apiKey || '').trim();
@@ -30,10 +46,8 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode, vocab
   const audioBuffer = fs.readFileSync(audioPath);
   debugLog('Speechmatics: audio loaded', { bytes: audioBuffer.length, file: audioPath });
 
-  const lang = language && language !== 'auto' ? language : 'en';
-  const transcriptionConfig = { language: lang };
-  const additionalVocab = speechmaticsVocab(vocabulary);
-  if (additionalVocab.length > 0) transcriptionConfig.additional_vocab = additionalVocab;
+  const transcriptionConfig = speechmaticsConfig(language, vocabulary);
+  const lang = transcriptionConfig.language;
   const config = JSON.stringify({
     type: 'transcription',
     transcription_config: transcriptionConfig,
@@ -119,7 +133,9 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode, vocab
 
     if (!text) throw new Error('Speechmatics produced an empty transcript');
     throwIfAborted(signal);
-    return { text: cleanupText(text, polishMode), detectedLanguage: lang !== 'en' ? lang : null };
+    // With Auto Detect the language was chosen by the service, so it is not
+    // the requested one and must not be reported as the detected language.
+    return { text: cleanupText(text, polishMode), detectedLanguage: lang === 'auto' ? null : lang };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.startsWith('Speechmatics produced')) throw error;
@@ -151,4 +167,4 @@ async function testConnection(apiKey) {
   }
 }
 
-module.exports = { transcribe, testConnection };
+module.exports = { transcribe, testConnection, speechmaticsConfig };
