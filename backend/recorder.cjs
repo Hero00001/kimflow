@@ -229,19 +229,18 @@ async function stopRecording(settings, windows, audioBuffer) {
     }
     let pasteOk = true;
     let pasteFallback = null;
-    const doPaste = (text) => {
-      try {
-        const pasteResult = pasteText(text);
-        pasteOk = !pasteResult || pasteResult.ok !== false;
-      } catch {
-        pasteOk = false;
-      }
+    // The paste runs in a child process, so its outcome is only known once
+    // that process exits. Awaiting it is what lets a failed paste reach the
+    // user as the "paste failed, text copied to clipboard" fallback.
+    const doPaste = async (text) => {
+      const pasteResult = await pasteText(text);
+      pasteOk = !pasteResult || pasteResult.ok !== false;
       if (!pasteOk) pasteFallback = text;
     };
     // Without translation the transcript pastes immediately. With
     // translation enabled the paste waits below for the translated text —
     // pasting the original first would defeat the feature.
-    if (!settings.translationEnabled) doPaste(selectPasteText({ translationEnabled: false, translation: null, finalText }));
+    if (!settings.translationEnabled) await doPaste(selectPasteText({ translationEnabled: false, translation: null, finalText }));
     let historyId = null;
     try {
       const entry = history.addSession({
@@ -279,7 +278,7 @@ async function stopRecording(settings, windows, audioBuffer) {
       } catch (error) {
         translationError = error instanceof Error && error.message ? error.message : String(error);
       }
-      doPaste(selectPasteText({ translationEnabled: true, translation, finalText }));
+      await doPaste(selectPasteText({ translationEnabled: true, translation, finalText }));
       if (historyId) {
         try {
           history.updateSession(historyId, {
