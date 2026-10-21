@@ -1,0 +1,70 @@
+name: CI
+
+# Runs on every push to main and every pull request. It never publishes
+# anything — it only answers "is main still good?" so a broken commit is found
+# here rather than when you try to release it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only: this workflow must never be able to write to the repo.
+permissions:
+  contents: read
+
+# A newer push cancels an older run on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, test, build, package
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # Node 24 to match the machine the test suite was written and verified
+      # on. If a runner update ever breaks the suite, pin this value.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      - name: Build the renderer
+        run: npm run build
+
+      # The same packaging command the release uses, minus the installer
+      # compression. If this step is green, a release will not fail on a
+      # broken electron-builder config or a missing icon.
+      - name: Package (dry run, no installer)
+        run: npx electron-builder --win --dir --publish never
+
+      - name: Summarise
+        if: always()
+        shell: bash
+        run: |
+          echo "### CI result" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Node: $(node -v)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${GITHUB_SHA::7}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ -d dist-electron ]; then
+            echo "- Packaged output:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            ls -1 dist-electron >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi

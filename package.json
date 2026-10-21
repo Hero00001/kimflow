@@ -35,6 +35,7 @@
     "appId": "com.kimflow.app",
     "productName": "KimFlow",
     "icon": "app icon/icon.ico",
+    "artifactName": "${productName}.Setup.${version}.${ext}",
     "directories": {
       "output": "dist-electron"
     },

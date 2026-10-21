@@ -1,0 +1,204 @@
+name: Release (Windows)
+
+# Manual only. Nothing here runs on a push.
+#
+# How to use it:
+#   1. Write the release notes in releases/NEXT.md and commit them.
+#   2. Actions -> "Release (Windows)" -> Run workflow.
+#   3. Type the version, e.g. 1.4.2 — numbers only, no leading v.
+#   4. When it finishes, open Releases, check the draft, then click Publish.
+#
+# See docs/RELEASING.md for the full walkthrough.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release — numbers only, e.g. 1.4.2 (no leading "v")'
+        required: true
+        type: string
+
+# Needs to write: it commits the version bump, pushes the tag, and creates the
+# draft release.
+permissions:
+  contents: write
+
+# Never let two releases race each other.
+concurrency:
+  group: release-windows
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and draft v${{ inputs.version }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # ── Guards ──────────────────────────────────────────────────────────────
+      # Everything that can be checked cheaply is checked before the build, so
+      # a bad version number or missing notes costs seconds, not minutes.
+
+      - name: Check the run started from main
+        shell: bash
+        run: |
+          if [ "${{ github.ref_name }}" != "main" ]; then
+            echo "::error::Run this workflow from the main branch. You are on '${{ github.ref_name }}'."
+            exit 1
+          fi
+
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0 # tags, so the version check sees them
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Validate the version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not a version. Type numbers only, like 1.4.2 (no leading v, no spaces)."
+            exit 1
+          fi
+          if git ls-remote --tags --exit-code origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists on the remote. Pick the next version."
+            exit 1
+          fi
+          echo "Version $VERSION is available."
+
+      - name: Check the release notes exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -s releases/NEXT.md ]; then
+            echo "::error::releases/NEXT.md is missing or empty. Write the release notes there, commit them, then run this again."
+            exit 1
+          fi
+          echo "These notes will be the release body:"
+          echo "--------------------------------------------------------------"
+          head -n 25 releases/NEXT.md
+          echo "--------------------------------------------------------------"
+
+      # ── Verify ──────────────────────────────────────────────────────────────
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      # ── Build ───────────────────────────────────────────────────────────────
+
+      # Bumps package.json (and the lockfile) so the installer's internal
+      # version, its filename, and the git tag are all the same number. This is
+      # what stops "tagged 1.4.1 but shipped 0.1.0" from happening again.
+      - name: Set the version in package.json
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Build the renderer
+        run: npm run build
+
+      - name: Package the Windows installer
+        run: npx electron-builder --win --publish never
+
+      - name: Confirm the installer exists
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          ARTIFACT="dist-electron/KimFlow.Setup.${VERSION}.exe"
+          if [ ! -f "$ARTIFACT" ]; then
+            echo "::error::Expected $ARTIFACT but it was not built."
+            echo "--- dist-electron contains ---"
+            ls -la dist-electron || true
+            exit 1
+          fi
+          printf 'Built %s (%s bytes)\n' "$ARTIFACT" "$(stat -c %s "$ARTIFACT" 2>/dev/null || wc -c < "$ARTIFACT")"
+
+      # ── Publish ─────────────────────────────────────────────────────────────
+
+      # The tag is created only after the build succeeds, so a failed build
+      # leaves no tag behind to clean up.
+      - name: Commit the version bump and tag it
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name  "KimFlow Release"
+          git config user.email "release@kimflow.local"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "package.json was already at $VERSION — nothing to commit."
+          else
+            git commit -m "chore(release): v$VERSION"
+          fi
+          git tag -a "v$VERSION" -m "KimFlow v$VERSION"
+          git push origin main
+          git push origin "v$VERSION"
+
+      # NEXT.md uses {{version}} as a placeholder so the notes can never
+      # disagree with the number you typed.
+      - name: Render the release notes
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+            const body = fs.readFileSync("releases/NEXT.md", "utf8")
+              .replace(/<!--[\s\S]*?-->/g, "")
+              .replaceAll("{{version}}", version)
+              .replace(/^\s*\n/, "");
+            fs.writeFileSync(".release-body.md", body, "utf8");
+            const leftover = body.match(/\{\{[a-z-]+\}\}/g);
+            if (leftover) {
+              console.error("Unreplaced placeholder in the notes: " + leftover.join(", "));
+              process.exit(1);
+            }
+            if (!body.trim()) {
+              console.error("The rendered notes are empty.");
+              process.exit(1);
+            }
+          '
+          echo "Rendered $(wc -l < .release-body.md) lines."
+
+      - name: Create the draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: KimFlow v${{ inputs.version }}
+          body_path: .release-body.md
+          draft: true
+          files: dist-electron/KimFlow.Setup.${{ inputs.version }}.exe
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### Draft release v${{ inputs.version }} is ready"
+            echo ""
+            echo "Nothing is public yet. Open the drafts, read the notes, download"
+            echo "the installer once, then click **Publish release**."
+            echo ""
+            echo "Releases: ${{ github.server_url }}/${{ github.repository }}/releases"
+            echo ""
+            echo "Next time: rewrite \`releases/NEXT.md\` before running this again."
+          } >> "$GITHUB_STEP_SUMMARY"
