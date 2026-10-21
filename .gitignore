@@ -11,3 +11,12 @@ refactor.txt
 docs/
 .superpowers/
 real refcator.md
+/.scratch/i18n-settings
+/.workbuddy-ai
+src/i18n/REVIEW.md
+
+# graphify knowledge graph - regenerable via `/graphify . --update`
+graphify-out/
+
+# Agent instructions are local tooling, not part of the published project.
+AGENTS.md
