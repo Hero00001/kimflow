@@ -22,7 +22,11 @@ const DEFAULT_SETTINGS = {
   whisperRuntime: 'whisper-cpp',
   whisperBinaryPath: '',
   deepgramApiKey: '',
-  deepgramModel: 'nova-3',
+  // 'auto' is resolved to a concrete nova model per request by
+  // backend/engines/deepgram.cjs (resolveDeepgramModel) — nova-3 or nova-2,
+  // depending on the input language. See also the whisper migration note in
+  // normalizeSettings below.
+  deepgramModel: 'auto',
   speechmaticsApiKey: '',
   recordingMode: 'toggle',
   polishMode: 'thorough',
@@ -62,7 +66,13 @@ function normalizeSettings(settings) {
     whisperRuntime: stringValue(merged.whisperRuntime, DEFAULT_SETTINGS.whisperRuntime),
     whisperBinaryPath: stringValue(merged.whisperBinaryPath, ''),
     deepgramApiKey: stringValue(merged.deepgramApiKey, ''),
-    deepgramModel: ['nova-3', 'nova-2', 'whisper'].includes(merged.deepgramModel) ? merged.deepgramModel : DEFAULT_SETTINGS.deepgramModel,
+    // Stored 'whisper' (a removed model) — and any other unknown value —
+    // coerces back to the default 'auto', which resolves to nova-3/nova-2
+    // per language at request time. Plain value coercion: idempotent, no
+    // migration flag needed.
+    deepgramModel: ['auto', 'nova-3', 'nova-2'].includes(merged.deepgramModel)
+      ? merged.deepgramModel
+      : DEFAULT_SETTINGS.deepgramModel,
     speechmaticsApiKey: stringValue(merged.speechmaticsApiKey, ''),
     recordingMode: ['toggle', 'push-to-talk'].includes(merged.recordingMode) ? merged.recordingMode : DEFAULT_SETTINGS.recordingMode,
     polishMode: ['off', 'light', 'thorough'].includes(merged.polishMode) ? merged.polishMode : DEFAULT_SETTINGS.polishMode,

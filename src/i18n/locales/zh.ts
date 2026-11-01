@@ -128,7 +128,7 @@ export const zh: Record<LocaleKey, string> = {
   'settings.model.medium': 'Medium（约 1.5 GB）', // Medium (~1.5 GB)
   'settings.model.nova3': 'Nova 3', // Nova 3
   'settings.model.nova2': 'Nova 2', // Nova 2
-  'settings.model.whisperCloud': 'Whisper（云端）', // Whisper (Cloud)
+  'settings.model.auto': '自动（推荐）', // Auto (recommended)
   'settings.model.downloading': '正在下载 {model} 模型', // Downloading {model} model
 
   // ── Settings — model download button ─────────────────────────────────

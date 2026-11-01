@@ -119,7 +119,7 @@ export const en = {
   'settings.model.medium': 'Medium (~1.5 GB)',
   'settings.model.nova3': 'Nova 3',
   'settings.model.nova2': 'Nova 2',
-  'settings.model.whisperCloud': 'Whisper (Cloud)',
+  'settings.model.auto': 'Auto (recommended)',
   'settings.model.downloading': 'Downloading {model} model',
 
   // ── Settings — model download button ─────────────────────────────────

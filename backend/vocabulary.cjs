@@ -4,6 +4,11 @@
 // - Deepgram nova-2: `keywords` with a mild intensifier
 // - Speechmatics: `additional_vocab` content entries
 // - Local whisper.cpp: initial `--prompt` text
+//
+// `deepgramVocabParams` expects a CONCRETE model id ('nova-2' | 'nova-3') —
+// the RESOLVED model from backend/engines/deepgram.cjs's
+// resolveDeepgramModel, not the raw stored setting (which can be 'auto').
+// Callers must pass `resolveDeepgramModel(language, model).model`.
 const MAX_TERMS = 100;
 
 function normalizeVocabulary(value) {

@@ -6,8 +6,59 @@ const { awaitAbortable } = require('../recorder-decisions.cjs');
 const DEEPGRAM_MODELS = {
   'nova-3': { label: 'Nova 3', value: 'nova-3' },
   'nova-2': { label: 'Nova 2', value: 'nova-2' },
-  'whisper': { label: 'Whisper (Cloud)', value: 'whisper' },
 };
+
+// Languages Nova 3 can transcribe as a single language (Deepgram docs).
+// A request for any other specific language must go to nova-2, whose
+// single-language coverage is far wider.
+const NOVA3_LANGUAGES = new Set(['en', 'es', 'fr', 'de', 'pt', 'it', 'hi', 'ru', 'ja', 'nl']);
+
+function normalizeLanguage(language) {
+  const value = typeof language === 'string' ? language.trim().toLowerCase() : '';
+  return value || 'auto';
+}
+
+/**
+ * The request language config for a concrete model.
+ *
+ * nova-3 has no true auto-detect: its multilingual mode is `language: multi`.
+ * nova-2 MUST NOT be given `language=multi` (that combo fails or produces
+ * garbage) — its auto mode is `detect_language: true`.
+ */
+function languageConfig(language, model) {
+  const lang = normalizeLanguage(language);
+  if (lang === 'auto') {
+    return model === 'nova-2' ? { detect_language: true } : { language: 'multi' };
+  }
+  return { language: lang };
+}
+
+/**
+ * Resolve the settings model + input language into the ACTUAL request model
+ * and language config.
+ *
+ * - 'nova-3' / 'nova-2' are honoured as chosen (language config adapts).
+ * - Anything else — the default 'auto', or the legacy removed 'whisper' —
+ *   falls back smartly: nova-3 with `multi` for auto-detect; nova-3 for a
+ *   language it supports; nova-2 otherwise.
+ *
+ * @param {string} language input language code or 'auto'
+ * @param {string} model stored model setting
+ * @returns {{model: string, language?: string, detect_language?: boolean}}
+ */
+function resolveDeepgramModel(language, model) {
+  if (model === 'nova-3' || model === 'nova-2') {
+    return { model, ...languageConfig(language, model) };
+  }
+  const lang = normalizeLanguage(language);
+  if (lang === 'auto') return { model: 'nova-3', ...languageConfig(lang, 'nova-3') };
+  if (NOVA3_LANGUAGES.has(lang)) return { model: 'nova-3', language: lang };
+  return { model: 'nova-2', language: lang };
+}
+
+function deepgramOptions(language, model) {
+  return { ...resolveDeepgramModel(language, model), smart_format: true, numerals: true };
+}
 
 function debugLog(message, payload) {
   if (process.env.KIMFLOW_DEBUG !== '1') return;
@@ -16,15 +67,6 @@ function debugLog(message, payload) {
   } else {
     console.log(`[KimFlow] ${message}`, payload);
   }
-}
-
-function deepgramLanguage(language) {
-  return !language || language === 'auto' ? 'multi' : language;
-}
-
-function deepgramOptions(language, model) {
-  const modelName = DEEPGRAM_MODELS[model] ? model : 'nova-3';
-  return { model: modelName, language: deepgramLanguage(language), smart_format: true, numerals: true };
 }
 
 function throwIfAborted(signal) {
@@ -44,7 +86,10 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
   debugLog('Deepgram: audio loaded', { bytes: audioBuffer.length, file: audioPath });
   const { createClient } = require('@deepgram/sdk');
   const deepgram = createClient(key);
-  const options = { ...deepgramOptions(language, model), ...deepgramVocabParams(model, vocabulary) };
+  // Vocabulary params key off the RESOLVED model ('nova-2' vs 'nova-3' use
+  // different request params), not the raw stored setting.
+  const resolved = resolveDeepgramModel(language, model);
+  const options = { ...deepgramOptions(language, model), ...deepgramVocabParams(resolved.model, vocabulary) };
 
   const query = new URL('https://api.deepgram.com/v1/listen');
   for (const keyName of Object.keys(options)) {
@@ -82,7 +127,9 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
   const channel = result?.results?.channels?.[0];
   const alternative = channel?.alternatives?.[0];
   const transcript = typeof alternative?.transcript === 'string' ? alternative.transcript.trim() : '';
-  const requestedLanguage = options.language;
+  // nova-2 auto-detect sends `detect_language` instead of `language`, so the
+  // requested language can be absent from the options.
+  const requestedLanguage = typeof options.language === 'string' ? options.language : null;
   const detectedLanguage = alternative?.languages?.[0]
     || channel?.detected_language
     || channel?.detectedLanguage
@@ -92,6 +139,7 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
     const diagnostics = {
       requestedLanguage,
       detectedLanguage,
+      resolvedModel: resolved.model,
       audioDurationSeconds: metadata.duration ?? null,
       channels: result?.results?.channels?.length ?? 0,
       alternatives: channel?.alternatives?.length ?? 0,
@@ -101,7 +149,9 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
     debugLog('Deepgram: empty transcript', diagnostics);
     const hint = requestedLanguage === 'multi'
       ? 'Deepgram found no speech in its multilingual set. If a specific input language is selected, try setting Input Language to Auto Detect so matched-language speech can be transcribed.'
-      : `Deepgram found no speech in the requested language "${requestedLanguage}". If you are speaking a different language, set Input Language to Auto Detect so KimFlow asks Deepgram to transcribe multilingual audio.`;
+      : requestedLanguage
+        ? `Deepgram found no speech for language "${requestedLanguage}" on ${resolved.model}. If you are speaking a different language, set Input Language to Auto Detect so KimFlow asks Deepgram to transcribe multilingual audio.`
+        : `Deepgram language detection on ${resolved.model} found no speech. Check that the recording contains audible speech, or set Input Language to a specific language.`;
     throw new Error(`Deepgram produced no transcript${metadata.duration ? ` (audio length ${metadata.duration.toFixed(1)}s)` : ''}. ${hint}`);
   }
 
@@ -128,4 +178,4 @@ async function testConnection(apiKey) {
   }
 }
 
-module.exports = { transcribe, testConnection, deepgramOptions };
+module.exports = { transcribe, testConnection, deepgramOptions, resolveDeepgramModel, languageConfig, DEEPGRAM_MODELS, NOVA3_LANGUAGES };

@@ -120,7 +120,7 @@ export const ar: Record<LocaleKey, string> = {
   'settings.model.medium': 'Medium (~1.5 غيغابايت)', // Medium (~1.5 GB)
   'settings.model.nova3': 'Nova 3', // Nova 3
   'settings.model.nova2': 'Nova 2', // Nova 2
-  'settings.model.whisperCloud': 'Whisper (سحابي)', // Whisper (Cloud)
+  'settings.model.auto': 'تلقائي (مستحسن)', // Auto (recommended)
   'settings.model.downloading': 'جارٍ تنزيل طراز {model}', // Downloading {model} model
 
   // ── Settings — model download button ─────────────────────────────────

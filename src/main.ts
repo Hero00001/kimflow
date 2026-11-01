@@ -89,8 +89,8 @@ async function init() {
     setSettings({
       microphone: 'default', engine: 'local', whisperModel: 'small',
       whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
-      deepgramApiKey: '', deepgramModel: 'nova-3', speechmaticsApiKey: '', recordingMode: 'toggle',
-      polishMode: 'thorough',
+      deepgramApiKey: '', deepgramModel: 'auto', speechmaticsApiKey: '', recordingMode: 'toggle',
+      polishMode: 'light',
       customVocabulary: [],
       aiPolish: false,
       hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',

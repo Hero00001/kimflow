@@ -65,6 +65,9 @@ import {
 let recordingHotkey = false;
 let persistTimer: number | undefined;
 
+/** Deepgram models the model select offers; anything else resolves to 'auto'. */
+const DEEPGRAM_MODEL_VALUES: ReadonlySet<string> = new Set(['auto', 'nova-3', 'nova-2']);
+
 /**
  * The custom Whisper binary currently selected.
  *
@@ -251,7 +254,10 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   // returning them, so populating these from a settings payload could only
   // ever erase what the user typed. The key-status indicator below is what
   // tells the user a key is stored.
-  deepgramModelSelect.value = settings.deepgramModel || 'nova-3';
+  // An unknown or legacy stored value ('whisper', …) must not point the
+  // select at a nonexistent option — map it back to 'auto', which the
+  // backend resolves to a concrete nova model at request time.
+  deepgramModelSelect.value = DEEPGRAM_MODEL_VALUES.has(settings.deepgramModel) ? settings.deepgramModel : 'auto';
   setModeActive(settings.recordingMode);
   setPolishActive(settings.polishMode || 'thorough');
   vocabInput.value = (settings.customVocabulary || []).join('\n');
