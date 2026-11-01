@@ -39,7 +39,10 @@ async function overlayEntry(t, { dev }) {
     process.argv = previousArgv.filter((arg) => arg !== '--dev');
     delete process.env.ELECTRON_DEV_HOST;
   }
-  const harness = await loadMain({ locale: 'en-US', home });
+  // These four assertions cover the LEGACY overlay path, which is still a
+  // supported rollback target. The flow-bar widget is the default floating UI
+  // now, so pin it off here rather than weakening the assertions.
+  const harness = await loadMain({ locale: 'en-US', home, settings: { useFlowBarWidget: false } });
   t.after(() => harness.restore());
   const overlay = harness.instances[1];
   return { url: overlay.loadedUrl, file: overlay.loadedFile };
@@ -60,7 +63,10 @@ test('the main window is still served by the dev server in development', async (
   });
   process.argv = previousArgv.concat('--dev');
   process.env.ELECTRON_DEV_HOST = 'localhost';
-  const harness = await loadMain({ locale: 'en-US', home });
+  // These four assertions cover the LEGACY overlay path, which is still a
+  // supported rollback target. The flow-bar widget is the default floating UI
+  // now, so pin it off here rather than weakening the assertions.
+  const harness = await loadMain({ locale: 'en-US', home, settings: { useFlowBarWidget: false } });
   t.after(() => harness.restore());
   assert.equal(harness.instances[0].loadedUrl, 'http://localhost:1420');
 });

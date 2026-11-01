@@ -37,7 +37,7 @@ function backendStub(resolvedPath, overrides = {}) {
         startRecording: async () => {}, stopRecording: async () => ({ aborted: true }),
         pauseRecording: async () => {}, resumeRecording: async () => {}, cancelRecording: async () => {},
         getState: () => 'ready',
-        STATE: { READY: 'ready', RECORDING: 'recording', TRANSCRIBING: 'transcribing' },
+        STATE: { READY: 'ready', RECORDING: 'recording', PAUSED: 'paused', TRANSCRIBING: 'transcribing' },
       };
     case 'secrets.cjs':
       return { getSecret: () => '', migratePlaintextKeys: (raw) => ({ settings: raw && typeof raw === 'object' ? raw : {}, migrated: false }) };
@@ -67,33 +67,87 @@ function backendStub(resolvedPath, overrides = {}) {
 
 function createElectronStub(locale) {
   const handlers = new Map();
+  const listeners = new Map();
   const instances = [];
   let nextId = 1;
 
+  // Records enough window state that placement, visibility and click-through
+  // assertions are possible without a real Electron process.
   class BrowserWindow {
     constructor(options) {
       this.options = options || {};
-      this.webContents = { id: nextId++, on() {}, send() {}, isDestroyed: () => false };
+      this.webContents = {
+        id: nextId++,
+        sent: [],
+        on() {},
+        send(channel, value) { this.sent.push({ channel, value }); },
+        isDestroyed: () => false,
+      };
       this._destroyed = false;
+      this._visible = this.options.show === true;
+      this._bounds = {
+        x: this.options.x ?? 0,
+        y: this.options.y ?? 0,
+        width: this.options.width ?? 0,
+        height: this.options.height ?? 0,
+      };
+      this.events = [];
+      this.boundsCalls = [];
+      this.ignoreMouseEvents = [];
+      this.alwaysOnTop = null;
+      this.visibleOnAllWorkspaces = null;
       // Recorded so a test can assert which entry a window was given.
       this.loadedUrl = null;
       this.loadedFile = null;
+      this.loadedFileOptions = null;
       instances.push(this);
     }
-    on() {}
+    on(event) { this.events.push(event); }
     isDestroyed() { return this._destroyed; }
     setMenuBarVisibility() {}
     setAutoHideMenuBar() {}
-    setIgnoreMouseEvents() {}
+    setIgnoreMouseEvents(ignore, opts) { this.ignoreMouseEvents.push({ ignore, opts }); }
     loadURL(url) { this.loadedUrl = url; return Promise.resolve(); }
-    loadFile(file) { this.loadedFile = file; return Promise.resolve(); }
+    loadFile(file, opts) { this.loadedFile = file; this.loadedFileOptions = opts ?? null; return Promise.resolve(); }
+    setBounds(bounds) { this._bounds = { ...bounds }; this.boundsCalls.push({ ...bounds }); }
+    getBounds() { return { ...this._bounds }; }
+    setPosition(x, y) { this._bounds.x = x; this._bounds.y = y; }
+    setAlwaysOnTop(value, level) { this.alwaysOnTop = { value, level }; }
+    setVisibleOnAllWorkspaces(value, opts) { this.visibleOnAllWorkspaces = { value, opts }; }
+    showInactive() { this._visible = true; this.shownInactive = true; }
+    show() { this._visible = true; }
+    hide() { this._visible = false; }
+    isVisible() { return this._visible; }
+    moveTop() {}
+    focus() {}
+    blur() {}
     minimize() {}
     maximize() {}
     unmaximize() {}
     isMaximized() { return false; }
     close() {}
-    destroy() { this._destroyed = true; }
+    destroy() { this._destroyed = true; this._visible = false; }
   }
+
+  // Minimal `screen` stand-in. `_workArea` and `_cursor` are writable so a test
+  // can simulate a second monitor or a cursor over the capsule.
+  const screen = {
+    _workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+    _cursor: { x: 0, y: 0 },
+    _listeners: new Map(),
+    getPrimaryDisplay() {
+      return { workArea: { ...screen._workArea }, bounds: { ...screen._workArea } };
+    },
+    getDisplayNearestPoint() {
+      return { workArea: { ...screen._workArea } };
+    },
+    getCursorScreenPoint() {
+      return { ...screen._cursor };
+    },
+    on(event, handler) { screen._listeners.set(event, handler); },
+    off(event) { screen._listeners.delete(event); },
+    removeListener(event) { screen._listeners.delete(event); },
+  };
 
   const app = {
     isPackaged: true,
@@ -109,14 +163,20 @@ function createElectronStub(locale) {
     electron: {
       app,
       BrowserWindow,
-      ipcMain: { handle(channel, fn) { handlers.set(channel, fn); } },
+      screen,
+      ipcMain: {
+        handle(channel, fn) { handlers.set(channel, fn); },
+        on(channel, fn) { listeners.set(channel, fn); },
+      },
       session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
       Menu: { setApplicationMenu() {} },
       clipboard: { writeText() {} },
       dialog: { showOpenDialog: async () => ({ canceled: true }), showMessageBox: async () => ({ response: 0 }) },
     },
     handlers,
+    listeners,
     instances,
+    screen,
     app,
   };
 }
@@ -151,23 +211,33 @@ function loadWithStubs(entryPath, electron, overrides = {}) {
  * Load main.cjs with a stubbed Electron and the given OS locale, isolated to
  * `home`. Returns the registered IPC handlers and the created windows.
  *
- * @param {{locale: string, home: string, overrides?: object}} options
+ * @param {{locale: string, home: string, overrides?: object, settings?: object}} options
  *   `overrides` replaces backend stubs by module basename (e.g. 'hotkeys.cjs').
+ *   `settings` is written to `<home>/.kimflow/config.json` before main.cjs is
+ *   loaded, so a test can pin a flag through the real load()/normalizeSettings().
  */
-async function loadMain({ locale, home, overrides = {} }) {
+async function loadMain({ locale, home, overrides = {}, settings = null }) {
   const previousUserProfile = process.env.USERPROFILE;
   const previousHome = process.env.HOME;
   process.env.USERPROFILE = home;
   process.env.HOME = home;
 
-  const { electron, handlers, instances, app } = createElectronStub(locale);
+  if (settings && typeof settings === 'object') {
+    const configDir = path.join(home, '.kimflow');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify(settings, null, 2), 'utf8');
+  }
+
+  const { electron, handlers, listeners, instances, screen, app } = createElectronStub(locale);
   loadWithStubs(path.resolve('main.cjs'), electron, overrides);
   // Flush the `app.whenReady().then(...)` microtask chain.
   await new Promise((resolve) => setImmediate(resolve));
 
   return {
     handlers,
+    listeners,
     instances,
+    screen,
     app,
     restore() {
       if (previousUserProfile === undefined) delete process.env.USERPROFILE;
