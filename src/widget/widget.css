@@ -1,0 +1,103 @@
+/* KimFlow flow-bar widget.
+ *
+ * Visual specification: dictation-widget-redesign-spec.md §2 and §6.2.
+ * Plain static stylesheet — loaded over file:// by the widget BrowserWindow in
+ * dev, `npm start` and the packaged asar alike (no bundler, no Vite input).
+ *
+ * The per-state `--w`/`--h` values below MUST stay in sync with CAPSULE_SIZES
+ * in backend/widget-window.cjs; test/widget-window.test.cjs parses this file
+ * and fails if the two drift apart.
+ *
+ * Width budget for `listening` (the widest state), so the content never
+ * overflows the 204x42 capsule:
+ *   content box = 204 - 2 (borders) - 8 - 16 (padding) = 178px
+ *   bars        = 12 * 3 + 11 * 3 = 69px
+ *   buttons     = 3 * 26          = 78px
+ *   gaps        = 3 * 10          = 30px
+ *   total       = 177px  (1px of slack)
+ */
+
+:root{
+  --pill-bg:#0b0b0d; --pill-border:#2c2f38; --fg:#fff;
+  --btn-bg:#26282e; --btn-bg-hover:#33363d; --dot-idle:#8b8f9a;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  /* Accent-driven colour, used ONLY by .bars i and .c-proc .dt. widget.js
+     overwrites it from settings.accentColor through resolveAccentColor(),
+     which renders the shipped default accent (and invalid input) as white. */
+  --live:#fff;
+}
+
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+  user-select:none;-webkit-user-select:none;cursor:default;
+  /* Inter is used when the OS already has it; nothing is bundled or fetched,
+     and the strict CSP (font-src 'none') forbids loading a font file. */
+  font-family:Inter,system-ui,sans-serif}
+#stage{position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:center}
+
+.pill{position:relative;box-sizing:border-box;background:var(--pill-bg);
+  border:1px solid var(--pill-border);border-radius:999px;color:var(--fg);overflow:hidden;
+  width:var(--w);height:var(--h);
+  transition:width .22s var(--ease),height .22s var(--ease);
+  /* The capsule is the window's drag handle. Buttons opt back out below:
+     Chromium swallows mouse events inside a drag region, so a control that
+     stays draggable would never receive a click. */
+  -webkit-app-region:drag;cursor:grab}
+.pill:active{cursor:grabbing}
+
+[data-state="idle"]       .pill{--w:70px; --h:22px}
+[data-state="listening"]  .pill{--w:204px;--h:42px}
+[data-state="paused"]     .pill{--w:204px;--h:42px}
+[data-state="processing"] .pill{--w:78px; --h:28px}
+
+/* content layers cross-fade */
+.c{position:absolute;inset:0;display:flex;align-items:center;opacity:0;pointer-events:none;
+  transition:opacity .15s ease}
+[data-state="idle"] .c-idle,
+[data-state="listening"] .c-live, [data-state="paused"] .c-live,
+[data-state="processing"] .c-proc{opacity:1;pointer-events:auto}
+.c-idle,.c-proc{justify-content:center;gap:5px}
+.c-live{padding:0 8px 0 16px;gap:10px}
+
+/* dots */
+.dt{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--dot-idle)}
+.c-proc .dt{background:var(--live);animation:blink 1.2s ease-in-out infinite}
+.c-proc .dt:nth-child(2){animation-delay:.15s}
+.c-proc .dt:nth-child(3){animation-delay:.30s}
+.c-proc .dt:nth-child(4){animation-delay:.45s}
+.c-proc .dt:nth-child(5){animation-delay:.60s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+
+/* bars */
+.bars{display:flex;align-items:center;gap:3px;height:20px}
+.bars i{width:3px;height:100%;border-radius:2px;background:var(--live);
+  transform-origin:center;animation:eq 1s ease-in-out infinite}
+.bars i:nth-child(3n+1){animation-delay:-.2s; animation-duration:.8s}
+.bars i:nth-child(5n+2){animation-delay:-.55s;animation-duration:1.1s}
+.bars i:nth-child(7n+3){animation-delay:-.8s; animation-duration:.9s}
+@keyframes eq{0%,100%{transform:scaleY(.18)}50%{transform:scaleY(1)}}
+[data-state="paused"] .bars i{animation:none;transform:scaleY(.18)}
+.bars.live i{animation:none}                /* audio-driven mode: widget.js sets transform */
+
+/* buttons */
+.btn{width:26px;height:26px;border:0;border-radius:50%;padding:0;flex:none;
+  background:var(--btn-bg);color:var(--fg);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .12s;-webkit-app-region:no-drag}
+.btn:hover{background:var(--btn-bg-hover)}
+.btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.ic{display:block}
+.ic-pause{width:7px;height:9px;box-sizing:border-box;border-left:3px solid #fff;border-right:3px solid #fff}
+[data-state="paused"] .ic-pause{width:0;height:0;border-left:8px solid #fff;border-right:0;
+  border-top:5px solid transparent;border-bottom:5px solid transparent}
+.ic-stop{width:9px;height:9px;background:#fff;border-radius:2px}
+.ic-x{position:relative;width:10px;height:10px}
+.ic-x:before,.ic-x:after{content:"";position:absolute;left:4px;top:-1px;width:2px;height:12px;
+  background:#fff;transform:rotate(45deg)}
+.ic-x:after{transform:rotate(-45deg)}
+
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (prefers-reduced-motion:reduce){
+  .bars i,.c-proc .dt{animation:none}
+  .c-proc .dt{opacity:.6}
+  .pill,.c{transition:none}
+}
