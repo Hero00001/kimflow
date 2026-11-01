@@ -65,7 +65,7 @@ function backendStub(resolvedPath, overrides = {}) {
   }
 }
 
-function createElectronStub(locale) {
+function createElectronStub(locale, userDataDir = null) {
   const handlers = new Map();
   const listeners = new Map();
   const instances = [];
@@ -154,6 +154,12 @@ function createElectronStub(locale) {
     _locale: locale,
     setName() {},
     getLocale() { return app._locale; },
+    // main.cjs points the secret store at userData before anything else runs;
+    // tests pass a directory under the isolated home (see loadMain).
+    getPath(name) {
+      if (name === 'userData' && userDataDir) return userDataDir;
+      throw new Error(`getPath("${name}") is not stubbed`);
+    },
     whenReady() { return Promise.resolve(); },
     on() {},
     quit() {},
@@ -228,7 +234,10 @@ async function loadMain({ locale, home, overrides = {}, settings = null }) {
     fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify(settings, null, 2), 'utf8');
   }
 
-  const { electron, handlers, listeners, instances, screen, app } = createElectronStub(locale);
+  const { electron, handlers, listeners, instances, screen, app } = createElectronStub(
+    locale,
+    path.join(home, 'userData'),
+  );
   loadWithStubs(path.resolve('main.cjs'), electron, overrides);
   // Flush the `app.whenReady().then(...)` microtask chain.
   await new Promise((resolve) => setImmediate(resolve));

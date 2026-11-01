@@ -2,13 +2,81 @@
 const fs = require('fs');
 const path = require('path');
 const SECRET_NAMES = ['deepgramApiKey', 'speechmaticsApiKey', 'geminiApiKey'];
+// Directory the secret blobs live in. `null` means "not injected yet" and
+// falls back to the historical `~/.kimflow` location.
+//
+// Why this is injectable: Electron's safeStorage produces Chromium os_crypt
+// blobs whose AES key lives NOT in the blob but in the app's `Local State`
+// inside `app.getPath('userData')`. Storing the blobs in a different
+// directory (`~/.kimflow`) means a context change — dev `%APPDATA%\Electron`
+// vs installed `%APPDATA%\KimFlow` vs legacy `%APPDATA%\Typr` — makes every
+// stored secret permanently undecryptable. Co-locating the blobs with the
+// key (userData) makes blob and key share fate. main.cjs injects the
+// userData path at startup; tests inject a temp dir and never depend on a
+// real userData location.
+let secretsDir = null;
+
+/**
+ * Point the secret store at a directory. Must be called before the first
+ * secret read/write (main.cjs does it in `app.whenReady`).
+ *
+ * @param {string} dir non-empty absolute directory path
+ * @throws when the argument is not a non-empty absolute path
+ */
+function setSecretsDir(dir) {
+  if (typeof dir !== 'string' || dir.trim() === '' || !path.isAbsolute(dir)) {
+    throw new Error(`secrets directory must be a non-empty absolute path, received: ${JSON.stringify(dir)}`);
+  }
+  secretsDir = dir;
+}
+
+/** The directory secret blobs are currently resolved against. */
+function secretsBaseDir() {
+  return secretsDir || require('./settings.cjs').CONFIG_DIR;
+}
+
 let memoryFallback = {};
 // Keys whose read failure was already logged (log once per key per process
 // so every settings save doesn't re-spam the console).
 const loggedReadFailures = new Set();
 
 function secretPath(name) {
-  return path.join(require('./settings.cjs').CONFIG_DIR, `secret_${name}.bin`);
+  return path.join(secretsBaseDir(), `secret_${name}.bin`);
+}
+
+/**
+ * Copy secret blobs from the legacy location to the new one.
+ *
+ * Copies, never moves: the old blob stays behind so a rollback to a previous
+ * KimFlow version still finds its secrets. A blob that cannot be copied is
+ * logged and skipped — migration must never break startup. Blobs already
+ * present at the destination are left untouched (never overwritten).
+ *
+ * @param {string} oldDir legacy secrets directory (e.g. `~/.kimflow`)
+ * @param {string} newDir current secrets directory (e.g. userData)
+ * @returns {number} how many blobs were copied
+ * @throws when either directory argument is not a non-empty absolute path
+ */
+function migrateSecrets(oldDir, newDir) {
+  for (const [label, dir] of [['source', oldDir], ['destination', newDir]]) {
+    if (typeof dir !== 'string' || dir.trim() === '' || !path.isAbsolute(dir)) {
+      throw new Error(`migration ${label} directory must be a non-empty absolute path, received: ${JSON.stringify(dir)}`);
+    }
+  }
+  let copied = 0;
+  for (const name of SECRET_NAMES) {
+    const from = path.join(oldDir, `secret_${name}.bin`);
+    const to = path.join(newDir, `secret_${name}.bin`);
+    try {
+      if (!fs.existsSync(from) || fs.existsSync(to)) continue;
+      fs.mkdirSync(newDir, { recursive: true });
+      fs.copyFileSync(from, to);
+      copied += 1;
+    } catch (error) {
+      console.error(`[KimFlow] Unable to migrate secret "${name}" to the new storage location:`, error instanceof Error ? error.message : error);
+    }
+  }
+  return copied;
 }
 function migratePlaintextKeys(settings) {
   const next = { ...settings };
@@ -91,7 +159,7 @@ function setSecret(name, value) {
     const { safeStorage } = require('electron');
     if (safeStorage && safeStorage.isEncryptionAvailable()) {
       const enc = safeStorage.encryptString(String(value));
-      fs.mkdirSync(require('./settings.cjs').CONFIG_DIR, { recursive: true });
+      fs.mkdirSync(secretsBaseDir(), { recursive: true });
       // Atomic write (tmp + rename): a crash mid-save must never leave a
       // truncated blob that decrypts to nothing on the next launch.
       const dest = secretPath(name);
@@ -140,4 +208,4 @@ function deleteSecret(name) {
     fs.rmSync(secretPath(name), { force: true });
   } catch {}
 }
-module.exports = { getSecret, setSecret, hasSecret, deleteSecret, describeSecret, migratePlaintextKeys, SECRET_NAMES };
+module.exports = { getSecret, setSecret, hasSecret, deleteSecret, describeSecret, migratePlaintextKeys, setSecretsDir, secretsBaseDir, migrateSecrets, secretPath, SECRET_NAMES };

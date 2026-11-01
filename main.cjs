@@ -12,8 +12,8 @@ const {
   getState,
   STATE,
 } = require('./backend/recorder.cjs');
-const { getSecret } = require('./backend/secrets.cjs');
-const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
+const { getSecret, setSecretsDir, migrateSecrets } = require('./backend/secrets.cjs');
+const { loadSettings, saveSettings, normalizeSettings, CONFIG_DIR } = require('./backend/settings.cjs');
 const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
 const { createWidgetWindow, destroyWidgetWindow } = require('./backend/widget-window.cjs');
 const { audioByteLength } = require('./backend/audio.cjs');
@@ -596,6 +596,22 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
+  // Secret storage must be relocated BEFORE any settings load or IPC can
+  // touch a secret. Electron's safeStorage blobs decrypt with the AES key in
+  // the app's `Local State` inside userData, so the blobs must live there
+  // too — otherwise a dev/installed/legacy context change makes every saved
+  // key permanently undecryptable. A failure here must never break startup:
+  // the module falls back to the legacy ~/.kimflow location.
+  try {
+    const userDataDir = app.getPath('userData');
+    setSecretsDir(userDataDir);
+    // One-time copy of blobs written by older versions out of ~/.kimflow.
+    // Copies, never moves, so a rollback to an older build still finds them.
+    migrateSecrets(CONFIG_DIR, userDataDir);
+  } catch (error) {
+    console.error('[KimFlow] Secret storage relocation failed; using the legacy ~/.kimflow location:', error instanceof Error ? error.message : error);
+  }
+
   const isTrustedMediaOrigin = (webContents) => {
     const url = webContents.getURL();
     return url.startsWith('file://')
