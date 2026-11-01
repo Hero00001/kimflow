@@ -2,6 +2,10 @@ node_modules/
 dist/
 dist-electron/
 dist-release/
+# Temporary packaging verification output. Same class of build artifact as
+# dist-release/; electron-builder cannot always clear a previously built
+# app.asar on this machine, so never let one be committed.
+dist-verify/
 *.local
 .vscode/*
 !.vscode/extensions.json
