@@ -198,3 +198,115 @@ test('the helper refuses to run off Windows', async () => {
     Object.defineProperty(process, 'platform', { value: original });
   }
 });
+
+// --- QA adversarial round (Edward) -------------------------------------------
+
+test('QA: garbage on stdout before READY is ignored, not treated as protocol', async () => {
+  const child = createFakeChild();
+  setImmediate(() => {
+    child.stdout.write('WARNING: PowerShell banner noise\n');
+    child.stdout.write('READY\n');
+  });
+  child.stdin.on('data', () => child.stdout.write('PASTE_OK\n'));
+  const spawnImpl = fakeSpawn([child]);
+
+  // Must resolve despite the garbage line preceding READY.
+  await pasteViaHelper({ spawn: spawnImpl });
+  shutdownPasteHelper();
+});
+
+test('QA: a second READY line does not crash or resolve twice', async () => {
+  const child = createFakeChild();
+  setImmediate(() => {
+    child.stdout.write('READY\n');
+    child.stdout.write('READY\n');
+  });
+  child.stdin.on('data', () => child.stdout.write('PASTE_OK\n'));
+  const spawnImpl = fakeSpawn([child]);
+
+  const state = await ensureHelper({ spawn: spawnImpl });
+  // The duplicate READY must not have wedged the state machine.
+  await sendPaste(state, PASTE_HELPER_TIMEOUT_MS);
+  shutdownPasteHelper();
+});
+
+test('QA: a helper that hits EOF right after spawn (exit 0, no output) rejects startup', async () => {
+  const child = createFakeChild();
+  setImmediate(() => {
+    child.exitCode = 0;
+    child.emit('exit', 0, null);
+  });
+  await assert.rejects(
+    () => pasteViaHelper({ spawn: fakeSpawn([child]) }),
+    /exited during startup/,
+  );
+});
+
+test('QA: a bare PASTE_FAIL with no reason yields the default failure message', async () => {
+  const child = createFakeChild();
+  setImmediate(() => child.stdout.write('READY\n'));
+  child.stdin.on('data', () => child.stdout.write('PASTE_FAIL\n'));
+  await assert.rejects(
+    () => pasteViaHelper({ spawn: fakeSpawn([child]) }),
+    /SendInput reported a failure/,
+  );
+  shutdownPasteHelper();
+});
+
+test('QA: a child dying mid-paste rejects; the next paste respawns exactly one child', async () => {
+  const first = createFakeChild();
+  setImmediate(() => first.stdout.write('READY\n'));
+  const second = createFakeChild();
+  behaveAsGoodHelper(second);
+  const spawnImpl = fakeSpawn([first, second]);
+
+  const state = await ensureHelper({ spawn: spawnImpl });
+  const pastePromise = sendPaste(state, PASTE_HELPER_TIMEOUT_MS);
+  setImmediate(() => {
+    first.exitCode = 1;
+    first.emit('exit', 1, null);
+  });
+  await assert.rejects(() => pastePromise, /exited unexpectedly/);
+
+  // paste.cjs's ladder would engage here; the NEXT paste must respawn
+  // exactly one fresh child — not two, not zero.
+  await pasteViaHelper({ spawn: spawnImpl });
+  assert.equal(spawnImpl.spawned.length, 2, 'exactly one respawn');
+  shutdownPasteHelper();
+});
+
+test('QA: shutdownPasteHelper is safe when the helper was never started', () => {
+  shutdownPasteHelper();
+  shutdownPasteHelper();
+});
+
+test('QA: shutdownPasteHelper is idempotent on a live helper', async () => {
+  const child = createFakeChild();
+  behaveAsGoodHelper(child);
+  await pasteViaHelper({ spawn: fakeSpawn([child]) });
+
+  shutdownPasteHelper();
+  shutdownPasteHelper();
+  assert.equal(child.stdinLines.filter((line) => line === 'quit').length, 1,
+    'quit is requested exactly once');
+});
+
+test('QA: a helper that ignores quit is force-killed after the 500ms grace period', async () => {
+  const child = createFakeChild();
+  setImmediate(() => child.stdout.write('READY\n'));
+  // Record what was sent, then act on nothing: the helper is wedged.
+  child.stdin.on('data', (chunk) => {
+    for (const line of chunk.toString('utf8').split('\n')) {
+      if (line) child.stdinLines.push(line);
+    }
+  });
+  // ensureHelper, not pasteViaHelper: the wedged child would never answer a
+  // paste command, and the test only needs the helper to be up.
+  await ensureHelper({ spawn: fakeSpawn([child]) });
+
+  shutdownPasteHelper();
+  assert.ok(child.stdinLines.includes('quit'), 'quit was requested first');
+  assert.equal(child.killCount, 0, 'no immediate kill — the grace period runs first');
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  assert.equal(child.killCount, 1, 'force kill after 500ms');
+});

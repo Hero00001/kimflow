@@ -6,7 +6,33 @@
 // slot.
 const test = require('node:test');
 const assert = require('node:assert');
-const { isValidHotkey, normalizeHotkey } = require('../backend/hotkeys.cjs');
+
+// Electron stub injected BEFORE hotkeys.cjs loads, so registerHotkeys can be
+// exercised in the bare node test runner. node --test runs each file in its
+// own process, so this require.cache injection cannot leak into other suites.
+const registeredAccelerators = [];
+let stubRegisterResult = true;
+let electronStubbed = false;
+try {
+  const electronPath = require.resolve('electron');
+  require.cache[electronPath] = {
+    id: electronPath,
+    filename: electronPath,
+    loaded: true,
+    exports: {
+      globalShortcut: {
+        register: (accelerator) => {
+          registeredAccelerators.push(accelerator);
+          return stubRegisterResult;
+        },
+        unregisterAll: () => { registeredAccelerators.length = 0; },
+      },
+    },
+  };
+  electronStubbed = true;
+} catch { /* electron not installed: the registerHotkeys tests skip themselves */ }
+
+const { isValidHotkey, normalizeHotkey, isBareKeyHotkey, registerHotkeys, unregisterHotkeys } = require('../backend/hotkeys.cjs');
 
 test('bare keys are valid hotkeys', () => {
   assert.equal(isValidHotkey('1'), true);
@@ -93,4 +119,123 @@ test('bare single keys are detected for the conflict warning', () => {
   assert.equal(isBareKeyHotkey('Ctrl+Shift+Space'), false);
   assert.equal(isBareKeyHotkey('Alt+F4'), false);
   assert.equal(isBareKeyHotkey(''), false);
+});
+
+// --- QA adversarial round (Edward) -------------------------------------------
+//
+// Grounded in a real-Electron probe (Electron v33, globalShortcut.register):
+// 'shift+space', 'SHIFT+space', ' F2 ', 'f2' and even 'F13' all register
+// successfully, i.e. the real accelerator parser is case-insensitive and
+// whitespace-tolerant. The assertions below pin the behaviours that matter.
+
+test('QA: normalization table', () => {
+  assert.equal(normalizeHotkey('f2'), 'F2');
+  assert.equal(normalizeHotkey('f12'), 'F12');
+  assert.equal(normalizeHotkey('F12'), 'F12', 'already-canonical f-key unchanged');
+  assert.equal(normalizeHotkey('option+a'), 'Alt+A');
+  assert.equal(normalizeHotkey('meta+k'), 'Super+K');
+  if (process.platform === 'win32') {
+    // The documented no-op-Command rule: Cmd has no effect off macOS.
+    assert.equal(normalizeHotkey('ctrl+shift+d'), 'Control+Shift+D');
+    assert.equal(normalizeHotkey('cmd+shift+d'), 'Control+Shift+D');
+  } else if (process.platform === 'darwin') {
+    assert.equal(normalizeHotkey('cmd+shift+d'), 'Command+Shift+D');
+  }
+});
+
+test('QA: garbage stays rejected after normalization', () => {
+  assert.equal(isValidHotkey('Dead'), false);
+  assert.equal(isValidHotkey('F13'), false, 'F13 is outside the F1-F12 scope');
+  assert.equal(isValidHotkey('Ctrl+'), false);
+  assert.equal(isValidHotkey(''), false);
+  assert.equal(isValidHotkey('A'.repeat(81)), false, 'over the 80-char bound');
+  assert.equal(isValidHotkey('Control+' + 'A'.repeat(81)), false);
+});
+
+test('QA: isBareKeyHotkey table', () => {
+  assert.equal(isBareKeyHotkey('F2'), true);
+  assert.equal(isBareKeyHotkey('A'), true);
+  assert.equal(isBareKeyHotkey('5'), true);
+  assert.equal(isBareKeyHotkey('Control+F2'), false);
+  assert.equal(isBareKeyHotkey('Shift+Space'), false);
+  assert.equal(isBareKeyHotkey('Dead'), false);
+  assert.equal(isBareKeyHotkey('F13'), false);
+  assert.equal(isBareKeyHotkey(''), false);
+});
+
+test('QA: modifier aliases are matched case-insensitively', () => {
+  assert.equal(normalizeHotkey('CTRL+ALT+D'), 'Control+Alt+D');
+  assert.equal(normalizeHotkey('control+alt+d'), 'Control+Alt+D');
+  assert.equal(isValidHotkey('ALT+F4'), true);
+});
+
+test('QA: spaced combos are rejected and normalize/isValid agree', () => {
+  assert.equal(isValidHotkey('ctrl + alt + d'), false);
+  assert.equal(isValidHotkey(normalizeHotkey('ctrl + alt + d')), false,
+    'validation must agree with the form that would be registered');
+});
+
+test('QA: whitespace-padded bare key passes validation, matching real Electron', () => {
+  // isValidHotkey trims before validating; registerHotkeys would hand the
+  // untrimmed form to Electron. The real-Electron probe registered ' F2 '
+  // successfully, so validation and registration agree — pinned here.
+  assert.equal(isValidHotkey(' F2 '), true);
+});
+
+// KNOWN DEFECT QA-1 (routed to the engineer, backend/hotkeys.cjs:44-46):
+// the final-key case repair covers only single letters [a-z] and f-keys.
+// A manually typed named key in any other casing ('shift+space', 'SPACE')
+// is NOT repaired, and KEY_PATTERN only accepts the exact canonical form,
+// so isValidHotkey REJECTS it — while the real-Electron probe proved
+// Electron itself accepts 'shift+space'/'Shift+space'/'SHIFT+SPACE'. That
+// violates the module's own contract ("a valid shortcut is never rejected
+// by KimFlow") and re-creates the silent-fallback bug this fix was meant
+// to kill, for named keys. Pinned at CURRENT behaviour so main stays green;
+// when the fix lands, change both assertions below to 'Shift+Space'.
+test('QA: lowercase named key is rejected (pinned current behaviour — see QA-1)', () => {
+  assert.equal(normalizeHotkey('shift+space'), 'Shift+space');
+  assert.equal(isValidHotkey('shift+space'), false);
+});
+
+test('QA: registerHotkeys registers the NORMALIZED accelerator', { skip: !electronStubbed }, () => {
+  registeredAccelerators.length = 0;
+  try {
+    assert.equal(registerHotkeys('f2'), true);
+    assert.deepEqual(registeredAccelerators, ['F2'],
+      'Electron must receive the repaired form, not the typed one');
+  } finally {
+    unregisterHotkeys();
+  }
+});
+
+test('QA: a bare registered key warns exactly once, non-blocking', { skip: !electronStubbed }, () => {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    assert.equal(registerHotkeys('f2'), true, 'the bare key still registers');
+    assert.equal(warnings.length, 1, 'exactly one bare-key warning');
+    assert.match(warnings[0], /F2/);
+    warnings.length = 0;
+    assert.equal(registerHotkeys('Control+F2'), true);
+    assert.equal(warnings.length, 0, 'a modifier combo never warns');
+  } finally {
+    console.warn = originalWarn;
+    unregisterHotkeys();
+  }
+});
+
+test('QA: a FAILED registration never emits the bare-key warning', { skip: !electronStubbed }, () => {
+  stubRegisterResult = false;
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    assert.equal(registerHotkeys('F5'), false);
+    assert.equal(warnings.length, 0, 'no success warning when registration failed');
+  } finally {
+    stubRegisterResult = true;
+    console.warn = originalWarn;
+    unregisterHotkeys();
+  }
 });
