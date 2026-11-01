@@ -52,6 +52,17 @@ const POLL_INTERVAL_MS = 16; // one tick per frame
 const HOVER_INFLATE = 4; // hysteresis: inflate the hit box by 4px
 const HOVER_CONFIRM_TICKS = 2; // ...and require two agreeing ticks
 const DRAG_PAUSE_MS = 250; // never flip click-through in the middle of a drag
+// The widget can end up off-screen without leaving the process: a display
+// change while the OS reports a transient work area, a GPU hiccup, or the
+// user dragging the capsule off the visible area. The poll checks for this
+// roughly once a second (RESCUE_EVERY ticks of POLL_INTERVAL_MS).
+const RESCUE_EVERY = 62;
+// A crashed widget renderer leaves the window alive but renders nothing —
+// with a transparent frameless window that is indistinguishable from "the
+// widget disappeared". Reload to bring it back, but stop after repeated
+// crashes so a genuine bug cannot spin the renderer forever.
+const MAX_RENDERER_RELOADS = 3;
+const RELOAD_WINDOW_MS = 30000;
 
 let widgetWindow = null;
 let pollTimer = null;
@@ -63,6 +74,7 @@ let cursorInside = null; // last applied hit-test result
 let candidateInside = null; // current candidate, waiting for confirmation
 let candidateTicks = 0;
 let pollPausedUntil = 0;
+let pollTicks = 0; // counts towards the periodic off-screen rescue
 
 /**
  * Default state source: the recorder, read lazily so requiring this module
@@ -220,6 +232,60 @@ function positionWidget() {
   }
 }
 
+/**
+ * True when `bounds` shares area with at least one display's workArea.
+ *
+ * An unusable display list ("cannot tell") counts as on-screen so a broken
+ * `screen` implementation can never fling the widget around; a usable list
+ * where nothing intersects counts as off-screen.
+ *
+ * @param {{x:number,y:number,width:number,height:number}} bounds
+ * @param {Array<{workArea?:object}>|null} displays
+ * @returns {boolean}
+ */
+function rectIntersectsAnyDisplay(bounds, displays) {
+  if (!isFiniteRect(bounds)) return false;
+  if (!Array.isArray(displays) || displays.length === 0) return true;
+  let sawUsableArea = false;
+  for (const display of displays) {
+    const area = display && display.workArea;
+    if (!isFiniteRect(area)) continue;
+    sawUsableArea = true;
+    const overlapX = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x);
+    const overlapY = Math.min(bounds.y + bounds.height, area.y + area.height) - Math.max(bounds.y, area.y);
+    if (overlapX > 0 && overlapY > 0) return true;
+  }
+  // A list that exists but contains no usable workArea is "cannot tell":
+  // the rescue must not fling the window around based on a guess.
+  return !sawUsableArea;
+}
+
+/**
+ * Bring the widget back if it ended up where the user cannot see it.
+ *
+ * Unlike positionWidget this is a no-op while the window still overlaps any
+ * display: a user-dragged capsule must stay exactly where it was dropped,
+ * even when the OS fires display-metrics-changed (taskbar auto-hide, DPI
+ * change, a fullscreen app opening). Only a window that is fully outside
+ * every workArea is re-anchored.
+ */
+function ensureOnScreen() {
+  const win = widgetWindow;
+  if (!win || isDestroyed(win)) return;
+  if (!screenApi || typeof screenApi.getAllDisplays !== 'function') return;
+  if (typeof win.getBounds !== 'function') return;
+  let bounds = null;
+  let displays = null;
+  try {
+    bounds = win.getBounds();
+    displays = screenApi.getAllDisplays();
+  } catch {
+    return;
+  }
+  if (rectIntersectsAnyDisplay(bounds, displays)) return;
+  positionWidget();
+}
+
 function removeDisplayListeners() {
   const target = displayListenerTarget;
   if (target) {
@@ -244,7 +310,10 @@ function registerDisplayListeners() {
   if (!screenRef || typeof screenRef.on !== 'function') return;
   displayListenerTarget = screenRef;
   for (const event of ['display-metrics-changed', 'display-added', 'display-removed']) {
-    const handler = () => positionWidget();
+    // Rescue-only: a visible, user-placed capsule must not be snapped back
+    // to bottom-centre by routine display events. ensureOnScreen re-anchors
+    // the window only when it is fully off-screen.
+    const handler = () => ensureOnScreen();
     try {
       screenRef.on(event, handler);
       displayListeners.push({ event, handler });
@@ -301,6 +370,12 @@ function pollTick() {
     }
     if (!visible) return;
   }
+  // Periodic off-screen rescue (~once a second while visible).
+  pollTicks += 1;
+  if (pollTicks >= RESCUE_EVERY) {
+    pollTicks = 0;
+    ensureOnScreen();
+  }
   const screenRef = screenApi;
   if (!screenRef || typeof screenRef.getCursorScreenPoint !== 'function') return;
   if (typeof win.getBounds !== 'function') return;
@@ -356,6 +431,31 @@ function registerWindowListeners(win) {
     win.on('show', () => startMousePoll());
   } catch {
     // Optional event; ignore.
+  }
+  // Renderer-crash recovery: with a transparent frameless window, a crashed
+  // renderer is invisible to the user — the widget simply "disappears".
+  // Reload brings the page back; the consecutive-crash guard stops a real
+  // bug from spinning the renderer forever.
+  let reloads = 0;
+  let lastGoneAt = 0;
+  try {
+    if (win.webContents && typeof win.webContents.on === 'function') {
+      win.webContents.on('render-process-gone', () => {
+        const now = Date.now();
+        reloads = now - lastGoneAt < RELOAD_WINDOW_MS ? reloads + 1 : 1;
+        lastGoneAt = now;
+        if (reloads > MAX_RENDERER_RELOADS || isDestroyed(win)) return;
+        try {
+          if (win.webContents && typeof win.webContents.reload === 'function') {
+            win.webContents.reload();
+          }
+        } catch {
+          // Best-effort: the poll's rescue paths keep running either way.
+        }
+      });
+    }
+  } catch {
+    // webContents events are unavailable in some stubs; nothing to do.
   }
 }
 
@@ -439,6 +539,7 @@ function destroyWidgetWindow() {
   candidateInside = null;
   candidateTicks = 0;
   pollPausedUntil = 0;
+  pollTicks = 0;
   if (win && !isDestroyed(win)) {
     try {
       win.destroy();
@@ -457,8 +558,10 @@ module.exports = {
   buildWidgetWindowOptions,
   computeWidgetBounds,
   capsuleRectForState,
+  rectIntersectsAnyDisplay,
   createWidgetWindow,
   positionWidget,
+  ensureOnScreen,
   destroyWidgetWindow,
   getWidgetWindow,
 };
