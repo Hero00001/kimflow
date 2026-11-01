@@ -182,19 +182,26 @@ test('QA: whitespace-padded bare key passes validation, matching real Electron',
   assert.equal(isValidHotkey(' F2 '), true);
 });
 
-// KNOWN DEFECT QA-1 (routed to the engineer, backend/hotkeys.cjs:44-46):
-// the final-key case repair covers only single letters [a-z] and f-keys.
-// A manually typed named key in any other casing ('shift+space', 'SPACE')
-// is NOT repaired, and KEY_PATTERN only accepts the exact canonical form,
-// so isValidHotkey REJECTS it — while the real-Electron probe proved
-// Electron itself accepts 'shift+space'/'Shift+space'/'SHIFT+SPACE'. That
-// violates the module's own contract ("a valid shortcut is never rejected
-// by KimFlow") and re-creates the silent-fallback bug this fix was meant
-// to kill, for named keys. Pinned at CURRENT behaviour so main stays green;
-// when the fix lands, change both assertions below to 'Shift+Space'.
-test('QA: lowercase named key is rejected (pinned current behaviour — see QA-1)', () => {
-  assert.equal(normalizeHotkey('shift+space'), 'Shift+space');
-  assert.equal(isValidHotkey('shift+space'), false);
+// QA-1 FIXED: the final-key case repair in backend/hotkeys.cjs now
+// canonicalizes any final part whose case-insensitive form is in the shared
+// NAMED_KEYS list (Space, Enter, PageUp, ...), built from the same constant
+// as KEY_PATTERN. The real-Electron probe proved Electron accepts mixed
+// casing itself; we canonicalize so our stricter whitelist never rejects
+// what the user typed (which would silently keep the OLD hotkey).
+test('named keys are canonicalized regardless of typed casing (QA-1)', () => {
+  assert.equal(normalizeHotkey('shift+space'), 'Shift+Space');
+  assert.equal(isValidHotkey('shift+space'), true, '"shift+space" must not hit the silent fallback');
+  assert.equal(isValidHotkey('SHIFT+SPACE'), true);
+  assert.equal(isValidHotkey('ctrl+enter'), true);
+  assert.equal(normalizeHotkey('ctrl+enter'), 'Control+Enter');
+  assert.equal(normalizeHotkey('SHIFT+SPACE'), 'Shift+Space');
+  assert.equal(normalizeHotkey('pageup'), 'PageUp');
+  assert.equal(isValidHotkey('PageUp'), true);
+  // Garbage stays rejected: the repair only touches known named keys.
+  assert.equal(isValidHotkey('Dead'), false);
+  assert.equal(isValidHotkey('F13'), false);
+  assert.equal(isValidHotkey('Ctrl+'), false);
+  assert.equal(isValidHotkey('ctrl+spacebar'), false);
 });
 
 test('QA: registerHotkeys registers the NORMALIZED accelerator', { skip: !electronStubbed }, () => {

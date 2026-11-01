@@ -37,12 +37,18 @@ function normalizeHotkey(hotkey) {
     .map((part, index) => {
       const mapped = aliasLookup.get(part.toLowerCase()) || part;
       if (index !== parts.length - 1) return mapped;
-      // The final part is the key. Electron's accelerator parser only
-      // accepts uppercase f-keys and single uppercase letters, so a hotkey
-      // typed as "f2" or "ctrl+n" would otherwise fail validation and the
-      // save-settings fallback would silently keep the OLD hotkey.
+      // The final part is the key: canonicalize its casing so every stored,
+      // registered and tested form is identical (Space, not space/SPACE).
+      // NOTE: a real-Electron probe showed the accelerator parser accepts
+      // mixed casing ("shift+space", " F2 " all register), so this repair is
+      // NOT an OS constraint — it exists to give KimFlow a single canonical
+      // form, and to keep our stricter-than-Electron whitelist from
+      // rejecting what the user actually typed (which would silently keep
+      // the OLD hotkey via the save-settings fallback).
       if (/^[a-z]$/.test(mapped)) return mapped.toUpperCase();
       if (/^f[0-9]{1,2}$/i.test(mapped)) return `F${mapped.slice(1)}`;
+      const namedKey = NAMED_KEY_LOOKUP.get(mapped.toLowerCase());
+      if (namedKey) return namedKey;
       return mapped;
     })
     .join('+');
@@ -58,7 +64,20 @@ const MODIFIERS = new Set([
   'Control', 'Command', 'Alt', 'AltGr', 'Option', 'Shift', 'Super', 'Meta',
   'Ctrl', 'Cmd', 'CmdOrCtrl', 'CommandOrControl',
 ]);
-const KEY_PATTERN = /^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|Space|Tab|Enter|Escape|Backspace|Delete|Insert|Home|End|PageUp|PageDown|Up|Down|Left|Right|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|VolumeUp|VolumeDown|VolumeMute)$/;
+// Named keys Electron's accelerator parser understands, in canonical casing.
+// Single source of truth for BOTH KEY_PATTERN (validation) and the final-key
+// case repair in normalizeHotkey, so the whitelist and the repair can never
+// drift apart.
+const NAMED_KEYS = [
+  'Space', 'Tab', 'Enter', 'Escape', 'Backspace', 'Delete', 'Insert',
+  'Home', 'End', 'PageUp', 'PageDown', 'Up', 'Down', 'Left', 'Right',
+  'MediaNextTrack', 'MediaPreviousTrack', 'MediaPlayPause',
+  'VolumeUp', 'VolumeDown', 'VolumeMute',
+];
+// Lowercase name -> canonical form, for repairing typed casing ("space" ->
+// "Space", "PAGEUP" -> "PageUp").
+const NAMED_KEY_LOOKUP = new Map(NAMED_KEYS.map((name) => [name.toLowerCase(), name]));
+const KEY_PATTERN = new RegExp(`^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|${NAMED_KEYS.join('|')})$`);
 
 function isValidHotkey(hotkey) {
   // Validate the NORMALIZED form, so a manually typed lowercase hotkey
