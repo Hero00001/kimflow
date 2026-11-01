@@ -21,6 +21,10 @@ const history = require('./backend/history.cjs');
 
 let mainWindow;
 let overlayWindow;
+// Which floating UI actually exists. Assigned once in createWindows() from the
+// same value that chooses the window, so the mic-level gate below can never
+// disagree with the window that was really created.
+let flowBarEnabled = false;
 let ipcRegistered = false;
 let rendererReady = false;
 let pendingHotkey = null;
@@ -183,7 +187,10 @@ function createWindows() {
     console.error('[KimFlow] Failed to load main window:', error);
   });
 
-  if (isFlowBarWidgetEnabled(loadSettings())) {
+  // Read once and remember: `mic-level` gates on the same variable, so the
+  // forwarded feed always matches the floating window that actually exists.
+  flowBarEnabled = isFlowBarWidgetEnabled(loadSettings());
+  if (flowBarEnabled) {
     // New text-free flow-bar capsule. Same role as the legacy overlay: it is
     // `overlayWindow`, so it is trusted by assertTrustedSender, receives
     // `recording-state` through sendToWindows, and forwards actions over the
@@ -553,7 +560,16 @@ function registerIpc() {
   // renderer taps the analyser it already owns and sends one number per frame
   // group; this only forwards it, and only while a recording is actually
   // running. One-way and non-throwing: a bad payload is dropped, never raised.
+  //
+  // The renderer decides to send from `settings.useFlowBarWidget`, which is the
+  // stored config value; KIMFLOW_FLOWBAR=0 overrides that in this process only,
+  // so the two can disagree. Dropping the message here is the correct boundary:
+  // when the legacy overlay is the window that exists, `widget-level` would go
+  // to a renderer with no listener at ~30 Hz for nothing. `flowBarEnabled` is
+  // the value that chose the window, so it cannot be stale. Do not re-read
+  // loadSettings() per message — that hits the disk 30 times a second.
   ipcMain.on('mic-level', (event, level) => {
+    if (!flowBarEnabled) return;
     if (!isTrustedSender(event)) return;
     if (typeof level !== 'number' || !Number.isFinite(level)) return;
     if (getState() !== STATE.RECORDING) return;

@@ -62,9 +62,28 @@ const overlayApi = {
   onSettingsUpdated: fullApi.onSettingsUpdated,
 };
 
+// The path of the page this preload was injected into, WITHOUT its query
+// string or hash.
+//
+// `location.pathname` is the right property. The href fallback exists because a
+// test sandbox (and any context that only exposes href) may not provide it, and
+// it strips `?`/`#` itself. What matters is that the query string can never
+// decide which bridge a page gets: the widget's own documented dev hook is
+// `widget.html?debug=listening`, and matching on the raw href would hand that
+// restricted window the full main-window API — saveSettings, deleteSecret,
+// startRecording — instead of its six-key surface.
+function pagePath() {
+  const location = window.location;
+  if (location && typeof location.pathname === 'string' && location.pathname) {
+    return location.pathname;
+  }
+  const href = location && typeof location.href === 'string' ? location.href : '';
+  return href.split('?')[0].split('#')[0];
+}
+
 function isOverlayPage() {
   try {
-    return /overlay\.html?$/i.test(window.location.href);
+    return /overlay\.html?$/i.test(pagePath());
   } catch {
     return false;
   }
@@ -83,7 +102,7 @@ const widgetApi = {
 
 function isWidgetPage() {
   try {
-    return /\/widget\.html?$/i.test(window.location.href);
+    return /\/widget\.html?$/i.test(pagePath());
   } catch {
     return false;
   }
