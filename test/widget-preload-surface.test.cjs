@@ -1,10 +1,17 @@
 // test/widget-preload-surface.test.cjs
 //
-// preload.cjs picks the bridge it exposes from `window.location.href`. Three
-// pages get three different surfaces, and the widget must get a strictly
-// smaller one than the main window: the capsule only drives recording, mirrors
-// state and paints an accent colour, so it must never be able to save settings
-// or touch secrets.
+// preload.cjs picks the bridge it exposes from the page's PATH. Three pages get
+// three different surfaces, and the widget must get a strictly smaller one than
+// the main window: the capsule only drives recording, mirrors state and paints
+// an accent colour, so it must never be able to save settings or touch secrets.
+//
+// The page identity must not depend on the query string: the widget's own
+// documented dev hook is `widget.html?debug=listening`, and matching the raw
+// href handed that restricted window the full main-window API (F2).
+//
+// `pagePath()` has two branches — `location.pathname` (primary, what Electron
+// actually provides) and an href fallback for contexts that only expose href.
+// Both are exercised explicitly below, so neither can be deleted unnoticed.
 //
 // The preload is evaluated in a vm sandbox with a fake `electron` module so the
 // real file (not a copy) is what gets inspected.
@@ -24,9 +31,11 @@ const MAIN_HREF = 'file:///C:/Users/kim/Documents/GitHub/kimflow/dist/index.html
  * Evaluate the real preload.cjs against a fake Electron module.
  *
  * @param {string} href value of window.location.href
+ * @param {{withPathname?: boolean}} [options] `withPathname: false` omits
+ *   `location.pathname`, which forces `pagePath()`'s href fallback.
  * @returns {{api: object, exposed: object, onCalls: Array, sendCalls: Array, invokeCalls: Array}}
  */
-function loadPreload(href) {
+function loadPreload(href, { withPathname = true } = {}) {
   const code = fs.readFileSync(PRELOAD_PATH, 'utf8');
   const exposed = {};
   const onCalls = [];
@@ -43,8 +52,10 @@ function loadPreload(href) {
       invoke(channel, ...args) { invokeCalls.push({ channel, args }); return Promise.resolve(); },
     },
   };
+  const location = { href };
+  if (withPathname) location.pathname = new URL(href).pathname;
   const sandbox = {
-    window: { location: { href } },
+    window: { location },
     require(request) {
       if (request === 'electron') return electron;
       throw new Error(`unexpected require: ${request}`);
@@ -169,3 +180,117 @@ test('an unknown page still gets the full API (no accidental lockout)', () => {
   assert.equal(typeof api.sendMicLevel, 'function');
   assert.equal(typeof api.saveSettings, 'function');
 });
+
+// ---------------------------------------------------------------------------
+// F2 regression: the query string must never decide which bridge a page gets.
+//
+// Before the fix, `isWidgetPage()` tested `window.location.href`, so the
+// widget's own documented dev hook (`?debug=listening`) fell through to
+// `fullApi`: 39 keys including saveSettings, deleteSecret and startRecording,
+// and no onMicLevel. Both `pagePath()` branches are covered separately below.
+// ---------------------------------------------------------------------------
+
+/** Capabilities the restricted floating windows must never have. */
+const FORBIDDEN_ON_WIDGET = [
+  'saveSettings', 'deleteSecret', 'hasSecret', 'secretState',
+  'startRecording', 'stopRecording', 'cancelRecording', 'pauseRecording', 'resumeRecording',
+  'copyText', 'getHistory', 'clearHistory', 'sendMicLevel',
+  'onTranscriptionResult', 'onHotkeyPressed', 'onOverlayAction', 'windowControl',
+];
+
+const WIDGET_SUFFIXES = [
+  ['?debug=listening', 'the documented dev hook'],
+  ['?debug=', 'an empty debug value'],
+  ['?', 'a bare question mark'],
+  ['#frag', 'a bare fragment'],
+  ['?debug=listening#frag', 'query plus fragment'],
+  ['?debug=listening&x=1#f', 'multiple params plus fragment'],
+];
+
+const OVERLAY_SUFFIXES = [
+  ['?anything=1', 'a query string'],
+  ['?', 'a bare question mark'],
+  ['#frag', 'a bare fragment'],
+  ['?debug=x#y', 'query plus fragment'],
+];
+
+/** @param {object} api */
+function assertWidgetBridge(api, label) {
+  assert.deepEqual(Object.keys(api).sort(), WIDGET_KEYS, `${label}: wrong bridge surface`);
+  assert.equal(typeof api.onMicLevel, 'function', `${label}: onMicLevel must survive`);
+  for (const key of FORBIDDEN_ON_WIDGET) {
+    assert.equal(api[key], undefined, `${label}: the widget must not expose ${key}`);
+  }
+}
+
+/** @param {object} api */
+function assertOverlayBridge(api, label) {
+  assert.deepEqual(Object.keys(api).sort(), OVERLAY_KEYS, `${label}: wrong bridge surface`);
+  assert.equal(api.onMicLevel, undefined, `${label}: the legacy overlay must not gain the widget feed`);
+  assert.equal(api.sendMicLevel, undefined, `${label}: the legacy overlay must not gain sendMicLevel`);
+}
+
+test('widget.html + any query/hash still gets the six-key bridge (primary: location.pathname)', () => {
+  for (const [suffix, label] of WIDGET_SUFFIXES) {
+    const { api } = loadPreload(`${WIDGET_HREF}${suffix}`, { withPathname: true });
+    assertWidgetBridge(api, `widget.html${suffix} (${label})`);
+  }
+});
+
+test('widget.html + any query/hash still gets the six-key bridge (fallback: href only)', () => {
+  for (const [suffix, label] of WIDGET_SUFFIXES) {
+    const { api } = loadPreload(`${WIDGET_HREF}${suffix}`, { withPathname: false });
+    assertWidgetBridge(api, `widget.html${suffix} (${label}, href fallback)`);
+  }
+});
+
+test('overlay.html + any query/hash still gets the five-key bridge (primary: location.pathname)', () => {
+  for (const [suffix, label] of OVERLAY_SUFFIXES) {
+    const { api } = loadPreload(`${OVERLAY_HREF}${suffix}`, { withPathname: true });
+    assertOverlayBridge(api, `overlay.html${suffix} (${label})`);
+  }
+});
+
+test('overlay.html + any query/hash still gets the five-key bridge (fallback: href only)', () => {
+  for (const [suffix, label] of OVERLAY_SUFFIXES) {
+    const { api } = loadPreload(`${OVERLAY_HREF}${suffix}`, { withPathname: false });
+    assertOverlayBridge(api, `overlay.html${suffix} (${label}, href fallback)`);
+  }
+});
+
+test('both pagePath() branches agree for every page', () => {
+  // If the fallback were deleted, this catches it; if the primary read were
+  // deleted, the *branch* tests above catch it.
+  const pages = [
+    WIDGET_HREF, OVERLAY_HREF, MAIN_HREF,
+    ...WIDGET_SUFFIXES.map(([suffix]) => `${WIDGET_HREF}${suffix}`),
+    ...OVERLAY_SUFFIXES.map(([suffix]) => `${OVERLAY_HREF}${suffix}`),
+  ];
+  for (const href of pages) {
+    const primary = Object.keys(loadPreload(href, { withPathname: true }).api).sort();
+    const fallback = Object.keys(loadPreload(href, { withPathname: false }).api).sort();
+    assert.deepEqual(fallback, primary, `the two pagePath() branches disagree for ${href}`);
+  }
+});
+
+test('the page match is anchored: a path that merely contains widget.html is not the widget', () => {
+  const base = 'file:///C:/Users/kim/Documents/GitHub/kimflow';
+
+  // An overlay inside a directory whose name starts with widget.html: the
+  // anchored `$` must still resolve it to the overlay, not the widget.
+  assertOverlayBridge(loadPreload(`${base}/widget.html-backup/overlay.html`).api, 'widget.html-backup/overlay.html');
+
+  // ...and the mirror image resolves to the widget.
+  assertWidgetBridge(loadPreload(`${base}/overlay.html-backup/widget.html`).api, 'overlay.html-backup/widget.html');
+
+  // Neither page: full API.
+  for (const href of [`${base}/widget.html-backup/index.html`, `${base}/src/widget/widget.htmlx`]) {
+    const { api } = loadPreload(href);
+    assert.equal(typeof api.saveSettings, 'function', `${href} must not be treated as a floating page`);
+    assert.equal(api.onMicLevel, undefined, `${href} must not be treated as the widget`);
+  }
+
+  // `widget.htm` is matched by the `html?` regex on purpose (unchanged).
+  assertWidgetBridge(loadPreload(`${base}/src/widget/widget.htm`).api, 'widget.htm');
+});
+
