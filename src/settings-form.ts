@@ -222,8 +222,14 @@ async function refreshKeyStatus(name: 'deepgramApiKey' | 'speechmaticsApiKey' | 
     speechmaticsApiKey: speechmaticsKeyStatus,
     geminiApiKey: geminiKeyStatus,
   } as const;
+  const inputs = {
+    deepgramApiKey: deepgramKey,
+    speechmaticsApiKey: speechmaticsKey,
+    geminiApiKey: geminiKey,
+  } as const;
+  let state = 'unavailable';
   try {
-    const state = await window.api.secretState(name);
+    state = await window.api.secretState(name);
     targets[name].textContent = state === 'saved'
       ? t('settings.key.saved')
       : state === 'volatile'
@@ -232,7 +238,39 @@ async function refreshKeyStatus(name: 'deepgramApiKey' | 'speechmaticsApiKey' | 
           ? t('settings.key.unreadable')
           : t('settings.key.none');
   } catch {
+    state = 'unavailable';
     targets[name].textContent = t('settings.key.unavailable');
+  }
+  applyKeyPlaceholder(inputs[name], state);
+}
+
+/**
+ * Mirror the key status into the input's placeholder.
+ *
+ * The static "Enter your … API key" placeholder reads as broken next to a
+ * "Key saved" status, so a stored/volatile/unreadable key shows the status
+ * text in the field instead. With no key (or an unavailable status service)
+ * the original static placeholder from index.html is restored via its
+ * `data-i18n-placeholder` key, exactly the way `renderStatic()` re-applies it.
+ *
+ * Cosmetic only — must never throw, and reuses existing i18n keys.
+ */
+function applyKeyPlaceholder(input: HTMLInputElement, state: string): void {
+  try {
+    if (state === 'saved' || state === 'volatile' || state === 'unreadable') {
+      input.placeholder = t(state === 'saved'
+        ? 'settings.key.saved'
+        : state === 'volatile'
+          ? 'settings.key.volatile'
+          : 'settings.key.unreadable');
+      return;
+    }
+    // missing / unavailable: restore the original static placeholder.
+    const placeholderKey = input.dataset.i18nPlaceholder;
+    if (placeholderKey) input.placeholder = t(placeholderKey);
+  } catch {
+    // A placeholder is decoration; a failure here must never affect the
+    // status text above.
   }
 }
 
