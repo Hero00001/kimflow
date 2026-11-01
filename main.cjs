@@ -18,6 +18,9 @@ const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
 const { createWidgetWindow, destroyWidgetWindow } = require('./backend/widget-window.cjs');
 const { audioByteLength } = require('./backend/audio.cjs');
 const history = require('./backend/history.cjs');
+// Persistent SendInput paste helper — killed on quit so no PowerShell child
+// outlives the app.
+const { shutdownPasteHelper } = require('./backend/paste-helper.cjs');
 
 let mainWindow;
 let overlayWindow;
@@ -636,6 +639,7 @@ app.whenReady().then(() => {
 app.on('will-quit', () => {
   unregisterHotkeys();
   destroyOverlayWindow();
+  shutdownPasteHelper();
 });
 
 app.on('window-all-closed', () => {
