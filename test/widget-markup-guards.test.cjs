@@ -10,9 +10,11 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const html = fs.readFileSync(path.join('src', 'widget', 'widget.html'), 'utf8');
-const css = fs.readFileSync(path.join('src', 'widget', 'widget.css'), 'utf8');
-const js = fs.readFileSync(path.join('src', 'widget', 'widget.js'), 'utf8');
+// Normalise CRLF: git may check these files out with Windows line endings,
+// and the assertions below match on exact character sequences.
+const html = fs.readFileSync(path.join('src', 'widget', 'widget.html'), 'utf8').replace(/\r\n/g, '\n');
+const css = fs.readFileSync(path.join('src', 'widget', 'widget.css'), 'utf8').replace(/\r\n/g, '\n');
+const js = fs.readFileSync(path.join('src', 'widget', 'widget.js'), 'utf8').replace(/\r\n/g, '\n');
 
 /** The `<div class="c c-idle">…</div>` block, which must stay decorative. */
 const idleBlock = /<div class="c c-idle"[^>]*>([\s\S]*?)<\/div>/.exec(html)[1];
