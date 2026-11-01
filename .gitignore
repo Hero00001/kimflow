@@ -26,3 +26,6 @@ graphify-out/
 
 # Agent instructions are local tooling, not part of the published project.
 AGENTS.md
+
+# Local design specs — not for the public repository
+dictation-widget-redesign-spec.md
