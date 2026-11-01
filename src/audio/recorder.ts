@@ -3,6 +3,7 @@ import { micSelect, micLevel, micLevelFill, statusError } from '../dom';
 import { getSettings } from '../store';
 import { showError } from '../status';
 import { t } from '../i18n';
+import { micLevelFromRms } from './level';
 
 let mediaRecorder: MediaRecorder | null = null;let mediaStream: MediaStream | null = null;
 let recordingChunks: Blob[] = [];
@@ -142,11 +143,6 @@ function stopMeter() {
 const LEVEL_SEND_INTERVAL_MS = 33;
 let lastLevelSentAt = 0;
 
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
-
 /**
  * Push one microphone level to the main process, which forwards it to the
  * flow-bar widget. The widget feed is cosmetic, so a missing or failing bridge
@@ -182,7 +178,10 @@ function tickMeter() {
   const stamp = performance.now();
   if (Boolean(getSettings()?.useFlowBarWidget) && stamp - lastLevelSentAt >= LEVEL_SEND_INTERVAL_MS) {
     lastLevelSentAt = stamp;
-    sendMicLevel(clamp01(rms * 3));
+    // Perceptual (dB) mapping — see src/audio/level.ts. A linear `rms * k`
+    // left the bars motionless during normal speech because the OS DSP
+    // chain compresses speech into the bottom few percent of the range.
+    sendMicLevel(micLevelFromRms(rms));
   }
   meterRaf = requestAnimationFrame(tickMeter);
 }
