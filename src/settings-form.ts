@@ -98,7 +98,7 @@ function ownedSettings(): Pick<
   return {
     engine: activeToggleValue(engineGroup, 'value') || 'local',
     recordingMode: activeToggleValue(modeGroup, 'mode') || 'toggle',
-    polishMode: activeToggleValue(polishGroup, 'value') || 'thorough',
+    polishMode: activeToggleValue(polishGroup, 'value') || 'light',
     translationEnabled: activeToggleValue(translationGroup, 'value') === 'on',
     aiPolish: activeToggleValue(aiPolishGroup, 'value') === 'on',
     whisperBinaryPath: currentBinaryPath,
@@ -259,7 +259,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   // backend resolves to a concrete nova model at request time.
   deepgramModelSelect.value = DEEPGRAM_MODEL_VALUES.has(settings.deepgramModel) ? settings.deepgramModel : 'auto';
   setModeActive(settings.recordingMode);
-  setPolishActive(settings.polishMode || 'thorough');
+  setPolishActive(settings.polishMode || 'light');
   vocabInput.value = (settings.customVocabulary || []).join('\n');
   setAiPolishActive(settings.aiPolish === true);
   // The translation toggle's active class is owned by this form (the

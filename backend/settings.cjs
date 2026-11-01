@@ -29,7 +29,11 @@ const DEFAULT_SETTINGS = {
   deepgramModel: 'auto',
   speechmaticsApiKey: '',
   recordingMode: 'toggle',
-  polishMode: 'thorough',
+  // 'light' is the safe default: it removes fillers/repeats and converts
+  // spoken punctuation, but does NOT rewrite sentences. The aggressive
+  // 'thorough' mode (word deletion, self-correction restarts) must be an
+  // explicit choice — existing users keep whatever they saved.
+  polishMode: 'light',
   customVocabulary: [],
   aiPolish: false,
   hotkey: 'CmdOrCtrl+Shift+Space',

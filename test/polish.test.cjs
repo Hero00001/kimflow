@@ -16,12 +16,14 @@ test('off leaves text untouched', () => {
   assert.equal(polishText('Um hello comma world', 'off'), 'Um hello comma world');
 });
 
-test('thorough resolves self-corrections as restarts', () => {
+test('thorough resolves self-corrections as restarts (on a discourse boundary)', () => {
+  // The marker must sit on a boundary — comma/pause or a preceding filler.
+  // A bare "five actually six" run-on is left alone (see polish-thorough).
   assert.equal(
-    polishText("let's meet at five actually six pm", 'thorough'),
+    polishText("let's meet at five, actually six pm", 'thorough'),
     'six pm',
   );
-  assert.equal(polishText('go left I mean right now', 'thorough'), 'right now');
+  assert.equal(polishText('go left, I mean right now', 'thorough'), 'right now');
 });
 
 test('thorough converts spoken commands', () => {

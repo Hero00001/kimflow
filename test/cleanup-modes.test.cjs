@@ -21,9 +21,11 @@ test('light still removes fillers and converts spoken punctuation', () => {
   assert.equal(cleanupText('Um hello comma world', 'light'), 'Hello, world.');
 });
 
-test('thorough still resolves self-corrections', () => {
-  // "five actually six" is a self-correction: only the correction survives.
-  assert.equal(cleanupText("let's meet at five actually six pm", 'thorough'), '6 Pm.');
+test('thorough still resolves self-corrections (on a discourse boundary)', () => {
+  // "five, actually six" is a self-correction after a comma: only the
+  // correction survives. A run-on "five actually six" no longer restarts —
+  // see test/polish-thorough.test.cjs.
+  assert.equal(cleanupText("let's meet at five, actually six pm", 'thorough'), '6 Pm.');
 });
 
 test('the default mode is thorough', () => {
