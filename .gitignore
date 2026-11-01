@@ -12,6 +12,8 @@ docs/
 .superpowers/
 real refcator.md
 /.scratch/i18n-settings
+# Screenshots produced by scripts/widget-shot.cjs are build artifacts.
+/.scratch/flow-bar-widget/shots/
 /.workbuddy-ai
 src/i18n/REVIEW.md
 
