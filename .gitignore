@@ -2,6 +2,10 @@ node_modules/
 dist/
 dist-electron/
 dist-release/
+# Temporary packaging verification output. Same class of build artifact as
+# dist-release/; electron-builder cannot always clear a previously built
+# app.asar on this machine, so never let one be committed.
+dist-verify/
 *.local
 .vscode/*
 !.vscode/extensions.json
@@ -12,6 +16,8 @@ docs/
 .superpowers/
 real refcator.md
 /.scratch/i18n-settings
+# Screenshots produced by scripts/widget-shot.cjs are build artifacts.
+/.scratch/flow-bar-widget/shots/
 /.workbuddy-ai
 src/i18n/REVIEW.md
 
@@ -20,3 +26,6 @@ graphify-out/
 
 # Agent instructions are local tooling, not part of the published project.
 AGENTS.md
+
+# Local design specs — not for the public repository
+dictation-widget-redesign-spec.md

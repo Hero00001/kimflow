@@ -15,6 +15,15 @@ function migratePlaintextKeys(settings) {
   let migrated = false;
   for (const name of SECRET_NAMES) {
     if (typeof next[name] === 'string' && next[name].length > 0) {
+      // Trim before storing: keys pasted from an email or a website often
+      // carry a trailing newline, and a stored "key\n" is rejected by the
+      // provider in a way that looks exactly like "no key saved".
+      const value = next[name].trim();
+      if (value.length === 0) {
+        next[name] = '';
+        migrated = true;
+        continue;
+      }
       // The plaintext is always removed from the settings, so it can never
       // reach the config file — and `migrated` stays true so the caller
       // rewrites the config without it.
@@ -22,7 +31,7 @@ function migratePlaintextKeys(settings) {
       // Whether it reached durable storage decides what the user is told
       // about it: a key that only made it into memory must not be reported
       // as saved, because it will be lost when the app restarts.
-      setSecret(name, next[name]);
+      setSecret(name, value);
       next[name] = '';
       migrated = true;
     }

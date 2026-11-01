@@ -99,6 +99,8 @@ async function init() {
       // '' = "not yet chosen", mirroring backend/settings.cjs. Only used when
       // getSettings() failed; normalizeUILanguage('') renders English.
       uiLanguage: '',
+      // The flow-bar widget is the default floating UI; see backend/settings.cjs.
+      useFlowBarWidget: true,
     });
     setState(STATES.READY);
     showError(errorMessage(error, 'error.loadSettings'));

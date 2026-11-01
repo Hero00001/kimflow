@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session, Menu, clipboard, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, session, Menu, clipboard, dialog, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -15,11 +15,16 @@ const {
 const { getSecret } = require('./backend/secrets.cjs');
 const { loadSettings, saveSettings, normalizeSettings } = require('./backend/settings.cjs');
 const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
+const { createWidgetWindow, destroyWidgetWindow } = require('./backend/widget-window.cjs');
 const { audioByteLength } = require('./backend/audio.cjs');
 const history = require('./backend/history.cjs');
 
 let mainWindow;
 let overlayWindow;
+// Which floating UI actually exists. Assigned once in createWindows() from the
+// same value that chooses the window, so the mic-level gate below can never
+// disagree with the window that was really created.
+let flowBarEnabled = false;
 let ipcRegistered = false;
 let rendererReady = false;
 let pendingHotkey = null;
@@ -56,10 +61,29 @@ function ensureUiLanguage(settings) {
 }
 
 function destroyOverlayWindow() {
+  // The flow-bar widget lives in its own module with a poll timer and screen
+  // listeners, so tearing it down is not just window.destroy().
+  destroyWidgetWindow();
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.destroy();
   }
   overlayWindow = null;
+}
+
+/**
+ * Which floating UI to create: the new flow-bar widget or the legacy overlay.
+ *
+ * Default is ON. A stored config from before this release has no
+ * `useFlowBarWidget` key and therefore gets the new widget; only an explicit
+ * `false` (in ~/.kimflow/config.json) rolls back, and KIMFLOW_FLOWBAR=0 forces
+ * the legacy path for a single launch.
+ *
+ * @param {object} settings normalized settings
+ * @returns {boolean}
+ */
+function isFlowBarWidgetEnabled(settings) {
+  if (process.env.KIMFLOW_FLOWBAR === '0') return false;
+  return !settings || settings.useFlowBarWidget !== false;
 }
 
 function sendToWindows(channel, value) {
@@ -163,16 +187,33 @@ function createWindows() {
     console.error('[KimFlow] Failed to load main window:', error);
   });
 
-  overlayWindow = new BrowserWindow(buildOverlayWindowOptions({
-    preloadPath: path.join(__dirname, 'preload.cjs'),
-    iconPath: ICON_PATH,
-  }));
-  // The overlay owns its controls, so it must receive mouse input. Its
-  // controls can be moved with the frameless window drag region.
-  overlayWindow.setIgnoreMouseEvents(false);
-  loadEntry(overlayWindow, getOverlayEntry()).catch((error) => {
-    console.error('[KimFlow] Failed to load overlay window:', error);
-  });
+  // Read once and remember: `mic-level` gates on the same variable, so the
+  // forwarded feed always matches the floating window that actually exists.
+  flowBarEnabled = isFlowBarWidgetEnabled(loadSettings());
+  if (flowBarEnabled) {
+    // New text-free flow-bar capsule. Same role as the legacy overlay: it is
+    // `overlayWindow`, so it is trusted by assertTrustedSender, receives
+    // `recording-state` through sendToWindows, and forwards actions over the
+    // existing `overlay-action` channel. No new recording logic.
+    overlayWindow = createWidgetWindow({
+      BrowserWindow,
+      screen,
+      dev: isDevelopment(),
+      preloadPath: path.join(__dirname, 'preload.cjs'),
+      iconPath: ICON_PATH,
+    });
+  } else {
+    overlayWindow = new BrowserWindow(buildOverlayWindowOptions({
+      preloadPath: path.join(__dirname, 'preload.cjs'),
+      iconPath: ICON_PATH,
+    }));
+    // The overlay owns its controls, so it must receive mouse input. Its
+    // controls can be moved with the frameless window drag region.
+    overlayWindow.setIgnoreMouseEvents(false);
+    loadEntry(overlayWindow, getOverlayEntry()).catch((error) => {
+      console.error('[KimFlow] Failed to load overlay window:', error);
+    });
+  }
 
   mainWindow.on('closed', () => {
     rendererReady = false;
@@ -192,12 +233,23 @@ function requestRendererHotkey(pressed) {
   mainWindow.webContents.send('hotkey-pressed', { pressed });
 }
 
-function assertTrustedSender(event) {
-  const senderId = event.sender.id;
-  const trusted = [mainWindow, overlayWindow]
+/**
+ * Non-throwing sender check. `ipcMain.on` channels (one-way messages) must not
+ * throw at the sender, so they use this and silently drop the message.
+ *
+ * @param {object} event Electron IPC event
+ * @returns {boolean} true when the sender is one of this app's windows
+ */
+function isTrustedSender(event) {
+  const senderId = event && event.sender ? event.sender.id : undefined;
+  if (senderId === undefined) return false;
+  return [mainWindow, overlayWindow]
     .filter(Boolean)
-    .some((window) => window.webContents.id === senderId);
-  if (!trusted) throw new Error('Unauthorized IPC sender');
+    .some((window) => window.webContents && window.webContents.id === senderId);
+}
+
+function assertTrustedSender(event) {
+  if (!isTrustedSender(event)) throw new Error('Unauthorized IPC sender');
 }
 
 function registerIpc() {
@@ -502,6 +554,32 @@ function registerIpc() {
       mainWindow.webContents.send('overlay-action', action);
     } else {
       pendingOverlayActions.push(action);
+    }
+  });
+  // Microphone level for the flow-bar widget's audio-reactive bars. The main
+  // renderer taps the analyser it already owns and sends one number per frame
+  // group; this only forwards it, and only while a recording is actually
+  // running. One-way and non-throwing: a bad payload is dropped, never raised.
+  //
+  // The renderer decides to send from `settings.useFlowBarWidget`, which is the
+  // stored config value; KIMFLOW_FLOWBAR=0 overrides that in this process only,
+  // so the two can disagree. Dropping the message here is the correct boundary:
+  // when the legacy overlay is the window that exists, `widget-level` would go
+  // to a renderer with no listener at ~30 Hz for nothing. `flowBarEnabled` is
+  // the value that chose the window, so it cannot be stale. Do not re-read
+  // loadSettings() per message — that hits the disk 30 times a second.
+  ipcMain.on('mic-level', (event, level) => {
+    if (!flowBarEnabled) return;
+    if (!isTrustedSender(event)) return;
+    if (typeof level !== 'number' || !Number.isFinite(level)) return;
+    if (getState() !== STATE.RECORDING) return;
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    if (overlayWindow.webContents?.isDestroyed?.() === true) return;
+    const clamped = Math.min(1, Math.max(0, level));
+    try {
+      overlayWindow.webContents.send('widget-level', clamped);
+    } catch {
+      // Window died mid-send; the next frame reconnects.
     }
   });
 }

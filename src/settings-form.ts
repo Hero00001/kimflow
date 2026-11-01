@@ -154,6 +154,10 @@ function applyLanguageToUi(language: string): void {
   applyEmptyStateText();
   refreshStatusText();
   renderHistory();
+  // renderStatic re-applies every `data-i18n` attribute, which resets the
+  // key-status spans to their "No key saved" placeholder — even when a key
+  // IS stored. Re-derive them from the OS keychain after each re-render.
+  refreshAllKeyStatus();
 }
 
 function setModeActive(mode: string) {
@@ -304,13 +308,16 @@ async function runPersist(): Promise<void> {
   settings.microphone = micSelect.value || 'default';
   settings.whisperModel = modelSelect.value;
   settings.whisperRuntime = 'whisper-cpp';
-  settings.deepgramApiKey = deepgramKey.value;
+  // API keys are trimmed: keys pasted from an email or a website often carry
+  // a trailing newline, and a stored "key\n" is rejected by the provider in
+  // a way that looks exactly like "no key saved".
+  settings.deepgramApiKey = deepgramKey.value.trim();
   settings.deepgramModel = deepgramModelSelect.value;
-  settings.speechmaticsApiKey = speechmaticsKey.value;
+  settings.speechmaticsApiKey = speechmaticsKey.value.trim();
   settings.translationProvider = providerSelect.value || 'gemini';
   settings.inputLanguage = inputLanguageSelect.value || 'auto';
   settings.translationTarget = translateToSelect.value || 'en';
-  settings.geminiApiKey = geminiKey.value;
+  settings.geminiApiKey = geminiKey.value.trim();
   settings.geminiModel = geminiModel.value.trim();
   settings.customVocabulary = vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 100);
   settings.hotkey = hotkeyInput.value.trim() || settings.hotkey;
@@ -649,20 +656,22 @@ export function wireSettingsControls() {
     }
   });
 
-  // Remove API keys
-  deepgramRemoveKey.addEventListener('click', () => {
+  // Remove API keys. The deletion must complete before the status refresh,
+  // otherwise the indicator is re-read from a keychain that still holds the
+  // key and reports it as saved right after the user removed it.
+  deepgramRemoveKey.addEventListener('click', async () => {
     deepgramKey.value = '';
-    void window.api.deleteSecret('deepgramApiKey').catch(() => undefined);
+    try { await window.api.deleteSecret('deepgramApiKey'); } catch { /* best-effort */ }
     void persist();
-    void refreshKeyStatus('deepgramApiKey');
+    refreshKeyStatus('deepgramApiKey');
     showToast(t('settings.key.deepgramRemoved'));
   });
 
-  speechmaticsRemoveKey.addEventListener('click', () => {
+  speechmaticsRemoveKey.addEventListener('click', async () => {
     speechmaticsKey.value = '';
-    void window.api.deleteSecret('speechmaticsApiKey').catch(() => undefined);
+    try { await window.api.deleteSecret('speechmaticsApiKey'); } catch { /* best-effort */ }
     void persist();
-    void refreshKeyStatus('speechmaticsApiKey');
+    refreshKeyStatus('speechmaticsApiKey');
     showToast(t('settings.key.speechmaticsRemoved'));
   });
 
