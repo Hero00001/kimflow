@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "start": "npm run build && electron .",
     "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:1420 && electron . --dev\"",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder",
+    "pack": "npm run build && node scripts/clean-output.cjs dist-build && electron-builder --dir -c.directories.output=dist-build",
+    "dist": "npm run build && node scripts/clean-output.cjs dist-build && electron-builder -c.directories.output=dist-build",
     "test:gemini": "node scripts/gemini-smoke.cjs",
     "test": "node --test test/*.test.cjs"
   },
