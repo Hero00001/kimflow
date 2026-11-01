@@ -23,11 +23,28 @@ function normalizeHotkey(hotkey) {
     Option: 'Alt',
     Alt: 'Alt',
     AltGr: 'AltGr',
+    // Already canonical, but present so the case-insensitive lookup below
+    // can also repair a manually typed lowercase "shift".
+    Shift: 'Shift',
   };
 
-  return String(hotkey || '')
-    .split('+')
-    .map((part) => aliases[part] || part)
+  // Lookup is case-insensitive so a manually typed "ctrl+shift+d" maps its
+  // modifiers just like "Ctrl+Shift+D" would.
+  const aliasLookup = new Map(Object.entries(aliases).map(([name, canonical]) => [name.toLowerCase(), canonical]));
+
+  const parts = String(hotkey || '').split('+');
+  return parts
+    .map((part, index) => {
+      const mapped = aliasLookup.get(part.toLowerCase()) || part;
+      if (index !== parts.length - 1) return mapped;
+      // The final part is the key. Electron's accelerator parser only
+      // accepts uppercase f-keys and single uppercase letters, so a hotkey
+      // typed as "f2" or "ctrl+n" would otherwise fail validation and the
+      // save-settings fallback would silently keep the OLD hotkey.
+      if (/^[a-z]$/.test(mapped)) return mapped.toUpperCase();
+      if (/^f[0-9]{1,2}$/i.test(mapped)) return `F${mapped.slice(1)}`;
+      return mapped;
+    })
     .join('+');
 }
 
@@ -44,11 +61,25 @@ const MODIFIERS = new Set([
 const KEY_PATTERN = /^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|Space|Tab|Enter|Escape|Backspace|Delete|Insert|Home|End|PageUp|PageDown|Up|Down|Left|Right|MediaNextTrack|MediaPreviousTrack|MediaPlayPause|VolumeUp|VolumeDown|VolumeMute)$/;
 
 function isValidHotkey(hotkey) {
-  const value = String(hotkey || '').trim();
+  // Validate the NORMALIZED form, so a manually typed lowercase hotkey
+  // ("f2", "ctrl+shift+d") is judged by what Electron will actually receive.
+  const value = normalizeHotkey(hotkey).trim();
   if (!value || value.length > 80) return false;
   const parts = value.split('+');
   const key = parts[parts.length - 1];
   return KEY_PATTERN.test(key) && parts.slice(0, -1).every((part) => MODIFIERS.has(part));
+}
+
+/**
+ * True when `hotkey` is a single key with NO modifier: F1-F12, a letter or
+ * a digit. Such a hotkey is registered globally and intercepts the key in
+ * EVERY application (F2 is Explorer rename, letters are in-app bindings),
+ * which makes it the most conflict-prone choice. Reported, never blocked.
+ */
+function isBareKeyHotkey(hotkey) {
+  const normalized = normalizeHotkey(hotkey);
+  if (!normalized || normalized.includes('+')) return false;
+  return /^[A-Z0-9]$|^F(?:[1-9]|1[0-2])$/.test(normalized);
 }
 
 function registerHotkeys(hotkey) {
@@ -66,6 +97,10 @@ function registerHotkeys(hotkey) {
     if (registered) {
       activeHotkey = normalized;
       configuredHotkey = hotkey;
+      if (isBareKeyHotkey(normalized)) {
+        // Soft warning, not a block: the hotkey IS valid and registered.
+        console.warn(`[KimFlow] Bare key "${normalized}" is registered globally and may conflict with other applications (e.g. F2 rename in Explorer, in-app bindings). A combination like Ctrl+Alt+${normalized} is less conflict-prone.`);
+      }
       return true;
     }
     console.error(`[KimFlow] Hotkey could not be registered: ${normalized}`);
@@ -133,4 +168,4 @@ function setHotkeyCallbacks(pressed) {
   onHotkeyPressed = pressed;
 }
 
-module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey, getActiveHotkey };
+module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey, isBareKeyHotkey, getActiveHotkey };

@@ -295,7 +295,15 @@ function registerIpc() {
       // the saved value can equal the requested one when there was no working
       // hotkey to fall back to — the renderer could not tell them apart.
       const error = new Error('Capture hotkey could not be applied - another application may already use it, or it may be invalid. Your other settings were saved.');
-      error.details = `Requested: ${requestedHotkey}. In effect: ${saved.hotkey}`;
+      // A bare key without modifiers is the most conflict-prone choice: it
+      // intercepts the key in every application (F2 = Explorer rename, for
+      // instance). Kept inline (not from hotkeys.cjs) because the test
+      // harness stubs this module with a minimal surface.
+      const requestedParts = String(requestedHotkey || '').split('+');
+      const bareNote = requestedParts.length === 1 && /^[a-z0-9]$|^f(?:[1-9]|1[0-2])$/i.test(requestedParts[0])
+        ? ' Note: a bare key without modifiers is especially likely to be owned by another application - a combination like Ctrl+Alt+key is less conflict-prone.'
+        : '';
+      error.details = `Requested: ${requestedHotkey}. In effect: ${saved.hotkey}.${bareNote}`;
       throw error;
     }
     return saved;

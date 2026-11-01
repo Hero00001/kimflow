@@ -45,3 +45,52 @@ test('normalization maps platform aliases and keeps bare keys', () => {
   assert.equal(normalizeHotkey('1'), '1');
   assert.equal(normalizeHotkey('F5'), 'F5');
 });
+
+// --- Case robustness ---------------------------------------------------------
+//
+// A hotkey typed in lowercase ("f2", "ctrl+shift+d") must behave EXACTLY like
+// its uppercase form: Electron's accelerator parser only accepts uppercase
+// f-keys and single uppercase letters, so a lowercase hotkey used to fail
+// validation, "fail" registration, and the save-settings fallback silently
+// kept the OLD hotkey.
+
+test('a lowercase f-key is normalized to Electron form', () => {
+  assert.equal(normalizeHotkey('f2'), 'F2');
+  assert.equal(normalizeHotkey('f12'), 'F12');
+  assert.equal(normalizeHotkey('F12'), 'F12', 'already-correct f-keys are unchanged');
+  assert.equal(normalizeHotkey('alt+f4'), 'Alt+F4');
+});
+
+test('a lowercase single-letter key is normalized to uppercase', () => {
+  assert.equal(normalizeHotkey('n'), 'N');
+  assert.equal(normalizeHotkey('ctrl+shift+d'), process.platform === 'darwin' ? 'Command+Shift+D' : 'Control+Shift+D');
+  assert.equal(normalizeHotkey('Ctrl+N'), 'Control+N');
+  // Modifiers themselves are canonicalized, not capitalized as keys.
+  assert.equal(normalizeHotkey('shift'), 'Shift');
+  // ...and a lone modifier still is not a hotkey.
+  assert.equal(isValidHotkey('shift'), false);
+});
+
+test('lowercase hotkeys pass validation through the normalized form', () => {
+  assert.equal(isValidHotkey('f2'), true, '"f2" must register as "F2"');
+  assert.equal(isValidHotkey('ctrl+n'), true);
+  assert.equal(isValidHotkey('ctrl+shift+d'), true);
+  assert.equal(isValidHotkey('F12'), true);
+  // Still rejected: normalizing must not loosen the key whitelist.
+  assert.equal(isValidHotkey('ctrl+notakey'), false);
+  assert.equal(isValidHotkey('a+b'), false);
+});
+
+// --- Bare-key warning --------------------------------------------------------
+
+test('bare single keys are detected for the conflict warning', () => {
+  const { isBareKeyHotkey } = require('../backend/hotkeys.cjs');
+  assert.equal(isBareKeyHotkey('F2'), true);
+  assert.equal(isBareKeyHotkey('f2'), true, 'case-normalized first');
+  assert.equal(isBareKeyHotkey('a'), true);
+  assert.equal(isBareKeyHotkey('1'), true);
+  assert.equal(isBareKeyHotkey('Space'), false, 'named keys are not in the warn set');
+  assert.equal(isBareKeyHotkey('Ctrl+Shift+Space'), false);
+  assert.equal(isBareKeyHotkey('Alt+F4'), false);
+  assert.equal(isBareKeyHotkey(''), false);
+});
