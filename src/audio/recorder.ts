@@ -138,6 +138,30 @@ function stopMeter() {
   micLevel.classList.add('hidden');
 }
 
+/** ~30 Hz is enough for the capsule and far below the rAF rate. */
+const LEVEL_SEND_INTERVAL_MS = 33;
+let lastLevelSentAt = 0;
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+/**
+ * Push one microphone level to the main process, which forwards it to the
+ * flow-bar widget. The widget feed is cosmetic, so a missing or failing bridge
+ * must never interrupt the meter loop.
+ */
+function sendMicLevel(level: number): void {
+  const api = window.api as { sendMicLevel?: (value: number) => void } | undefined;
+  if (typeof api?.sendMicLevel !== 'function') return;
+  try {
+    api.sendMicLevel(level);
+  } catch {
+    // Ignored: the bars fall back to the CSS keyframes.
+  }
+}
+
 function tickMeter() {
   meterRaf = 0;
   if (!meterAnalyser || !meterData || !mediaRecorder || mediaRecorder.state !== 'recording') return;
@@ -147,9 +171,19 @@ function tickMeter() {
     const sample = (meterData[i] - 128) / 128;
     sum += sample * sample;
   }
-  const width = meterWidth(Math.sqrt(sum / meterData.length));
+  const rms = Math.sqrt(sum / meterData.length);
+  const width = meterWidth(rms);
   micLevelFill.style.width = `${width}%`;
   micLevelFill.classList.toggle('hot', width >= 95);
+  // Audio-reactive bars for the floating flow-bar widget. This reuses the
+  // analyser that is already open above: no second getUserMedia, no second
+  // AudioContext, one mic stream. Throttled to ~30 Hz and only while the
+  // widget is enabled, so the cost is a single IPC message per 33 ms.
+  const stamp = performance.now();
+  if (Boolean(getSettings()?.useFlowBarWidget) && stamp - lastLevelSentAt >= LEVEL_SEND_INTERVAL_MS) {
+    lastLevelSentAt = stamp;
+    sendMicLevel(clamp01(rms * 3));
+  }
   meterRaf = requestAnimationFrame(tickMeter);
 }
 

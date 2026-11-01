@@ -41,6 +41,9 @@ const DEFAULT_SETTINGS = {
   // detection in main.cjs. It is NOT the same as 'en' (a deliberate English
   // choice), which must never be re-detected back to the OS language.
   uiLanguage: '',
+  // Which floating UI to show: the new text-free flow-bar capsule (true) or
+  // the legacy text overlay (false). Read in main.cjs at window creation.
+  useFlowBarWidget: true,
 };
 
 function stringValue(value, fallback) {
@@ -76,6 +79,9 @@ function normalizeSettings(settings) {
     translationTarget: targetLanguage,
     // Only the three supported UI languages (or '' = not chosen yet) survive.
     uiLanguage: UI_LANGUAGES.includes(merged.uiLanguage) ? merged.uiLanguage : '',
+    // `!== false` (not `=== true`) on purpose: configs written before this key
+    // existed must get the new widget, so only an explicit `false` rolls back.
+    useFlowBarWidget: merged.useFlowBarWidget !== false,
   };
 }
 

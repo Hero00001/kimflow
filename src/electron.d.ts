@@ -20,6 +20,7 @@ interface Settings {
   inputLanguage: string;
   translationTarget: string;
   uiLanguage: string;
+  useFlowBarWidget: boolean;
 }
 
 interface LanguageOption {
@@ -103,6 +104,7 @@ interface Window {
     cancelRecording: () => Promise<void>;
     pauseRecording: () => Promise<void>;
     resumeRecording: () => Promise<void>;
+    sendMicLevel: (level: number) => void;
     overlayAction: (action: string) => Promise<void>;
     copyText: (text: string) => Promise<boolean>;
     windowControl: (action: 'minimize' | 'toggle-maximize' | 'close') => Promise<void>;

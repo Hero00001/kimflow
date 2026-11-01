@@ -32,6 +32,9 @@ const fullApi = {
   cancelRecording: () => ipcRenderer.invoke('cancel-recording'),
   pauseRecording: () => ipcRenderer.invoke('pause-recording'),
   resumeRecording: () => ipcRenderer.invoke('resume-recording'),
+  // Microphone level tap for the flow-bar widget. The main renderer owns the
+  // analyser and sends ~30 values per second while recording.
+  sendMicLevel: (level) => ipcRenderer.send('mic-level', level),
   overlayAction: (action) => ipcRenderer.invoke('overlay-action', action),
   copyText: (text) => ipcRenderer.invoke('write-clipboard', text),
   windowControl: (action) => ipcRenderer.invoke('window-control', action),
@@ -67,4 +70,23 @@ function isOverlayPage() {
   }
 }
 
-contextBridge.exposeInMainWorld('api', isOverlayPage() ? overlayApi : fullApi);
+// The flow-bar widget replaces the overlay as the floating UI. Same restricted
+// surface plus the microphone level feed, which only the widget consumes.
+const widgetApi = {
+  overlayAction: fullApi.overlayAction,
+  getRecordingState: fullApi.getRecordingState,
+  getSettings: fullApi.getSettings,
+  onRecordingState: fullApi.onRecordingState,
+  onSettingsUpdated: fullApi.onSettingsUpdated,
+  onMicLevel: (callback) => subscribe('widget-level', callback),
+};
+
+function isWidgetPage() {
+  try {
+    return /\/widget\.html?$/i.test(window.location.href);
+  } catch {
+    return false;
+  }
+}
+
+contextBridge.exposeInMainWorld('api', isWidgetPage() ? widgetApi : isOverlayPage() ? overlayApi : fullApi);
