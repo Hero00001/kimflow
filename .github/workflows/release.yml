@@ -95,6 +95,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Build the renderer
+        run: npm run build
+
       - name: Test
         run: npm test
 
@@ -108,9 +111,6 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: npm version "$VERSION" --no-git-tag-version --allow-same-version
-
-      - name: Build the renderer
-        run: npm run build
 
       - name: Package the Windows installer
         run: npx electron-builder --win --publish never
