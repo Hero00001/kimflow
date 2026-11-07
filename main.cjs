@@ -31,7 +31,21 @@ let flowBarEnabled = false;
 let ipcRegistered = false;
 let rendererReady = false;
 let pendingHotkey = null;
+// Floating-window actions waiting for the main renderer to come back. Entries
+// are stamped so a stale burst is never replayed after a crash (A2).
 let pendingOverlayActions = [];
+// A dead main renderer used to stay dead: the hotkey relay and every floating
+// action silently stopped working. Recovery mirrors the widget's approach —
+// bounded reloads with a crash counter (A2).
+const MAX_MAIN_RELOADS = 5;
+const MAIN_RELOAD_WINDOW_MS = 60000;
+let mainWindowReloads = 0;
+let lastMainGoneAt = 0;
+// Queued floating actions are bounded and expire: a widget button press is
+// only meaningful for a few seconds, and replaying an unbounded stale burst
+// after a reload produced start/stop chaos.
+const MAX_PENDING_OVERLAY_ACTIONS = 20;
+const PENDING_ACTION_TTL_MS = 15000;
 const APP_NAME = 'KimFlow';
 // UI languages the renderer can display. Kept in sync with
 // backend/settings.cjs's UI_LANGUAGES and src/i18n's UILanguage union.
@@ -183,13 +197,30 @@ function createWindows() {
       pendingHotkey = null;
       mainWindow.webContents.send('hotkey-pressed', event);
     }
-    for (const action of pendingOverlayActions.splice(0)) {
-      mainWindow.webContents.send('overlay-action', action);
+    // Replay only actions that are still meaningful: a queue that survived a
+    // crash must not fire a stale start/stop burst into the fresh renderer.
+    const now = Date.now();
+    const fresh = pendingOverlayActions.filter((entry) => now - entry.at <= PENDING_ACTION_TTL_MS);
+    pendingOverlayActions = [];
+    for (const entry of fresh) {
+      mainWindow.webContents.send('overlay-action', entry.action);
     }
   });
-  mainWindow.webContents.on('render-process-gone', () => {
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
     rendererReady = false;
     void cancelRecording([mainWindow, overlayWindow]);
+    // Actions queued before the crash describe a dead session — drop them.
+    pendingOverlayActions = [];
+    const now = Date.now();
+    mainWindowReloads = now - lastMainGoneAt < MAIN_RELOAD_WINDOW_MS ? mainWindowReloads + 1 : 1;
+    lastMainGoneAt = now;
+    console.error(`[KimFlow] Main renderer gone (${details && details.reason ? details.reason : 'unknown'}); recovery reload ${mainWindowReloads}/${MAX_MAIN_RELOADS}`);
+    if (mainWindowReloads > MAX_MAIN_RELOADS || !mainWindow || mainWindow.isDestroyed()) return;
+    try {
+      mainWindow.webContents.reload();
+    } catch (error) {
+      console.error('[KimFlow] Main renderer reload failed:', error instanceof Error ? error.message : error);
+    }
   });
   loadEntry(mainWindow, getRendererEntry()).catch((error) => {
     console.error('[KimFlow] Failed to load main window:', error);
@@ -575,7 +606,11 @@ function registerIpc() {
     if (mainWindow && !mainWindow.isDestroyed() && rendererReady) {
       mainWindow.webContents.send('overlay-action', action);
     } else {
-      pendingOverlayActions.push(action);
+      pendingOverlayActions.push({ action, at: Date.now() });
+      // Bounded queue: a flood of stale actions must not grow without limit.
+      if (pendingOverlayActions.length > MAX_PENDING_OVERLAY_ACTIONS) {
+        pendingOverlayActions.shift();
+      }
     }
   });
   // Microphone level for the flow-bar widget's audio-reactive bars. The main

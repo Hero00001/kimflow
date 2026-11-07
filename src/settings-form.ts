@@ -343,7 +343,14 @@ function persist(): void {
   // used to finish out of order, letting a stale response overwrite newer
   // input. Chaining makes completion order match initiation order, and each
   // run re-reads the DOM so the last save always carries current values.
-  persistChain = persistChain.then(runPersist);
+  // The .catch is essential: ONE rejected runPersist used to poison the
+  // chain, silently discarding every settings change for the rest of the
+  // session (#09).
+  persistChain = persistChain.then(runPersist).catch((error) => {
+    const friendly = friendlyError(error, 'error.saveSettings');
+    if (friendly) showError(friendly);
+    statusError.title = errorDetails(error) ?? '';
+  });
 }
 
 async function runPersist(): Promise<void> {

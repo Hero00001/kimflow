@@ -206,6 +206,13 @@ export function pauseCapture() {
 
 export function resumeCapture() {
   if (!mediaRecorder || mediaRecorder.state !== 'paused') throw new Error('Audio recording is not paused');
+  // A dead stream records pure silence while the UI happily shows "recording"
+  // — the user cannot tell (#13). Fail loudly instead; the audio captured so
+  // far is kept and the user can start a fresh recording on the new device.
+  const deadTrack = mediaStream?.getAudioTracks().some((track) => track.readyState !== 'live');
+  if (deadTrack) {
+    throw new Error('Microphone was disconnected — the paused recording cannot resume on this device');
+  }
   mediaRecorder.resume();
   startMeter();
 }
@@ -227,11 +234,14 @@ export function abortCapture() {
 }
 
 let micWatchCleanup: (() => void) | null = null;
+// The device the active capture was started on. `devicechange` fires for ANY
+// device event (a headphone plugged in, an output changed) — only the actual
+// disappearance of THIS input may pause a recording (#12).
+let activeMicDeviceId: string | null = null;
 
 // A microphone unplug pauses the capture — it never cancels or discards
-// audio. The handler is idempotent and tolerates repeated devicechange
-// events: only an actively-recording capture is paused, so follow-up events
-// while already paused are harmless no-ops.
+// audio. Any other device event (plug-in, output change) must NOT interrupt
+// an active dictation (#12).
 export function watchMicDeviceChanges(onUnplugged?: () => void): () => void {
   if (micWatchCleanup) return micWatchCleanup;
   const noop = () => undefined;
@@ -241,18 +251,7 @@ export function watchMicDeviceChanges(onUnplugged?: () => void): () => void {
   if (typeof mediaDevices?.addEventListener !== 'function') return noop;
   const handler = () => {
     void populateMics();
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      try {
-        pauseCapture();
-      } catch {
-        return;
-      }
-      try {
-        onUnplugged?.();
-      } catch {
-        // Backend pause sync is best-effort; capture is already paused.
-      }
-    }
+    void evaluateActiveMicRemoved(onUnplugged);
   };
   mediaDevices.addEventListener('devicechange', handler);
   micWatchCleanup = () => {
@@ -266,10 +265,33 @@ export function watchMicDeviceChanges(onUnplugged?: () => void): () => void {
   return micWatchCleanup;
 }
 
+async function evaluateActiveMicRemoved(onUnplugged?: () => void): Promise<void> {
+  if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+  try {
+    if (!navigator.mediaDevices?.enumerateDevices) return; // cannot tell — keep recording
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter((device) => device.kind === 'audioinput');
+    if (activeMicDeviceId && activeMicDeviceId !== 'default') {
+      if (inputs.some((device) => device.deviceId === activeMicDeviceId)) return; // still present
+    } else if (inputs.length > 0) {
+      return; // recording the default device and at least one input exists
+    }
+    pauseCapture();
+    try {
+      onUnplugged?.();
+    } catch {
+      // Backend pause sync is best-effort; capture is already paused.
+    }
+  } catch {
+    // An enumeration failure must not pause a healthy recording.
+  }
+}
+
 export async function startCapture(microphone: string): Promise<void> {
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
     throw new Error('This system does not support microphone recording');
   }
+  activeMicDeviceId = microphone || 'default';
   await requestAudioStream(microphone);
   const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
     ? 'audio/webm;codecs=opus'

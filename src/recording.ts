@@ -1,4 +1,4 @@
-import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn, statusError } from './dom';
+import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn, statusError, micSelect } from './dom';
 import { getSettings } from './store';
 import { errorDetails, friendlyError } from './utils';
 import { t } from './i18n';
@@ -20,6 +20,10 @@ let beginInFlight = false;
 // hotkey and the on-screen buttons would otherwise see state "ready"
 // and drop the request, leaving a recording the user already stopped.
 let stopRequestedDuringStart = false;
+// True only while the CURRENT session was started by a pointerdown on one of
+// the on-screen buttons. Without this, a push-to-talk pointerleave on a
+// button stopped a session the HOTKEY had started (#11).
+let buttonOwnedSession = false;
 
 export async function beginRecording() {
   const settings = getSettings();
@@ -34,7 +38,11 @@ export async function beginRecording() {
   beginInFlight = true;
   stopRequestedDuringStart = false;
   try {
-    await startCapture(settings.microphone);
+    // The DOM select is the authority for which microphone to use: the shared
+    // store is replaced wholesale by settings broadcasts that can predate the
+    // user's latest choice, which made recordings use the WRONG mic (#24).
+    const domMic = (micSelect as HTMLSelectElement | null | undefined)?.value || '';
+    await startCapture(domMic || settings.microphone || 'default');
     await window.api.startRecording();
     setState(STATES.RECORDING);
     if (stopRequestedDuringStart) void finishRecording();
@@ -136,17 +144,24 @@ function wireToggle(button: HTMLButtonElement) {
   button.addEventListener('pointerdown', (event) => {
     if (getSettings()?.recordingMode === 'push-to-talk') {
       event.preventDefault();
+      // This press owns the session it starts: only then may a pointerleave
+      // release it. A hotkey-started session is never button-owned (#11).
+      buttonOwnedSession = true;
       void handleTrigger(true);
     }
   });
   button.addEventListener('pointerup', (event) => {
     if (getSettings()?.recordingMode === 'push-to-talk') {
       event.preventDefault();
+      buttonOwnedSession = false;
       void handleTrigger(false);
     }
   });
   button.addEventListener('pointerleave', () => {
-    if (getSettings()?.recordingMode === 'push-to-talk') void handleTrigger(false);
+    if (getSettings()?.recordingMode === 'push-to-talk' && buttonOwnedSession) {
+      void handleTrigger(false);
+    }
+    buttonOwnedSession = false;
   });
 }
 
@@ -224,6 +239,9 @@ export function wireRecordingControls() {
     if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) return;
     if (getCurrentState() === STATES.RECORDING || getCurrentState() === STATES.PAUSED) {
       void finishRecording();
+    } else if (getCurrentState() === STATES.TRANSCRIBING) {
+      // Transcription used to be an uncancellable dead state (#14).
+      void cancelFromOverlay();
     }
   });
 }

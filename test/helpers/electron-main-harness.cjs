@@ -116,8 +116,11 @@ function createElectronStub(locale, userDataDir = null) {
       this.webContents = {
         id: nextId++,
         sent: [],
-        on() {},
+        listeners: new Map(),
+        on(event, handler) { this.listeners.set(event, handler); },
         send(channel, value) { this.sent.push({ channel, value }); },
+        reloadCalls: 0,
+        reload() { this.reloadCalls += 1; },
         isDestroyed: () => false,
       };
       this._destroyed = false;

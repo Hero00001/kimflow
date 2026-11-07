@@ -92,7 +92,10 @@ export function setState(state: string) {
   micBtn.disabled = !interactive;
   pauseBtn.disabled = !active;
   stopBtn.disabled = !active;
-  endBtn.disabled = !interactive;
+  // The end button stays reachable in EVERY state: during transcription it is
+  // the only cancel control, and a long local-Whisper run used to lock the
+  // whole app with no way out (#14).
+  endBtn.disabled = false;
   stateListeners.forEach((listener) => {
     try {
       listener(state);
