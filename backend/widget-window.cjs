@@ -355,12 +355,73 @@ function stopMousePoll() {
   }
 }
 
+// Set while the machine is asleep or locked (powerMonitor): the 16 ms poll
+// stops entirely (W5) and the window is forced click-through so a locked
+// session can never sit under a click-blocking transparent rect.
+let pollSuspendedByPower = false;
+
+/** powerMonitor suspend/lock-screen: freeze the poll, force click-through. */
+function suspendWidgetPoll() {
+  pollSuspendedByPower = true;
+  stopMousePoll();
+  applyIgnoreMouse(true);
+}
+
+/** powerMonitor resume/unlock-screen: the poll re-arms on a visible window. */
+function resumeWidgetPoll() {
+  pollSuspendedByPower = false;
+  const win = widgetWindow;
+  if (!win || isDestroyed(win)) return;
+  if (typeof win.isVisible === 'function') {
+    try { if (win.isVisible() === false) return; } catch { /* assume visible */ }
+  }
+  startMousePoll();
+}
+
 function startMousePoll() {
   if (pollTimer) return;
+  if (pollSuspendedByPower) return;
   if (process.platform === 'linux') return; // see applyIgnoreMouse
   pollTimer = setInterval(pollTick, POLL_INTERVAL_MS);
   // Never keep the process (or a test run) alive just for the poll.
   if (pollTimer && typeof pollTimer.unref === 'function') pollTimer.unref();
+}
+
+// The renderer animates the capsule size over ~220 ms of CSS transition while
+// this process reads the FINAL size instantly. For a short window after a
+// state change the hit box is the UNION of the previous and target rects:
+// clicks can then never pass through a still-visible capsule, nor block an
+// area that has not grown yet (W3). Union-biasing toward click-blocking is
+// the safe direction of the two failure modes.
+const HIT_TRANSITION_MS = 250;
+let hitRectState = null;
+let hitRectPrevious = null;
+let hitRectChangedAt = 0;
+
+/**
+ * The click-through hit box for the current capsule, transition-aware.
+ * @param {string} state recorder/widget state
+ * @param {number} [now] injectable clock for tests
+ */
+function capsuleHitRect(state, now = Date.now()) {
+  const rect = capsuleRectForState(state);
+  if (state !== hitRectState) {
+    hitRectState = state;
+    hitRectChangedAt = now;
+    hitRectPrevious = hitRectPrevious || rect;
+  }
+  const prev = hitRectPrevious;
+  const transitioning = prev && now - hitRectChangedAt < HIT_TRANSITION_MS
+    && (prev.x !== rect.x || prev.w !== rect.w || prev.h !== rect.h);
+  if (!transitioning) {
+    hitRectPrevious = rect;
+    return rect;
+  }
+  const x = Math.min(prev.x, rect.x);
+  const y = Math.min(prev.y, rect.y);
+  const right = Math.max(prev.x + prev.w, rect.x + rect.w);
+  const bottom = Math.max(prev.y + prev.h, rect.y + rect.h);
+  return { x, y, w: right - x, h: bottom - y };
 }
 
 function pollTick() {
@@ -401,7 +462,7 @@ function pollTick() {
   }
   if (!cursor || !bounds) return;
 
-  const rect = capsuleRectForState(stateReader());
+  const rect = capsuleHitRect(stateReader());
   const x = cursor.x - bounds.x;
   const y = cursor.y - bounds.y;
   const inside = x >= rect.x - HOVER_INFLATE && x <= rect.x + rect.w + HOVER_INFLATE
@@ -604,6 +665,10 @@ function destroyWidgetWindow() {
   candidateTicks = 0;
   pollPausedUntil = 0;
   pollTicks = 0;
+  pollSuspendedByPower = false;
+  hitRectState = null;
+  hitRectPrevious = null;
+  hitRectChangedAt = 0;
   if (win && !isDestroyed(win)) {
     try {
       win.destroy();
@@ -622,10 +687,13 @@ module.exports = {
   buildWidgetWindowOptions,
   computeWidgetBounds,
   capsuleRectForState,
+  capsuleHitRect,
   rectIntersectsAnyDisplay,
   createWidgetWindow,
   positionWidget,
   ensureOnScreen,
+  suspendWidgetPoll,
+  resumeWidgetPoll,
   destroyWidgetWindow,
   getWidgetWindow,
 };

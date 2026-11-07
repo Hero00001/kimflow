@@ -134,6 +134,7 @@ function createElectronStub(locale, userDataDir = null) {
         height: this.options.height ?? 0,
       };
       this.events = [];
+      this.winListeners = new Map();
       this.boundsCalls = [];
       this.ignoreMouseEvents = [];
       this.alwaysOnTop = null;
@@ -144,7 +145,10 @@ function createElectronStub(locale, userDataDir = null) {
       this.loadedFileOptions = null;
       instances.push(this);
     }
-    on(event) { this.events.push(event); }
+    on(event, handler) {
+      this.events.push(event);
+      if (typeof handler === 'function') this.winListeners.set(event, handler);
+    }
     isDestroyed() { return this._destroyed; }
     setMenuBarVisibility() {}
     setAutoHideMenuBar() {}

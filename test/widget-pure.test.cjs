@@ -12,43 +12,20 @@ const pure = fakeWindow.KimFlowWidgetPure;
 
 test('the namespace is attached to window and exports the documented helpers', () => {
   assert.ok(pure, 'widget-pure.js must attach window.KimFlowWidgetPure');
-  for (const name of ['reduce', 'TABLE', 'toWidgetState', 'isWidgetState', 'resolveAccentColor', 'clampLevel']) {
+  for (const name of ['toWidgetState', 'isWidgetState', 'resolveAccentColor', 'clampLevel']) {
     assert.ok(pure[name] !== undefined, `missing ${name}`);
   }
+  // The dead reduce()/TABLE state machine was removed (W6): no production
+  // file ever referenced it, and a second state machine must not exist even
+  // inert. If it ever comes back, this pin fails.
+  assert.equal(pure.reduce, undefined, 'reduce must stay deleted');
+  assert.equal(pure.TABLE, undefined, 'TABLE must stay deleted');
 });
 
-test('happy path', () => {
-  let s = 'idle';
-  for (const [e, want] of [['start', 'listening'], ['pause', 'paused'], ['resume', 'listening'], ['stop', 'processing'], ['done', 'idle']]) {
-    s = pure.reduce(s, e);
-    assert.equal(s, want);
-  }
-});
-
-test('cancel returns to idle from listening and paused', () => {
-  assert.equal(pure.reduce('listening', 'cancel'), 'idle');
-  assert.equal(pure.reduce('paused', 'cancel'), 'idle');
-});
-
-test('illegal events are ignored', () => {
-  assert.equal(pure.reduce('idle', 'stop'), 'idle');
-  assert.equal(pure.reduce('processing', 'pause'), 'processing');
-  assert.equal(pure.reduce('idle', 'banana'), 'idle');
-  assert.equal(pure.reduce('nonsense', 'start'), 'nonsense');
-});
-
-test('reset always lands on idle', () => {
-  for (const s of ['idle', 'listening', 'paused', 'processing']) {
-    assert.equal(pure.reduce(s, 'reset'), 'idle');
-  }
-});
-
-test('reduce never throws on garbage input', () => {
-  for (const state of [undefined, null, 42, {}, [], '', 'IDLE']) {
-    for (const event of [undefined, null, 0, {}, [], 'toString', '__proto__']) {
-      assert.doesNotThrow(() => pure.reduce(state, event));
-    }
-  }
+test('the source contains no second state machine (W6)', () => {
+  const source = require('node:fs').readFileSync(require('node:path').resolve('src/widget/widget-pure.js'), 'utf8');
+  assert.ok(!/function reduce\b/.test(source), 'widget-pure.js must not define reduce()');
+  assert.ok(!/\bvar TABLE\b/.test(source), 'widget-pure.js must not carry a transition TABLE');
 });
 
 test('toWidgetState maps every recorder state', () => {

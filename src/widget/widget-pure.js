@@ -3,10 +3,10 @@
  *
  * SOURCE OF TRUTH FOR STATE IS `backend/recorder.cjs`. This file only
  * PROJECTS the recorder's state onto the widget's visual states; it never
- * stores or advances a state of its own. `reduce()` exists for the dev-only
- * state switcher and for validating state names in tests — it must NOT drive
- * the live widget, because that would create a second state machine that can
- * drift away from the recorder.
+ * stores or advances a state of its own. (An earlier draft shipped a
+ * `reduce()` transition table "for the dev switcher" — dead code no
+ * production file referenced; removed (W6). A second state machine that can
+ * drift away from the recorder must not exist, even inert.)
  *
  * Classic script: no imports, no DOM, no Electron. It attaches itself to
  * `window.KimFlowWidgetPure` for `widget.js`, and also exports the same object
@@ -17,18 +17,6 @@
 
   /** The four visual states the capsule can be in. */
   var WIDGET_STATES = ['idle', 'listening', 'paused', 'processing'];
-
-  /**
-   * Transition table from the design spec (§3), copied verbatim.
-   * Illegal transitions are ignored, never thrown: the widget must never
-   * crash on an unexpected event.
-   */
-  var TABLE = {
-    idle: { start: 'listening', reset: 'idle' },
-    listening: { pause: 'paused', stop: 'processing', cancel: 'idle', reset: 'idle' },
-    paused: { resume: 'listening', stop: 'processing', cancel: 'idle', reset: 'idle' },
-    processing: { done: 'idle', error: 'idle', reset: 'idle' },
-  };
 
   /** Recorder states (`backend/recorder.cjs` STATE) → widget states. */
   var RECORDER_TO_WIDGET = {
@@ -44,20 +32,6 @@
 
   function hasOwn(object, key) {
     return Object.prototype.hasOwnProperty.call(object, key);
-  }
-
-  /**
-   * Apply one event to one state.
-   *
-   * @param {string} state current widget state
-   * @param {string} event event name (`start`, `pause`, ...)
-   * @returns {string} the next state, or `state` unchanged for illegal input
-   */
-  function reduce(state, event) {
-    if (!hasOwn(TABLE, state)) return state;
-    var row = TABLE[state];
-    if (!hasOwn(row, event)) return state;
-    return row[event] || state;
   }
 
   /**
@@ -113,8 +87,6 @@
 
   var namespace = {
     WIDGET_STATES: WIDGET_STATES,
-    TABLE: TABLE,
-    reduce: reduce,
     toWidgetState: toWidgetState,
     isWidgetState: isWidgetState,
     resolveAccentColor: resolveAccentColor,

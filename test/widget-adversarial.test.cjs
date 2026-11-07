@@ -24,52 +24,16 @@ const {
 const pure = loadWidgetScript('src/widget/widget-pure.js').KimFlowWidgetPure;
 const WIDGET_STATES = ['idle', 'listening', 'paused', 'processing'];
 
-/** Every event name the spec mentions, plus the keys that a naive lookup
- *  (`TABLE[state][event]` without an own-property check) would resolve through
- *  Object.prototype. */
-const HOSTILE_EVENTS = [
-  'start', 'pause', 'resume', 'stop', 'cancel', 'done', 'error', 'reset',
-  '', 'banana', 'START', 'Start',
-  '__proto__', 'constructor', 'prototype', 'toString', 'valueOf',
-  'hasOwnProperty', 'isPrototypeOf',
-  null, undefined, 0, 42, true, {}, [], NaN,
-];
-
 // ---------------------------------------------------------------------------
-// reduce(): total over the 4 valid states, never throws, never leaks a
-// non-state value.
+// The reduce()/TABLE state machine was deleted (W6, dead code in production).
+// Its prototype-pollution duties transfer to toWidgetState, which keeps its
+// own hasOwn guard and its hostile-input tests below.
 // ---------------------------------------------------------------------------
 
-test('reduce() is total: every valid state x every event yields a valid state', () => {
-  for (const state of WIDGET_STATES) {
-    for (const event of HOSTILE_EVENTS) {
-      let next;
-      assert.doesNotThrow(() => { next = pure.reduce(state, event); }, `threw on (${state}, ${String(event)})`);
-      assert.equal(typeof next, 'string', `(${state}, ${String(event)}) returned ${typeof next}`);
-      assert.ok(WIDGET_STATES.includes(next), `(${state}, ${String(event)}) escaped the vocabulary: ${String(next)}`);
-    }
+test('the deleted state machine stays deleted', () => {
+  for (const key of ['reduce', 'TABLE']) {
+    assert.equal(pure[key], undefined, `pure.${key} must not exist`);
   }
-});
-
-test('reduce() resolves prototype keys through the transition table only', () => {
-  // A regression that dropped `hasOwn` would return Object.prototype here.
-  for (const key of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
-    assert.equal(pure.reduce('idle', key), 'idle', `event "${key}" must be ignored`);
-    assert.equal(pure.reduce('listening', key), 'listening', `event "${key}" must be ignored`);
-  }
-  // ...and a prototype-named *state* must be returned untouched, not crash.
-  for (const key of ['__proto__', 'constructor', 'toString']) {
-    assert.equal(pure.reduce(key, 'start'), key);
-  }
-});
-
-test('reduce() never mutates the transition table', () => {
-  const before = JSON.stringify(pure.TABLE);
-  for (const state of WIDGET_STATES) {
-    for (const event of HOSTILE_EVENTS) pure.reduce(state, event);
-  }
-  assert.equal(JSON.stringify(pure.TABLE), before, 'TABLE was mutated by a hostile event name');
-  assert.deepEqual(Object.keys(pure.TABLE).sort(), ['idle', 'listening', 'paused', 'processing']);
   assert.equal({}.polluted, undefined, 'prototype pollution leaked onto Object.prototype');
 });
 

@@ -15,7 +15,7 @@ const {
 const { getSecret, setSecretsDir, migrateSecrets } = require('./backend/secrets.cjs');
 const { loadSettings, saveSettings, normalizeSettings, CONFIG_DIR, getLoadStatus, blankSecretValues } = require('./backend/settings.cjs');
 const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
-const { createWidgetWindow, destroyWidgetWindow } = require('./backend/widget-window.cjs');
+const { createWidgetWindow, destroyWidgetWindow, suspendWidgetPoll, resumeWidgetPoll } = require('./backend/widget-window.cjs');
 const { audioByteLength } = require('./backend/audio.cjs');
 const history = require('./backend/history.cjs');
 // Persistent SendInput paste helper — killed on quit so no PowerShell child
@@ -134,6 +134,11 @@ function destroyOverlayWindow() {
  */
 function isFlowBarWidgetEnabled(settings) {
   if (process.env.KIMFLOW_FLOWBAR === '0') return false;
+  // Linux: click-through is disabled there (setIgnoreMouseEvents with
+  // forward is unreliable), so the always-on-top transparent capsule would
+  // swallow every click in its whole rect, forever (W1). The legacy overlay
+  // owns its small input area and is the safe floating UI on Linux.
+  if (process.platform === 'linux') return false;
   return !settings || settings.useFlowBarWidget !== false;
 }
 
@@ -298,7 +303,14 @@ function createWindows() {
     destroyOverlayWindow();
     mainWindow = null;
   });
-  overlayWindow.on('closed', () => { overlayWindow = null; });
+  overlayWindow.on('closed', () => {
+    // The floating window dying on its own must tear the widget subsystem
+    // down too: the module-level 16 ms poll and the screen listeners
+    // otherwise leak until quit (W9). destroyWidgetWindow is idempotent and
+    // no-ops when the main window already tore everything down.
+    destroyWidgetWindow();
+    overlayWindow = null;
+  });
 }
 
 function requestRendererHotkey(pressed) {
@@ -801,6 +813,19 @@ app.whenReady().then(() => {
     try { persisted = JSON.parse(fs.readFileSync(trustedBinariesFile, 'utf8')); } catch { /* first run */ }
     if (Array.isArray(persisted)) for (const entry of persisted) knownBinaryPaths.add(entry);
   } catch { /* userData unavailable in stripped test environments */ }
+
+  // Pause the widget's 16 ms poll while the machine sleeps or locks (W5):
+  // 62 wakeups per second against a locked session waste battery, and a
+  // stale cursor reading can leave the whole window click-blocking.
+  try {
+    const { powerMonitor } = require('electron');
+    if (powerMonitor && typeof powerMonitor.on === 'function') {
+      powerMonitor.on('suspend', suspendWidgetPoll);
+      powerMonitor.on('lock-screen', suspendWidgetPoll);
+      powerMonitor.on('resume', resumeWidgetPoll);
+      powerMonitor.on('unlock-screen', resumeWidgetPoll);
+    }
+  } catch { /* powerMonitor unavailable in this environment */ }
   try {
     const configured = loadSettings().whisperBinaryPath;
     if (configured) {
