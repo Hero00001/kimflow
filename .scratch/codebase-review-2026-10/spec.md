@@ -1,3 +1,16 @@
+> **Superseded (2026-11-07, B0 safety gate).** This is a historical snapshot;
+> see `.scratch/codebase-review-2026-11/spec.md` for the current review. Two
+> figures below are stale and were never updated: the line 7 baseline is
+> `139 passing`, but at HEAD `a9fb21e` (v1.4.5) `npm test` is **483 passing /
+> 0 skipped / 0 failed** with `npx tsc --noEmit` clean; and the P2 tracker has
+> **29** tickets, not the "23 files" stated at line 11 and line 311. The
+> revert-matrix claim at lines 15-17 describes an intended practice, not a
+> script that exists in `package.json`. B0 adds `npm run test:isolated`, which
+> verifies that `npm test` never touches the real config or secret blobs; it
+> does NOT implement a per-fix revert matrix, so the "every fix is pinned by a
+> test that failed first" claim remains unverified. All historical findings
+> below are preserved unchanged.
+
 # KimFlow Codebase Review — Findings
 
 Date: 2026-10-20 | Scope: whole repository (backend, renderer, packaging, tests)

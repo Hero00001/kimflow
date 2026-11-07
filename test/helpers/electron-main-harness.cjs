@@ -22,47 +22,84 @@ function resolveFile(basePath) {
 }
 
 // Backend modules replaced by inert stubs. `settings.cjs` is intentionally NOT
-// stubbed: it is the module under test.
+// stubbed: it is the module under test. `widget-window.cjs` and
+// `paste-helper.cjs` are likewise loaded for real.
 //
 // `overrides` lets a test replace one of these stubs — the hotkey stub, for
-// instance, has to be able to report that registration failed.
-function backendStub(resolvedPath, overrides = {}) {
-  const override = overrides[path.basename(resolvedPath)];
-  if (override !== undefined) return override;
-  switch (path.basename(resolvedPath)) {
-    case 'hotkeys.cjs':
-      return { registerHotkeys: () => true, unregisterHotkeys: () => {}, setHotkeyCallbacks: () => {}, isValidHotkey: () => true, getActiveHotkey: () => '' };
-    case 'recorder.cjs':
-      return {
-        startRecording: async () => {}, stopRecording: async () => ({ aborted: true }),
-        pauseRecording: async () => {}, resumeRecording: async () => {}, cancelRecording: async () => {},
-        getState: () => 'ready',
-        STATE: { READY: 'ready', RECORDING: 'recording', PAUSED: 'paused', TRANSCRIBING: 'transcribing' },
-      };
-    case 'secrets.cjs':
-      return { getSecret: () => '', migratePlaintextKeys: (raw) => ({ settings: raw && typeof raw === 'object' ? raw : {}, migrated: false }) };
-    case 'overlay-window.cjs':
-      return { buildOverlayWindowOptions: () => ({ width: 1, height: 1, show: false, webPreferences: {} }) };
-    case 'audio.cjs':
-      return { audioByteLength: () => 0 };
-    case 'history.cjs':
-      return { load: () => ({ sessions: [] }), clear: () => ({ sessions: [] }) };
-    case 'translation.service.cjs':
-      return { warmup: async () => {} };
-    case 'transcribe.cjs':
-      return {
-        modelDownloaded: () => false, downloadModel: async () => {},
-        testDeepgramConnection: async () => ({}), testSpeechmaticsConnection: async () => ({}),
-      };
-    case 'engine-download.cjs':
-      return {};
-    case 'engine-manifest.cjs':
-      return { validateFlavor: () => {}, ENGINE_FLAVORS: [] };
-    case 'gemini.cjs':
-      return { validateModel: async () => ({}) };
-    default:
-      return undefined;
+// instance, has to be able to report that registration failed. It must NEVER
+// replace a module that is loaded for real: doing so replaces the thing under
+// test with a fake and produces a false green.
+//
+// Every stub must expose every member `main.cjs` calls. A missing member turns
+// an IPC channel into a TypeError and, for `setSecretsDir`, silently trips the
+// startup catch at main.cjs:605-613 that selects the legacy ~/.kimflow path.
+const STUB_FACTORIES = {
+  'hotkeys.cjs': () => ({
+    registerHotkeys: () => true, unregisterHotkeys: () => {}, setHotkeyCallbacks: () => {},
+    isValidHotkey: () => true, getActiveHotkey: () => '',
+  }),
+  'recorder.cjs': () => ({
+    startRecording: async () => {}, stopRecording: async () => ({ aborted: true }),
+    pauseRecording: async () => {}, resumeRecording: async () => {}, cancelRecording: async () => {},
+    getState: () => 'ready',
+    STATE: { READY: 'ready', RECORDING: 'recording', PAUSED: 'paused', TRANSCRIBING: 'transcribing' },
+  }),
+  'secrets.cjs': () => ({
+    SECRET_NAMES: ['deepgramApiKey', 'speechmaticsApiKey', 'geminiApiKey'],
+    getSecret: () => '',
+    setSecret: () => false,
+    hasSecret: () => false,
+    deleteSecret: () => {},
+    describeSecret: () => 'missing',
+    setSecretsDir: () => {},
+    secretsBaseDir: () => '',
+    secretPath: () => '',
+    migrateSecrets: () => 0,
+    migratePlaintextKeys: (raw) => ({ settings: raw && typeof raw === 'object' ? raw : {}, migrated: false }),
+  }),
+  'overlay-window.cjs': () => ({ buildOverlayWindowOptions: () => ({ width: 1, height: 1, show: false, webPreferences: {} }) }),
+  'audio.cjs': () => ({ audioByteLength: () => 0 }),
+  'history.cjs': () => ({ load: () => ({ sessions: [] }), clear: () => ({ sessions: [] }) }),
+  'translation.service.cjs': () => ({ warmup: async () => {} }),
+  'transcribe.cjs': () => ({
+    modelDownloaded: () => false, downloadModel: async () => {},
+    testDeepgramConnection: async () => ({}), testSpeechmaticsConnection: async () => ({}),
+  }),
+  'engine-download.cjs': () => ({
+    engineInstalled: () => false,
+    engineBinaryPath: () => 'C:/fake/whisper-cli.exe',
+    downloadEngineZip: async () => 'C:/fake/engine.zip',
+    extractEngineZip: async () => 'C:/fake/whisper-cli.exe',
+    smokeTestEngine: async () => ({}),
+    markEngineIncompatible: () => {},
+    clearEngineIncompatible: () => {},
+    engineState: () => 'missing',
+    detectGpu: async () => 'cpu',
+  }),
+  'engine-manifest.cjs': () => ({ validateFlavor: () => {}, ENGINE_FLAVORS: [] }),
+  'gemini.cjs': () => ({ validateModel: async () => ({}) }),
+};
+
+const STUBBED_MODULES = new Set(Object.keys(STUB_FACTORIES));
+
+/** Reject overrides for modules the harness deliberately loads for real. */
+function assertOverridesAllowed(overrides) {
+  for (const key of Object.keys(overrides)) {
+    if (!STUBBED_MODULES.has(key)) {
+      throw new Error(
+        `Harness override "${key}" is not allowed: only deliberately-stubbed backend modules may be replaced. `
+        + 'Modules loaded for real (notably settings.cjs) are the module under test.',
+      );
+    }
   }
+}
+
+function backendStub(resolvedPath, overrides = {}) {
+  const base = path.basename(resolvedPath);
+  const override = overrides[base];
+  if (override !== undefined) return override;
+  const factory = STUB_FACTORIES[base];
+  return factory ? factory() : undefined;
 }
 
 function createElectronStub(locale, userDataDir = null) {
@@ -188,6 +225,7 @@ function createElectronStub(locale, userDataDir = null) {
 }
 
 function loadWithStubs(entryPath, electron, overrides = {}) {
+  assertOverridesAllowed(overrides);
   const cache = new Map();
   function load(absPath) {
     if (cache.has(absPath)) return cache.get(absPath).exports;
@@ -219,10 +257,15 @@ function loadWithStubs(entryPath, electron, overrides = {}) {
  *
  * @param {{locale: string, home: string, overrides?: object, settings?: object}} options
  *   `overrides` replaces backend stubs by module basename (e.g. 'hotkeys.cjs').
+ *   Only keys in STUBBED_MODULES are accepted; an override for a module the
+ *   harness loads for real (notably `settings.cjs`) is rejected.
  *   `settings` is written to `<home>/.kimflow/config.json` before main.cjs is
  *   loaded, so a test can pin a flag through the real load()/normalizeSettings().
  */
 async function loadMain({ locale, home, overrides = {}, settings = null }) {
+  // Validate before touching process.env so a rejected override cannot leave
+  // HOME/USERPROFILE pointing at a temp directory.
+  assertOverridesAllowed(overrides);
   const previousUserProfile = process.env.USERPROFILE;
   const previousHome = process.env.HOME;
   process.env.USERPROFILE = home;

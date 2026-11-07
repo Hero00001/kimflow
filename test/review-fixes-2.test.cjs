@@ -43,7 +43,9 @@ test('the stub supports appendChild', () => {
 });
 
 test('the stub matches attribute selectors', () => {
-  const dom = createDom({});
+  // 'body' is a synthetic id for this test: declare it explicitly now that
+  // undeclared ids correctly resolve to null.
+  const dom = createDom({ body: {} });
   const element = dom.createElement({});
   element.setAttribute('data-i18n', 'status.ready');
   dom.byId('body').appendChild(element);

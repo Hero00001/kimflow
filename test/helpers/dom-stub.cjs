@@ -13,6 +13,21 @@
 
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
+/**
+ * Ids the real document actually contains. `src/dom.ts` resolves ~77 of these
+ * at import time with a non-null assertion, so a test must not have to
+ * enumerate them. Anything OUTSIDE this set (plus ids a test declares
+ * explicitly) is a typo and resolves to `null`, exactly as a browser does.
+ */
+const APP_IDS = (() => {
+  const file = path.resolve(__dirname, '..', '..', 'index.html');
+  const html = fs.readFileSync(file, 'utf8');
+  return new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+})();
+
 /** Split a class string into a list of class names. */
 function classNames(value) {
   return String(value || '').split(/\s+/).filter(Boolean);
@@ -21,7 +36,8 @@ function classNames(value) {
 /**
  * The browser's `Option` constructor. The renderer uses `new Option(text,
  * value)` when populating a `<select>`, and the transpiled module looks it up
- * as a global, so it has to exist on `globalThis`.
+ * as a global, so it has to exist on `globalThis` while the module loads.
+ * The install is reversible (see `restoreOptionGlobal`).
  */
 class Option {
   constructor(text, value) {
@@ -32,6 +48,36 @@ class Option {
     this.children = [];
   }
 }
+
+let previousOptionDescriptor;
+let optionInstalled = false;
+
+function installOptionGlobal() {
+  if (optionInstalled) return;
+  previousOptionDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'Option');
+  if (previousOptionDescriptor !== undefined) return;
+  Object.defineProperty(globalThis, 'Option', {
+    configurable: true,
+    writable: true,
+    enumerable: false,
+    value: Option,
+  });
+  optionInstalled = true;
+}
+
+function restoreOptionGlobal() {
+  if (!optionInstalled) return;
+  if (previousOptionDescriptor === undefined) delete globalThis.Option;
+  else Object.defineProperty(globalThis, 'Option', previousOptionDescriptor);
+  optionInstalled = false;
+}
+
+// Register a file-level cleanup hook once, when the helper is first required.
+// Every `node --test` file gets its own process, so leaving `Option` installed
+// would otherwise leak a global that outlives the DOM it belongs to.
+try {
+  require('node:test').after(() => restoreOptionGlobal());
+} catch { /* helper used outside the node:test runner */ }
 
 /**
  * Build a `classList` that keeps the element's `className` truthful.
@@ -68,6 +114,8 @@ function createClassList(element) {
  * @param {object} props initial properties (className, dataset, value, ...)
  */
 function createElement(props = {}) {
+  const hadInitialValue = Object.prototype.hasOwnProperty.call(props, 'value');
+  const initialValue = props.value;
   const element = {
     tagName: 'DIV',
     textContent: '',
@@ -96,6 +144,10 @@ function createElement(props = {}) {
   element._classes = new Set(classNames(props.className));
   delete props.className;
   Object.assign(element, props);
+
+  // Browsers expose `tagName` in upper case. `document.createElement('option')`
+  // used to yield 'option', which the `options` getter could never find.
+  element.tagName = String(element.tagName || 'DIV').toUpperCase();
 
   element.classList = createClassList(element);
 
@@ -141,6 +193,33 @@ function createElement(props = {}) {
     configurable: true,
     get() {
       return this.children.filter((child) => child.tagName === 'OPTION');
+    },
+  });
+
+  // `<select>` value semantics: an unmatched assignment resets to '', and a
+  // select that was never assigned a value reports its first option. Elements
+  // without OPTION children keep the plain string behaviour inputs need.
+  let storedValue = hadInitialValue ? String(initialValue) : undefined;
+  let valueWasSet = hadInitialValue;
+  Object.defineProperty(element, 'value', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      const options = element.options;
+      if (options.length === 0) return storedValue === undefined ? '' : storedValue;
+      if (!valueWasSet) return String(options[0].value);
+      if (storedValue === '') return '';
+      return options.some((option) => String(option.value) === storedValue) ? storedValue : '';
+    },
+    set(next) {
+      const options = element.options;
+      const incoming = next === undefined || next === null ? '' : String(next);
+      valueWasSet = true;
+      if (options.length === 0) {
+        storedValue = incoming;
+        return;
+      }
+      storedValue = options.some((option) => String(option.value) === incoming) ? incoming : '';
     },
   });
 
@@ -219,10 +298,21 @@ function createElement(props = {}) {
     if (!handlers) return;
     element.listeners.set(type, handlers.filter((entry) => entry !== handler));
   };
-  /** Invoke every listener registered for `type` on this element. */
+  /**
+   * Invoke listeners for `type` on this element and then bubble up the parent
+   * chain, as a browser does. `stopPropagation()` aborts the remaining chain.
+   */
   element.emit = (type, event = {}) => {
-    const handlers = element.listeners.get(type) || [];
-    for (const handler of handlers) handler(event);
+    let node = element;
+    while (node) {
+      const handlers = [...((node.listeners && node.listeners.get(type)) || [])];
+      for (const handler of handlers) {
+        if (event && typeof event === 'object') event.currentTarget = node;
+        handler(event);
+        if (event && (event.propagationStopped === true || event.cancelBubble === true)) return;
+      }
+      node = node.parent || null;
+    }
   };
 
   return element;
@@ -233,12 +323,14 @@ function createElement(props = {}) {
  *
  * @param {object} [elements] map of id -> initial element properties.
  *   A string value becomes the element's initial `textContent`.
- * @returns {{document: object, window: object, byId: Function, dispatch: Function, createButton: Function}}
+ * @returns {{document: object, window: object, byId: Function, dispatch: Function, createButton: Function, restore: Function}}
  */
 function createDom(elements = {}) {
   const registry = new Map();
+  const declaredIds = new Set([...APP_IDS, ...Object.keys(elements)]);
 
   const byId = (id) => {
+    if (!declaredIds.has(id)) return null;
     if (!registry.has(id)) {
       const initial = elements[id] || {};
       const props = typeof initial === 'string' ? { textContent: initial } : { ...initial };
@@ -250,9 +342,9 @@ function createDom(elements = {}) {
   const document = {
     documentElement: createElement(),
     body: createElement(),
-    // Every id resolves, creating the element on demand: the real document
-    // has all of the app's ids, and `src/dom.ts` resolves them all at import
-    // time with a non-null assertion.
+    // Only ids that exist in index.html (or that a test declared) resolve.
+    // A typo yields `null` instead of a phantom element that makes a dead
+    // UI branch look alive.
     getElementById: (id) => byId(id),
     querySelectorAll: (selector) => {
       const found = [];
@@ -275,17 +367,18 @@ function createDom(elements = {}) {
   };
 
   // The transpiled renderer module resolves `Option` as a bare global.
-  if (typeof globalThis.Option === 'undefined') globalThis.Option = Option;
+  installOptionGlobal();
 
   /** Dispatch an event on the element with the given id. */
   const dispatch = (id, type, extra = {}) => {
     const element = byId(id);
+    if (!element) return null;
     const event = {
       type,
       target: element,
       currentTarget: element,
       preventDefault() { this.defaultPrevented = true; },
-      stopPropagation() { this.propagationStopped = true; },
+      stopPropagation() { this.propagationStopped = true; this.cancelBubble = true; },
       ...extra,
     };
     element.emit(type, event);
@@ -304,7 +397,7 @@ function createDom(elements = {}) {
    * pass an explicit `{ name: id }` map to override.
    *
    * With no argument every name resolves lazily, so a test does not have to
-   * enumerate the ~70 ids the renderer imports.
+   * enumerate the ~77 ids the renderer imports.
    *
    * @param {string[]|object} [names]
    * @returns {object} module exports
@@ -312,7 +405,7 @@ function createDom(elements = {}) {
   const exports = (names) => {
     const idFor = (name) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
     if (names === undefined) {
-      // Lazy: any element name resolves to an element.
+      // Lazy: any declared element name resolves; an undeclared one is null.
       return new Proxy({}, {
         get(_target, name) {
           if (typeof name !== 'string') return undefined;
@@ -328,7 +421,7 @@ function createDom(elements = {}) {
     return module;
   };
 
-  return { document, window, byId, dispatch, createButton, createElement, exports };
+  return { document, window, byId, dispatch, createButton, createElement, exports, restore: restoreOptionGlobal };
 }
 
 module.exports = { createDom, createElement };

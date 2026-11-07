@@ -1,23 +1,30 @@
 'use strict';
+// test/key-trim.test.cjs
+//
 // Key-value trimming on the secret-save path.
 //
 // Keys pasted from an email or a website often carry a trailing newline or
 // surrounding spaces. A stored "key\n" is rejected by the provider in a way
 // that looks exactly like "no key saved", so the save path must trim before
 // anything reaches durable storage.
+//
+// Each test gets a fresh, isolated settings/secrets module graph, so there is
+// no shared in-memory fallback and no dependence on test order.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { migratePlaintextKeys, getSecret, hasSecret, describeSecret, deleteSecret } = require('../backend/secrets.cjs');
+const { useIsolatedConfig } = require('./helpers/isolated-config.cjs');
 
-test('migratePlaintextKeys trims padded keys before storing', () => {
-  const { settings } = migratePlaintextKeys({ deepgramApiKey: '  dk-key-123 \n\t' });
+test('migratePlaintextKeys trims padded keys before storing', (t) => {
+  const { secrets } = useIsolatedConfig(t);
+  const { settings } = secrets.migratePlaintextKeys({ deepgramApiKey: '  dk-key-123 \n\t' });
   assert.equal(settings.deepgramApiKey, '', 'plaintext is stripped from settings');
-  assert.equal(getSecret('deepgramApiKey'), 'dk-key-123', 'stored value is trimmed');
+  assert.equal(secrets.getSecret('deepgramApiKey'), 'dk-key-123', 'stored value is trimmed');
 });
 
-test('migratePlaintextKeys trims every secret name', () => {
-  const { settings } = migratePlaintextKeys({
+test('migratePlaintextKeys trims every secret name', (t) => {
+  const { secrets } = useIsolatedConfig(t);
+  const { settings } = secrets.migratePlaintextKeys({
     deepgramApiKey: 'dk\n',
     speechmaticsApiKey: '\nsm',
     geminiApiKey: ' gm ',
@@ -25,22 +32,19 @@ test('migratePlaintextKeys trims every secret name', () => {
   assert.equal(settings.deepgramApiKey, '');
   assert.equal(settings.speechmaticsApiKey, '');
   assert.equal(settings.geminiApiKey, '');
-  assert.equal(getSecret('deepgramApiKey'), 'dk');
-  assert.equal(getSecret('speechmaticsApiKey'), 'sm');
-  assert.equal(getSecret('geminiApiKey'), 'gm');
+  assert.equal(secrets.getSecret('deepgramApiKey'), 'dk');
+  assert.equal(secrets.getSecret('speechmaticsApiKey'), 'sm');
+  assert.equal(secrets.getSecret('geminiApiKey'), 'gm');
 });
 
-test('whitespace-only key material is dropped, not stored', () => {
-  // Earlier tests in this file stored a real key for this name; clear the
-  // module's in-memory state first so this test starts from a clean slate.
-  deleteSecret('deepgramApiKey');
-  const before = describeSecret('deepgramApiKey');
-  const { settings } = migratePlaintextKeys({ deepgramApiKey: '   \n  ' });
+test('whitespace-only key material is dropped, not stored', (t) => {
+  const { secrets } = useIsolatedConfig(t);
+  // A fresh module instance and an empty temp secret directory: whitespace
+  // never becomes a stored secret, regardless of which tests ran before.
+  assert.equal(secrets.describeSecret('deepgramApiKey'), 'missing', 'the isolated store starts empty');
+  const { settings } = secrets.migratePlaintextKeys({ deepgramApiKey: '   \n  ' });
   assert.equal(settings.deepgramApiKey, '');
-  assert.equal(getSecret('deepgramApiKey'), '');
-  assert.notEqual(describeSecret('deepgramApiKey'), 'saved');
-  // Under plain node (no safeStorage) the state stays 'missing' throughout;
-  // the point is that whitespace never becomes a stored secret.
-  assert.ok(['missing', 'volatile', before].includes(describeSecret('deepgramApiKey')));
-  assert.equal(hasSecret('deepgramApiKey'), before === 'volatile');
+  assert.equal(secrets.getSecret('deepgramApiKey'), '');
+  assert.equal(secrets.describeSecret('deepgramApiKey'), 'missing');
+  assert.equal(secrets.hasSecret('deepgramApiKey'), false);
 });

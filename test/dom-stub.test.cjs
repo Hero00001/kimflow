@@ -5,6 +5,8 @@
 // backend-only suite. This pins the stub's contract.
 const test = require('node:test');
 const assert = require('node:assert');
+// Captured before any createDom() in this file has installed the global.
+const ORIGINAL_OPTION = Object.getOwnPropertyDescriptor(globalThis, 'Option');
 const { createDom } = require('./helpers/dom-stub.cjs');
 
 test('a stub element dispatches a click to its listener with target set', () => {
@@ -57,4 +59,78 @@ test('dispatch merges extra event properties and prevents default', () => {
   dom.dispatch('btn', 'click', { ctrlKey: true, preventDefault() { this.defaultPrevented = true; } });
   assert.equal(seen.ctrlKey, true);
   assert.equal(typeof seen.preventDefault, 'function');
+});
+
+// --- B0 harness pins ---------------------------------------------------------
+// Each of these MUST fail against the pre-B0 stub; they are the detectors for
+// tickets 27 (unknown ids), 28 (<select> semantics) and 29 (bubbling).
+
+test('an undeclared id resolves to null, not a phantom element', () => {
+  const dom = createDom({ 'declared-btn': {} });
+  assert.equal(dom.document.getElementById('declared-btn'), dom.byId('declared-btn'));
+  assert.equal(dom.document.getElementById('engine-download-row-typo'), null);
+  assert.equal(dom.byId('another-undeclared-id'), null);
+  assert.equal(dom.exports().nonExistentBinding, null);
+});
+
+test('a select resets value when no OPTION matches and auto-selects the first option', () => {
+  const dom = createDom({ 'mic-select': {} });
+  const select = dom.byId('mic-select');
+  const first = dom.document.createElement('option');
+  first.value = 'default';
+  const second = dom.document.createElement('option');
+  second.value = 'device-1';
+  select.append(first, second);
+
+  assert.equal(first.tagName, 'OPTION', 'tagName must be upper case');
+  assert.equal(select.options.length, 2, 'lowercase option tags must still be in options');
+  assert.equal(select.value, 'default', 'a browser auto-selects the first option');
+  select.value = 'device-1';
+  assert.equal(select.value, 'device-1');
+  select.value = 'not-in-the-list';
+  assert.equal(select.value, '', 'an unmatched value resets to empty');
+});
+
+test('dispatched events bubble to ancestor listeners', () => {
+  const dom = createDom({ 'group': { className: 'toggle-group' }, 'child': {} });
+  const group = dom.byId('group');
+  const child = dom.byId('child');
+  group.append(child);
+
+  const seen = [];
+  group.addEventListener('click', (event) => seen.push({ where: 'group', target: event.target, currentTarget: event.currentTarget }));
+  child.addEventListener('click', () => seen.push({ where: 'child' }));
+
+  const event = dom.dispatch('child', 'click');
+  assert.deepEqual(seen.map((entry) => entry.where), ['child', 'group']);
+  assert.equal(event.target, child);
+  assert.equal(seen[1].currentTarget, group);
+});
+
+test('stopPropagation prevents ancestors from receiving the event', () => {
+  const dom = createDom({ 'group': {}, 'child': {} });
+  const group = dom.byId('group');
+  const child = dom.byId('child');
+  group.append(child);
+
+  const seen = [];
+  let stop = false;
+  child.addEventListener('click', (event) => {
+    seen.push('child');
+    if (stop) event.stopPropagation();
+  });
+  group.addEventListener('click', () => seen.push('group'));
+
+  dom.dispatch('child', 'click');
+  assert.deepEqual(seen, ['child', 'group'], 'the event must bubble when it is not stopped');
+  stop = true;
+  dom.dispatch('child', 'click');
+  assert.deepEqual(seen, ['child', 'group', 'child'], 'stopPropagation keeps the event on the target');
+});
+
+test('createDom restores the global Option constructor', () => {
+  const dom = createDom({});
+  assert.equal(typeof globalThis.Option, 'function');
+  dom.restore();
+  assert.equal(globalThis.Option, ORIGINAL_OPTION === undefined ? undefined : ORIGINAL_OPTION.value);
 });

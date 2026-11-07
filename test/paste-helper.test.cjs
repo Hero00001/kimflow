@@ -207,11 +207,18 @@ test('QA: garbage on stdout before READY is ignored, not treated as protocol', a
     child.stdout.write('WARNING: PowerShell banner noise\n');
     child.stdout.write('READY\n');
   });
-  child.stdin.on('data', () => child.stdout.write('PASTE_OK\n'));
+  child.stdin.on('data', (chunk) => {
+    for (const line of chunk.toString('utf8').split('\n')) if (line) child.stdinLines.push(line);
+    child.stdout.write('PASTE_OK\n');
+  });
   const spawnImpl = fakeSpawn([child]);
 
-  // Must resolve despite the garbage line preceding READY.
+  // Must resolve despite the garbage line preceding READY. Assert the child
+  // really ran the protocol: a no-op pasteViaHelper resolves too, but spawns
+  // nothing and never writes a paste line.
   await pasteViaHelper({ spawn: spawnImpl });
+  assert.equal(spawnImpl.spawned.length, 1, 'exactly one helper was started');
+  assert.deepEqual(child.stdinLines, ['paste'], 'the paste line reached the helper');
   shutdownPasteHelper();
 });
 
@@ -221,12 +228,18 @@ test('QA: a second READY line does not crash or resolve twice', async () => {
     child.stdout.write('READY\n');
     child.stdout.write('READY\n');
   });
-  child.stdin.on('data', () => child.stdout.write('PASTE_OK\n'));
+  child.stdin.on('data', (chunk) => {
+    for (const line of chunk.toString('utf8').split('\n')) if (line) child.stdinLines.push(line);
+    child.stdout.write('PASTE_OK\n');
+  });
   const spawnImpl = fakeSpawn([child]);
 
   const state = await ensureHelper({ spawn: spawnImpl });
   // The duplicate READY must not have wedged the state machine.
+  assert.equal(spawnImpl.spawned.length, 1, 'exactly one helper was started');
+  assert.ok(state && state.child, 'ensureHelper returned live helper state');
   await sendPaste(state, PASTE_HELPER_TIMEOUT_MS);
+  assert.ok(child.stdinLines.includes('paste'), 'sendPaste wrote exactly the paste protocol line');
   shutdownPasteHelper();
 });
 
@@ -275,9 +288,21 @@ test('QA: a child dying mid-paste rejects; the next paste respawns exactly one c
   shutdownPasteHelper();
 });
 
-test('QA: shutdownPasteHelper is safe when the helper was never started', () => {
+test('QA: shutdownPasteHelper is safe when the helper was never started', async () => {
   shutdownPasteHelper();
   shutdownPasteHelper();
+
+  // Idempotent AND still functional: if shutdown had become a no-op, the quit
+  // line below would never be written. If it had left stale state, the fresh
+  // paste would reuse a dead helper instead of spawning exactly one child.
+  const child = createFakeChild();
+  behaveAsGoodHelper(child);
+  const spawnImpl = fakeSpawn([child]);
+  await pasteViaHelper({ spawn: spawnImpl });
+  assert.equal(spawnImpl.spawned.length, 1, 'a fresh helper was started after the idle shutdowns');
+  assert.deepEqual(child.stdinLines, ['paste'], 'the fresh helper ran the paste protocol');
+  shutdownPasteHelper();
+  assert.ok(child.stdinLines.includes('quit'), 'shutdown still asks a live helper to quit');
 });
 
 test('QA: shutdownPasteHelper is idempotent on a live helper', async () => {

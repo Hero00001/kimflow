@@ -15,7 +15,8 @@
     "pack": "npm run build && node scripts/clean-output.cjs dist-build && electron-builder --dir -c.directories.output=dist-build",
     "dist": "npm run build && node scripts/clean-output.cjs dist-build && electron-builder -c.directories.output=dist-build",
     "test:gemini": "node scripts/gemini-smoke.cjs",
-    "test": "node --test test/*.test.cjs"
+    "test": "node --test test/*.test.cjs",
+    "test:isolated": "node scripts/verify-test-isolation.cjs"
   },
   "dependencies": {
     "@deepgram/sdk": "^3.2.0",

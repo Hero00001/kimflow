@@ -30,7 +30,11 @@ try {
     },
   };
   electronStubbed = true;
-} catch { /* electron not installed: the registerHotkeys tests skip themselves */ }
+} catch { /* electron could not be resolved */ }
+
+// Fail loudly instead of silently skipping: a registerHotkeys test that does
+// not run is a false green, not a pass.
+assert.ok(electronStubbed, 'the electron globalShortcut stub must be installed for registerHotkeys tests');
 
 const { isValidHotkey, normalizeHotkey, isBareKeyHotkey, registerHotkeys, unregisterHotkeys } = require('../backend/hotkeys.cjs');
 
@@ -204,7 +208,7 @@ test('named keys are canonicalized regardless of typed casing (QA-1)', () => {
   assert.equal(isValidHotkey('ctrl+spacebar'), false);
 });
 
-test('QA: registerHotkeys registers the NORMALIZED accelerator', { skip: !electronStubbed }, () => {
+test('QA: registerHotkeys registers the NORMALIZED accelerator', () => {
   registeredAccelerators.length = 0;
   try {
     assert.equal(registerHotkeys('f2'), true);
@@ -215,7 +219,7 @@ test('QA: registerHotkeys registers the NORMALIZED accelerator', { skip: !electr
   }
 });
 
-test('QA: a bare registered key warns exactly once, non-blocking', { skip: !electronStubbed }, () => {
+test('QA: a bare registered key warns exactly once, non-blocking', () => {
   const warnings = [];
   const originalWarn = console.warn;
   console.warn = (message) => warnings.push(String(message));
@@ -232,7 +236,7 @@ test('QA: a bare registered key warns exactly once, non-blocking', { skip: !elec
   }
 });
 
-test('QA: a FAILED registration never emits the bare-key warning', { skip: !electronStubbed }, () => {
+test('QA: a FAILED registration never emits the bare-key warning', () => {
   stubRegisterResult = false;
   const warnings = [];
   const originalWarn = console.warn;
