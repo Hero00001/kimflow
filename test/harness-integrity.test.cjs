@@ -58,8 +58,10 @@ test('every registered IPC handler is callable without a stub TypeError', async 
   t.after(() => harness.restore());
   const event = { sender: { id: harness.instances[0].webContents.id } };
 
-  // Guard against a vacuously-passing loop.
-  assert.ok(harness.handlers.size >= 30, `expected the full IPC surface, got ${harness.handlers.size} handlers`);
+  // Guard against a vacuously-passing loop. 30 handlers minus the two dead
+  // channels removed in B10 ('toggle-recording', 'list-microphones') = 28;
+  // test/ipc-contract-b10.test.cjs pins the exact set.
+  assert.ok(harness.handlers.size >= 28, `expected the full IPC surface, got ${harness.handlers.size} handlers`);
 
   const failures = [];
   for (const [channel, handler] of harness.handlers) {

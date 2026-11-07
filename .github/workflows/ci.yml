@@ -42,11 +42,11 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Test
-        run: npm test
-
       - name: Build the renderer
         run: npm run build
+
+      - name: Test
+        run: npm test
 
       # The same packaging command the release uses, minus the installer
       # compression. If this step is green, a release will not fail on a

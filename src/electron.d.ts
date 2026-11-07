@@ -85,7 +85,6 @@ interface Window {
   api: {
     getSettings: () => Promise<Settings>;
     saveSettings: (settings: Settings) => Promise<Settings>;
-    listMicrophones: () => Promise<MediaDeviceInfo[]>;
     getLanguages: () => Promise<LanguagesData>;
     validateGeminiModel: (model: string) => Promise<GeminiModelStatus>;
     getRecordingState: () => Promise<string>;
@@ -102,7 +101,6 @@ interface Window {
     hasSecret: (name: string) => Promise<boolean>;
     secretState: (name: string) => Promise<'saved' | 'volatile' | 'missing' | 'unreadable'>;
     deleteSecret: (name: string) => Promise<boolean>;
-    toggleRecording: () => Promise<string>;
     startRecording: () => Promise<void>;
     stopRecording: (audioBuffer: ArrayBuffer) => Promise<TranscriptionResult>;
     cancelRecording: () => Promise<void>;

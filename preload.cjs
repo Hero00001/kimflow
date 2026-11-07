@@ -9,7 +9,6 @@ function subscribe(channel, callback) {
 const fullApi = {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
-  listMicrophones: () => ipcRenderer.invoke('list-microphones'),
   getLanguages: () => ipcRenderer.invoke('list-translation-languages'),
   validateGeminiModel: (model) => ipcRenderer.invoke('validate-gemini-model', model),
   getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
@@ -26,7 +25,6 @@ const fullApi = {
   hasSecret: (name) => ipcRenderer.invoke('has-secret', name),
   secretState: (name) => ipcRenderer.invoke('secret-state', name),
   deleteSecret: (name) => ipcRenderer.invoke('delete-secret', name),
-  toggleRecording: () => ipcRenderer.invoke('toggle-recording'),
   startRecording: () => ipcRenderer.invoke('start-recording'),
   stopRecording: (audioBuffer) => ipcRenderer.invoke('stop-recording', audioBuffer),
   cancelRecording: () => ipcRenderer.invoke('cancel-recording'),

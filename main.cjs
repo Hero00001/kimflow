@@ -458,12 +458,12 @@ function registerIpc() {
     return safe;
   });
   // Device enumeration happens in the renderer because mediaDevices belongs to
-  // the browser context. Keep this channel for backwards compatibility, but do
-  // not pretend that the main process can enumerate renderer input devices.
-  ipcMain.handle('list-microphones', (event) => {
-    assertTrustedSender(event);
-    return [];
-  });
+  // 'list-microphones' and 'toggle-recording' were removed (A9): no renderer
+  // ever called them — the main renderer enumerates devices itself via
+  // navigator.mediaDevices, and the widget drives recording through
+  // overlay-action. The channel-inventory test (test/ipc-contract-b10.test.cjs)
+  // fails if a dead channel like these ever comes back.
+
   ipcMain.handle('list-translation-languages', (event) => {
     assertTrustedSender(event);
     const { inputLanguages, targetLanguages } = require('./backend/languages.cjs');
@@ -624,19 +624,6 @@ function registerIpc() {
     const result = await stopRecording(withTrustedBinaryPath(loadSettings()), [mainWindow, overlayWindow], buffer);
     if (result && !result.aborted) sendToWindows('transcription-result', result);
     return result;
-  });
-
-  ipcMain.handle('toggle-recording', async (event) => {
-    assertTrustedSender(event);
-    const settings = loadSettings();
-    if (getState() === STATE.READY) {
-      await startRecording(settings, [mainWindow, overlayWindow]);
-      return 'recording';
-    }
-    if (getState() === STATE.RECORDING) {
-      throw new Error('Audio must be supplied when stopping a renderer recording');
-    }
-    return '';
   });
 
   ipcMain.handle('pause-recording', async (event) => {

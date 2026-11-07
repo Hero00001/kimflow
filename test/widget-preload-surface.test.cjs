@@ -94,7 +94,7 @@ test('the widget page cannot save settings, touch secrets or start a recording',
   const { api } = loadPreload(WIDGET_HREF);
   const forbidden = [
     'saveSettings', 'deleteSecret', 'hasSecret', 'secretState',
-    'startRecording', 'stopRecording', 'toggleRecording', 'cancelRecording',
+    'startRecording', 'stopRecording', 'cancelRecording',
     'pauseRecording', 'resumeRecording', 'sendMicLevel',
     'copyText', 'getHistory', 'clearHistory', 'onTranscriptionResult',
     'onHotkeyPressed', 'onOverlayAction', 'windowControl',

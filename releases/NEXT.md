@@ -11,26 +11,69 @@
   Older notes live on GitHub with each release and in this file's git history.
 -->
 
-## KimFlow {{version}} — settings that stay put, and a key that stops corrupting itself
+# KimFlow {{version}}
 
-This release is mostly about things that went wrong quietly: settings that reverted after you saved them, an API key that could be damaged in the OS keychain, and a capture hotkey that could leave the whole app unconfigurable. All fixed — and every fix is covered by a test that fails without it.
+This release fixes every finding from the full codebase audit, upgrades the
+Electron runtime to a supported major (closing ~40 Chromium advisories,
+including a contextIsolation bypass), and hardens how your API keys and
+recordings are stored.
 
-### What actually changed
+## Security
 
-**Your Gemini key is safe.** KimFlow saves keys as you type, after a short delay. If the app was closed mid-save, that delayed write could land on top of the key you had just entered and damage it in the OS keychain. The key you type is now the key that gets stored, and a failed keychain write is reported instead of being shown as "Saved ✓".
+- **Electron 33 → 45.** The old runtime is end-of-life and carried ~40
+  advisories, including a contextIsolation bypass and permission-origin
+  confusion — the exact defenses KimFlow relies on.
+- **Your API keys are safer in transit.** Gemini requests now authenticate
+  with a request header instead of the URL query string.
+- **A compromised renderer can no longer navigate or open windows:**
+  navigation and window-open are denied on every window, and a window whose
+  URL is not a KimFlow page loses IPC trust.
+- **The whisper-binary existence oracle is closed**, and a renderer-supplied
+  binary path can never reach program execution.
+- All shipped dependencies audit clean. Axios/redirect advisories (SSRF,
+  credential leakage) are gone.
+- Content-Security-Policy on every window; all windows sandboxed.
 
-**Six settings stop reverting.** Engine, recording mode, polish mode, translation, AI polish and the custom Whisper binary used to snap back to their previous value after a save — sometimes seconds later, with no warning. The Settings screen now owns those values, so a delayed save response can no longer overwrite what you just chose.
+## Dictation correctness
 
-**A hotkey owned by another app no longer locks up Settings.** If another program already owned your capture shortcut, saving anything failed — including your API key. The shortcut is now reported on its own, the rest of your settings still save, and KimFlow keeps a shortcut that actually works.
+- A cancelled dictation now lands **nowhere**: no late paste into your
+  document, no leftover history entry — even if you cancel mid-translation.
+- Transcripts are no longer cleaned twice, which deleted valid words in
+  Thorough mode.
+- Digit-led sentences keep their casing ("23 apples", not "23 Apples");
+  spoken decimals no longer merge into wrong numbers ("three point one,
+  four" is 3.1 followed by 4).
+- A failed Speechmatics job can no longer paste raw JSON into your document.
 
-**"Recheck" checks the engine you are using.** After switching to a different Whisper engine, Recheck could validate the previous binary and report a false failure next to the engine that was working.
+## Reliability
 
-**Numbers read correctly again.** `"one hundred, two hundred"` used to come out as `10200` — commas between numbers are now respected. "and" is no longer swallowed when it belongs to the sentence rather than to the number.
+- **Your settings can no longer be wiped** by a locked or corrupt config
+  file; saves are atomic with a backup, and a corrupt config recovers from
+  its backup.
+- **The floating capsule survives renderer crashes** (it now recreates
+  itself) and pauses its animation loop when the machine sleeps or locks.
+- A crashed app window reloads itself; the hotkey and the capsule keep
+  working.
+- Plugging in headphones no longer interrupts an active dictation; resuming
+  after a mic change fails loudly instead of silently recording silence.
+- Cancelling during transcription is finally possible (Escape or ✕).
+- The floating widget's own death no longer leaks its timer and listeners.
+- Stale temp recordings left by a crash are cleaned up at startup.
 
-**A brief Gemini outage no longer disables translation.** A 503 or a rate-limit reply used to be remembered as "that model does not exist", silently turning translation off for the rest of the session.
+## Clarity
 
-### Under the hood
+- Real errors now reach you: the tooltip always carries the actual reason,
+  disk problems say "disk", bad API keys say "API key" — and genuine network
+  failures are no longer silently swallowed as "cancelled".
+- An AI-Polish failure tells you it fell back to the un-polished text.
+- The Gemini key field has a **remove (✕)** button that actually deletes the
+  stored key.
+- A crash-recovery log is written to `%APPDATA%\KimFlow\logs\kimflow.log`.
+- README corrected: where keys are stored, the default hotkey
+  (`Ctrl+Shift+Space`), build outputs, and supported platforms.
 
-- The renderer had no tests at all, which is how the key-corruption bug shipped. It now has a DOM test harness and its own suite: 139 → 208 tests.
-- Every new test was run against the old code to confirm it fails without the fix. A test that passes either way is not protecting anything.
-- 29 further findings from the same review are filed as tracker issues rather than fixed here.
+## Known limitations
+
+- The Language dropdowns still show English names in the Arabic/Chinese UI
+  (tracked, needs native-speaker review).
+- A custom accent color's hover shade is generated, not hand-tuned.
