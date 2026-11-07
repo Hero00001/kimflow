@@ -55,6 +55,11 @@ const UI_LANGUAGES = ['en', 'ar', 'zh'];
 const MAX_STOP_AUDIO_BYTES = 64 * 1024 * 1024;
 const ICON_PATH = path.join(__dirname, 'app icon', 'icon.ico');
 app.setName(APP_NAME);
+// Paths the MAIN process itself handed out for the whisper binary (the file
+// dialog result and managed engine installs). A renderer-supplied path that
+// was never handed out by main must not reach execFile (N4) or the
+// check-whisper existence oracle (#04).
+const knownBinaryPaths = new Set();
 
 // First-run UI-language detection.
 //
@@ -176,6 +181,9 @@ function createWindows() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Same sandbox as the widget (N5): the preload uses only
+      // contextBridge/ipcRenderer, which sandboxed preloads support.
+      sandbox: true,
     },
   });
 
@@ -183,6 +191,7 @@ function createWindows() {
     mainWindow.setMenuBarVisibility(false);
     mainWindow.setAutoHideMenuBar(true);
   }
+  hardenWindow(mainWindow, 'main window');
 
   mainWindow.webContents.on('did-start-loading', () => {
     rendererReady = false;
@@ -257,6 +266,7 @@ function createWindows() {
       console.error('[KimFlow] Failed to load overlay window:', error);
     });
   }
+  hardenWindow(overlayWindow, 'floating window');
 
   mainWindow.on('closed', () => {
     rendererReady = false;
@@ -283,12 +293,67 @@ function requestRendererHotkey(pressed) {
  * @param {object} event Electron IPC event
  * @returns {boolean} true when the sender is one of this app's windows
  */
+/**
+ * The only page URLs any KimFlow window may load or navigate to.
+ *
+ * Production loads the three entries over file://; the dev server serves the
+ * renderer and overlay from localhost:1420 (its HMR websocket needs ws://).
+ */
+function isAllowedPageUrl(url) {
+  const value = String(url || '');
+  if (/^file:.*\/(index|overlay|widget)\.html($|[?#])/i.test(value)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1):1420(\/|$|\?|#)/i.test(value)) return true;
+  if (/^ws:\/\/(localhost|127\.0\.0\.1):1420(\/|$|\?|#)/i.test(value)) return true;
+  return false;
+}
+
+/**
+ * Deny all navigation and window.open on a KimFlow window (#03 / W2).
+ *
+ * The three pages are loaded once by us; a renderer that ends up somewhere
+ * else is compromised or broken, and in either case must not be able to
+ * pull content — or open new windows with our preload attached.
+ */
+function hardenWindow(win, label) {
+  if (!win || !win.webContents) return;
+  const wc = win.webContents;
+  try {
+    if (typeof wc.on === 'function') {
+      wc.on('will-navigate', (event, url) => {
+        if (isAllowedPageUrl(url)) return;
+        console.error(`[KimFlow] Blocked navigation on ${label}: ${String(url).slice(0, 120)}`);
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      });
+    }
+  } catch { /* stub environments */ }
+  try {
+    if (typeof wc.setWindowOpenHandler === 'function') {
+      wc.setWindowOpenHandler(({ url }) => {
+        console.error(`[KimFlow] Blocked window.open on ${label}: ${String(url).slice(0, 120)}`);
+        return { action: 'deny' };
+      });
+    }
+  } catch { /* older Electron or stub environments */ }
+}
+
 function isTrustedSender(event) {
   const senderId = event && event.sender ? event.sender.id : undefined;
   if (senderId === undefined) return false;
-  return [mainWindow, overlayWindow]
+  const trustedWindow = [mainWindow, overlayWindow]
     .filter(Boolean)
-    .some((window) => window.webContents && window.webContents.id === senderId);
+    .find((window) => window.webContents && window.webContents.id === senderId);
+  if (!trustedWindow) return false;
+  // Defence in depth (#03): a webContents whose URL is no longer one of our
+  // pages (e.g. it navigated away) is NOT trusted, even with a matching id.
+  // Sandboxed preloads are re-granted per navigation, so a navigated page
+  // could otherwise hold a full-capability bridge.
+  try {
+    if (typeof event.sender.getURL === 'function') {
+      const url = event.sender.getURL();
+      if (url && !isAllowedPageUrl(url)) return false;
+    }
+  } catch { /* a destroyed sender cannot be trusted, but the id check above already covers it */ }
+  return true;
 }
 
 function assertTrustedSender(event) {
@@ -449,6 +514,7 @@ function registerIpc() {
       engine.clearEngineIncompatible(flavor);
       const settings = loadSettings();
       settings.whisperBinaryPath = exePath;
+      knownBinaryPaths.add(exePath);
       const saved = saveSettings(settings);
       sendToWindows('settings-updated', blankSecretValues(saved));
       return exePath;
@@ -480,6 +546,7 @@ function registerIpc() {
     const exePath = engine.engineBinaryPath(flavor);
     const settings = loadSettings();
     settings.whisperBinaryPath = exePath;
+    knownBinaryPaths.add(exePath);
     const saved = saveSettings(settings);
     sendToWindows('settings-updated', blankSecretValues(saved));
     return exePath;
@@ -490,7 +557,7 @@ function registerIpc() {
   });
   ipcMain.handle('start-recording', async (event) => {
     assertTrustedSender(event);
-    await startRecording(loadSettings(), [mainWindow, overlayWindow]);
+    await startRecording(withTrustedBinaryPath(loadSettings()), [mainWindow, overlayWindow]);
   });
 
   ipcMain.handle('stop-recording', async (event, audioBuffer) => {
@@ -512,7 +579,7 @@ function registerIpc() {
       : audioBuffer instanceof ArrayBuffer
         ? Buffer.from(new Uint8Array(audioBuffer))
         : Buffer.from(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.byteLength);
-    const result = await stopRecording(loadSettings(), [mainWindow, overlayWindow], buffer);
+    const result = await stopRecording(withTrustedBinaryPath(loadSettings()), [mainWindow, overlayWindow], buffer);
     if (result && !result.aborted) sendToWindows('transcription-result', result);
     return result;
   });
@@ -553,11 +620,15 @@ function registerIpc() {
       properties: ['openFile'],
     });
     if (result.canceled || !result.filePaths?.length) return null;
+    knownBinaryPaths.add(result.filePaths[0]);
     return result.filePaths[0];
   });
   ipcMain.handle('check-whisper-binary', async (event, binaryPath) => {
     assertTrustedSender(event);
+    // Existence-oracle closed (#04): only paths main itself handed out are
+    // checkable. A path selected in an earlier session must be re-selected.
     if (typeof binaryPath !== 'string' || !binaryPath) return false;
+    if (!knownBinaryPaths.has(binaryPath)) return false;
     try {
       const stat = fs.statSync(binaryPath);
       return stat.isFile();
@@ -641,6 +712,20 @@ function registerIpc() {
   });
 }
 
+/**
+ * Blank a whisper binary path the main process never handed out (N4): the
+ * value comes from a renderer-writable settings field, and local-whisper
+ * uses it as the FIRST execFile candidate — an unvetted path would let a
+ * compromised renderer execute an arbitrary native binary.
+ */
+function withTrustedBinaryPath(settings) {
+  if (settings && settings.whisperBinaryPath && !knownBinaryPaths.has(settings.whisperBinaryPath)) {
+    console.error('[KimFlow] Ignoring unrecognised whisper binary path (not selected in this session)');
+    settings.whisperBinaryPath = '';
+  }
+  return settings;
+}
+
 app.whenReady().then(() => {
   // Mirror console output into a file BEFORE anything can fail: the packaged
   // app has no terminal, so crash-recovery and engine diagnostics were
@@ -664,6 +749,38 @@ app.whenReady().then(() => {
   } catch (error) {
     console.error('[KimFlow] Secret storage relocation failed; using the legacy ~/.kimflow location:', error instanceof Error ? error.message : error);
   }
+
+  // Crash-recovery sweep: a hard crash (or forced kill) between WAV write and
+  // cleanup used to leave raw dictated audio in ~/.kimflow forever — two real
+  // orphans from August were found on disk (N7). No recording can be in
+  // flight at startup, so every leftover temp WAV is safe to remove.
+  try {
+    for (const entry of fs.readdirSync(CONFIG_DIR)) {
+      if (/^temp_recording_.+\.wav$/i.test(entry)) {
+        try {
+          fs.unlinkSync(path.join(CONFIG_DIR, entry));
+          console.error(`[KimFlow] Removed stale temp recording left by a previous session: ${entry}`);
+        } catch { /* best-effort */ }
+      }
+    }
+  } catch { /* no config dir yet */ }
+
+  // A managed-engine path persisted by an earlier session stays trusted; a
+  // dialog-selected path does not survive restart (re-select once). Runs
+  // AFTER the relocation: loadSettings() can hit the plaintext-key migration,
+  // which must write to the relocated secret store, not the legacy one.
+  try {
+    const configured = loadSettings().whisperBinaryPath;
+    if (configured) {
+      const { ENGINE_FLAVORS } = require('./backend/engine-manifest.cjs');
+      const engine = require('./backend/engine-download.cjs');
+      for (const flavor of ENGINE_FLAVORS || []) {
+        try {
+          if (engine.engineBinaryPath(flavor) === configured) knownBinaryPaths.add(configured);
+        } catch { /* flavor without a path */ }
+      }
+    }
+  } catch { /* engine modules unavailable in stripped test environments */ }
 
   const isTrustedMediaOrigin = (webContents) => {
     const url = webContents.getURL();

@@ -423,6 +423,26 @@ function pollTick() {
 
 function registerWindowListeners(win) {
   if (!win || typeof win.on !== 'function') return;
+  // Navigation hardening (#03/W2): the widget loads exactly one page over
+  // file:// and must never navigate or open windows. The preload re-runs on
+  // every navigation and re-grants the bridge by page path, so a navigated
+  // widget could otherwise escalate beyond its six-key surface.
+  try {
+    if (win.webContents && typeof win.webContents.on === 'function') {
+      win.webContents.on('will-navigate', (event, url) => {
+        const allowed = /^file:.*\/widget\.html($|[?#])/i.test(String(url || ''));
+        if (allowed) return;
+        console.error(`[KimFlow] Blocked navigation on the floating widget: ${String(url).slice(0, 120)}`);
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      });
+      if (typeof win.webContents.setWindowOpenHandler === 'function') {
+        win.webContents.setWindowOpenHandler(({ url }) => {
+          console.error(`[KimFlow] Blocked window.open on the floating widget: ${String(url).slice(0, 120)}`);
+          return { action: 'deny' };
+        });
+      }
+    }
+  } catch { /* stub environments */ }
   const pausePoll = () => {
     pollPausedUntil = Date.now() + DRAG_PAUSE_MS;
   };

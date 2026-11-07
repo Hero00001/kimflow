@@ -47,10 +47,19 @@ function languageConfig(language, model) {
  * @returns {{model: string, language?: string, detect_language?: boolean}}
  */
 function resolveDeepgramModel(language, model) {
-  if (model === 'nova-3' || model === 'nova-2') {
-    return { model, ...languageConfig(language, model) };
-  }
   const lang = normalizeLanguage(language);
+  if (model === 'nova-2') {
+    return { model, ...languageConfig(lang, 'nova-2') };
+  }
+  if (model === 'nova-3') {
+    // An EXPLICIT nova-3 for a language nova-3 cannot transcribe single-
+    // handed is downgraded to nova-2 exactly like 'auto' — otherwise the
+    // API rejects the request or garbles the transcript (F-07).
+    if (lang !== 'auto' && !NOVA3_LANGUAGES.has(lang)) {
+      return { model: 'nova-2', language: lang };
+    }
+    return { model: 'nova-3', ...languageConfig(lang, 'nova-3') };
+  }
   if (lang === 'auto') return { model: 'nova-3', ...languageConfig(lang, 'nova-3') };
   if (NOVA3_LANGUAGES.has(lang)) return { model: 'nova-3', language: lang };
   return { model: 'nova-2', language: lang };
@@ -163,18 +172,33 @@ async function transcribe(apiKey, audioPath, language, model, signal, polishMode
   return { text: cleanupText(transcript, polishMode), detectedLanguage };
 }
 
-async function testConnection(apiKey) {
+async function testConnection(apiKey, timeoutMs = 15000) {
   const key = String(apiKey || '').trim();
   if (!key) throw new Error('Deepgram API key not set.');
   const { createClient } = require('@deepgram/sdk');
   const deepgram = createClient(key);
+  // Speechmatics has a 15s timeout; an unbounded getProjects() left the
+  // settings button hanging disabled forever (F-17).
+  const projects = deepgram.manage.getProjects();
+  if (projects && typeof projects.catch === 'function') {
+    // The loser of the race must never become an unhandled rejection.
+    projects.catch(() => {});
+  }
+  let timer;
   try {
-    const response = await deepgram.manage.getProjects();
+    const response = await Promise.race([
+      projects,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timed out after ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs);
+      }),
+    ]);
     if (response.error) throw new Error(response.error.message || 'Invalid API key');
     return { ok: true, message: 'Connection successful' };
   } catch (error) {
     const msg = error?.message || String(error);
     throw new Error(`Deepgram connection failed: ${msg}`);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 

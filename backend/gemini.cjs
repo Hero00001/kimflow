@@ -57,7 +57,9 @@ async function inspectModel(apiKey, modelId) {
   let result;
   try {
     const response = await axios.get(`${API_BASE}/models/${encodeURIComponent(normalized)}`, {
-      params: { key },
+      // Header-based auth (#05): the key used to travel in the URL query,
+      // exposing it to proxies, gateways and access logs.
+      headers: { 'x-goog-api-key': key },
       timeout: 15000,
       httpsAgent: keepAliveAgent,
       validateStatus: () => true,
@@ -227,9 +229,11 @@ async function resolveModel(apiKey) {
   if (resolvedModels.has(key)) return resolvedModels.get(key);
 
   let model = DEFAULT_MODEL;
+  let usable = false;
   try {
     const response = await axios.get(`${API_BASE}/models`, {
-      params: { key },
+      // Header-based auth (#05) — the key never travels in the URL.
+      headers: { 'x-goog-api-key': key },
       timeout: 15000,
       httpsAgent: keepAliveAgent,
       validateStatus: () => true,
@@ -241,11 +245,19 @@ async function resolveModel(apiKey) {
         .map((entry) => String(entry.name || '').replace(/^models\//, '')));
       const match = MODEL_PREFERENCE.find((candidate) => available.has(candidate));
       if (match) model = match;
+      usable = true;
+    } else if (response.status >= 500 || response.status === 429) {
+      // A server-side or rate-limit failure says nothing about which models
+      // exist. Caching the default here pinned it for the whole session
+      // after one blip (F-13) — return without caching instead.
+      return DEFAULT_MODEL;
     }
   } catch {
-    // Model discovery is best-effort; fall back to the default model.
+    // Transport failures are transient: return the default WITHOUT caching
+    // (F-13), so the next call retries discovery.
+    return DEFAULT_MODEL;
   }
-  resolvedModels.set(key, model);
+  if (usable) resolvedModels.set(key, model);
   return model;
 }
 
@@ -279,7 +291,8 @@ async function translate({ text, sourceLanguage, targetLanguage, apiKey, model }
       // Low-latency tuning: deterministic output, bounded length, plain text.
       generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: 'text/plain' },
     }, {
-      params: { key },
+      // Header-based auth (#05) — the key never travels in the URL.
+      headers: { 'x-goog-api-key': key },
       timeout: TIMEOUT_MS,
       httpsAgent: keepAliveAgent,
       validateStatus: () => true,
@@ -291,10 +304,11 @@ async function translate({ text, sourceLanguage, targetLanguage, apiKey, model }
 
   if (response.status < 200 || response.status >= 300) {
     const detail = describeError(response.data);
+    // The key is header-based now, so the endpoint itself carries no secret.
     console.error('[KimFlow] Gemini API error', JSON.stringify({
       status: response.status,
       model: activeModel,
-      url: endpoint.replace(/=([^&=]+)$/, '=[REDACTED]'),
+      url: endpoint,
       body: detail || JSON.stringify(response.data),
     }));
     throw translationError(
@@ -337,7 +351,8 @@ async function polish({ text, language, apiKey, model }) {
       // tightly bounded output keeps free-tier usage negligible.
       generationConfig: { temperature: 0, maxOutputTokens: 2048, responseMimeType: 'text/plain' },
     }, {
-      params: { key },
+      // Header-based auth (#05) — the key never travels in the URL.
+      headers: { 'x-goog-api-key': key },
       timeout: TIMEOUT_MS,
       httpsAgent: keepAliveAgent,
       validateStatus: () => true,

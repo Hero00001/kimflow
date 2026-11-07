@@ -101,6 +101,9 @@ const HELPER_SCRIPT = [
 
 // The one live helper: { child, pending, startupTimer, stderr }.
 let helper = null;
+// In-flight helper startup, so concurrent ensureHelper() calls share ONE
+// spawn instead of racing into two helpers (F-08).
+let startingPromise = null;
 
 function isWindows() {
   return process.platform === 'win32';
@@ -164,12 +167,15 @@ function ensureHelper(deps = {}) {
     return Promise.reject(new Error('Paste helper is only available on Windows'));
   }
   if (helper) return Promise.resolve(helper);
+  // Single-flight startup: two concurrent ensureHelper() calls used to spawn
+  // TWO PowerShell helpers, orphaning one and double-firing Ctrl+V (F-08).
+  if (startingPromise) return startingPromise;
 
   const spawnImpl = deps.spawn || spawn;
   const startupTimeoutMs = deps.startupTimeoutMs || PASTE_HELPER_TIMEOUT_MS;
   const encoded = Buffer.from(HELPER_SCRIPT, 'utf16le').toString('base64');
 
-  return new Promise((resolve, reject) => {
+  const promise = new Promise((resolve, reject) => {
     let settled = false;
     let child;
     try {
@@ -238,6 +244,14 @@ function ensureHelper(deps = {}) {
       reject(new Error(`paste helper did not become ready within ${startupTimeoutMs}ms`));
     }, startupTimeoutMs);
   });
+  startingPromise = promise;
+  // Clear the single-flight slot once the startup settles either way, so a
+  // failure can be retried and a success falls through to the `helper` check.
+  promise.then(
+    () => { if (startingPromise === promise) startingPromise = null; },
+    () => { if (startingPromise === promise) startingPromise = null; },
+  );
+  return promise;
 }
 
 /**
@@ -290,6 +304,7 @@ async function pasteViaHelper(deps = {}) {
 function shutdownPasteHelper() {
   const state = helper;
   helper = null;
+  startingPromise = null;
   if (!state) return;
   failPending(state, 'KimFlow is shutting down');
   if (state.startupTimer) {

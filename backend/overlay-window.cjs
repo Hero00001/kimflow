@@ -23,6 +23,9 @@ function buildOverlayWindowOptions({ preloadPath, iconPath }) {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
+      // Same sandbox as the widget and the main window (N5): the preload
+      // uses only contextBridge/ipcRenderer, which sandboxed preloads support.
+      sandbox: true,
     },
   };
 }
