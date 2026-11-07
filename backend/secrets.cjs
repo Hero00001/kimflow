@@ -68,6 +68,9 @@ function migrateSecrets(oldDir, newDir) {
     const from = path.join(oldDir, `secret_${name}.bin`);
     const to = path.join(newDir, `secret_${name}.bin`);
     try {
+      // An explicitly deleted key must stay deleted: a tombstone marks the
+      // deletion even though the migration itself is copy-only.
+      if (fs.existsSync(`${to}.tombstone`)) continue;
       if (!fs.existsSync(from) || fs.existsSync(to)) continue;
       fs.mkdirSync(newDir, { recursive: true });
       fs.copyFileSync(from, to);
@@ -187,6 +190,9 @@ function setSecret(name, value) {
       loggedReadFailures.delete(name);
       // The file is authoritative again, so the in-memory copy is dropped.
       delete memoryFallback[name];
+      // A previously deleted key being re-saved must clear its tombstone so a
+      // future migration does not refuse to restore it (see deleteSecret).
+      try { fs.rmSync(`${dest}.tombstone`, { force: true }); } catch {}
       return true;
     }
   } catch (error) {
@@ -207,5 +213,20 @@ function deleteSecret(name) {
   try {
     fs.rmSync(secretPath(name), { force: true });
   } catch {}
+  // Tombstone the deletion so migrateSecrets (which is copy-only by design)
+  // does not copy a legacy blob from the old location back on the next launch.
+  try {
+    fs.writeFileSync(`${secretPath(name)}.tombstone`, '');
+  } catch {}
 }
-module.exports = { getSecret, setSecret, hasSecret, deleteSecret, describeSecret, migratePlaintextKeys, setSecretsDir, secretsBaseDir, migrateSecrets, secretPath, SECRET_NAMES };
+
+/** True when `name` is held only in memory (no OS keychain / write failed). */
+function isSecretVolatile(name) {
+  return memoryFallback[name] !== undefined;
+}
+
+/** True when `name` was explicitly deleted and must not be restored. */
+function isSecretTombstoned(name) {
+  try { return fs.existsSync(`${secretPath(name)}.tombstone`); } catch { return false; }
+}
+module.exports = { getSecret, setSecret, hasSecret, deleteSecret, describeSecret, migratePlaintextKeys, setSecretsDir, secretsBaseDir, migrateSecrets, secretPath, SECRET_NAMES, isSecretVolatile, isSecretTombstoned };

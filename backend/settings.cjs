@@ -5,6 +5,12 @@ const { AUTO, isKnownLanguage } = require('./languages.cjs');
 const { normalizeVocabulary } = require('./vocabulary.cjs');
 const { migratePlaintextKeys } = require('./secrets.cjs');
 
+// Tracks whether the most recent load() actually read a config, or fell back to
+// defaults because the file was missing / unreadable / corrupt. `ensureUiLanguage`
+// uses this to avoid overwriting a real config with defaults on a transient read
+// failure (see A1 / F-11).
+let lastLoadStatus = 'ok';
+
 const CONFIG_DIR = path.join(os.homedir(), '.kimflow');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 const LEGACY_CONFIG_DIR = path.join(os.homedir(), '.typr');
@@ -58,6 +64,15 @@ function stringValue(value, fallback) {
   return typeof value === 'string' ? value : fallback;
 }
 
+function coerceHotkey(value) {
+  const raw = stringValue(value, DEFAULT_SETTINGS.hotkey);
+  // Reject absurdly long inputs before they can be split into millions of
+  // parts downstream (see F-12). A valid hotkey is at most a few modifiers
+  // plus a key, so anything past 80 chars is not one.
+  if (typeof raw !== 'string' || raw.length > 80) return DEFAULT_SETTINGS.hotkey;
+  return raw.trim() || DEFAULT_SETTINGS.hotkey;
+}
+
 function normalizeSettings(settings) {
   const merged = { ...DEFAULT_SETTINGS, ...(settings && typeof settings === 'object' ? settings : {}) };
   const targetLanguage = isKnownLanguage(merged.translationTarget) && merged.translationTarget !== AUTO
@@ -82,7 +97,7 @@ function normalizeSettings(settings) {
     polishMode: ['off', 'light', 'thorough'].includes(merged.polishMode) ? merged.polishMode : DEFAULT_SETTINGS.polishMode,
     customVocabulary: normalizeVocabulary(merged.customVocabulary),
     aiPolish: merged.aiPolish === true,
-    hotkey: stringValue(merged.hotkey, DEFAULT_SETTINGS.hotkey).trim() || DEFAULT_SETTINGS.hotkey,
+    hotkey: coerceHotkey(merged.hotkey),
     accentColor: HEX_COLOR.test(merged.accentColor) ? merged.accentColor.toLowerCase() : DEFAULT_SETTINGS.accentColor,
     translationEnabled: merged.translationEnabled === true,
     translationProvider: ['gemini'].includes(merged.translationProvider) ? merged.translationProvider : DEFAULT_SETTINGS.translationProvider,
@@ -149,12 +164,49 @@ function load() {
           // A read-only config must never break startup.
         }
       }
+      lastLoadStatus = 'ok';
       return normalized;
     }
-  } catch {
-    // Fall back to safe defaults when the file is missing or malformed.
+    // No config file yet — defaults are the correct baseline (first run).
+    lastLoadStatus = 'missing';
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (error && error.code === 'EACCES') {
+      // A locked / temporarily-unreadable config must NEVER be overwritten with
+      // defaults — that would destroy the user's real settings (A1 / F-11).
+      lastLoadStatus = 'read-error';
+    } else if (/JSON|SyntaxError|Unexpected/i.test(message)) {
+      // Corrupt config: fall back to the last-good backup before giving up.
+      try {
+        const backupPath = `${CONFIG_PATH}.bak`;
+        if (fs.existsSync(backupPath)) {
+          const raw = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+          const { settings: migratedSettings } = migratePlaintextKeys(raw);
+          lastLoadStatus = 'recovered';
+          return normalizeSettings(migratedSettings);
+        }
+      } catch {}
+      lastLoadStatus = 'corrupt';
+    } else {
+      lastLoadStatus = 'read-error';
+    }
   }
   return { ...DEFAULT_SETTINGS };
+}
+
+/**
+ * The outcome of the most recent load(): one of
+ * - 'ok'         a config was read and normalized
+ * - 'missing'    no config file exists yet (first run)
+ * - 'recovered'  the config was corrupt but a `.bak` was used instead
+ * - 'read-error' the config could not be read (locked / transient error)
+ * - 'corrupt'    the config was unparseable and no `.bak` was available
+ *
+ * `ensureUiLanguage` uses this to avoid persisting defaults over a real config
+ * on a transient read failure.
+ */
+function getLoadStatus() {
+  return lastLoadStatus;
 }
 
 function save(settings) {
@@ -171,14 +223,45 @@ function save(settings) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   const tempPath = `${CONFIG_PATH}.tmp`;
   fs.writeFileSync(tempPath, JSON.stringify(normalized, null, 2), 'utf8');
+  const previousPath = `${CONFIG_PATH}.previous`;
   try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      // Keep the pre-save config as a rollback point AND as the `.bak` that
+      // load() falls back to on a future parse failure. The atomic swap never
+      // deletes the only copy: if the final rename fails we restore `previous`.
+      try { fs.copyFileSync(CONFIG_PATH, `${CONFIG_PATH}.bak`); } catch {}
+      try { fs.rmSync(previousPath, { force: true }); } catch {}
+      fs.renameSync(CONFIG_PATH, previousPath);
+    }
     fs.renameSync(tempPath, CONFIG_PATH);
+    try { fs.rmSync(previousPath, { force: true }); } catch {}
   } catch (error) {
-    if (error.code !== 'EEXIST' && error.code !== 'EPERM') throw error;
-    fs.rmSync(CONFIG_PATH, { force: true });
-    fs.renameSync(tempPath, CONFIG_PATH);
+    // The swap failed: restore the previous config if we moved it aside, and
+    // never leave the only copy deleted.
+    try {
+      if (fs.existsSync(previousPath)) {
+        fs.rmSync(tempPath, { force: true });
+        fs.renameSync(previousPath, CONFIG_PATH);
+      }
+    } catch {}
+    throw error;
   }
   return normalized;
+}
+
+const SECRET_KEYS = ['deepgramApiKey', 'speechmaticsApiKey', 'geminiApiKey'];
+
+/**
+ * Return a copy of `settings` with the three secret values blanked, so they
+ * never reach the renderer. Used for IPC responses (get-settings,
+ * settings-updated) — the main process keeps reading the real values from the
+ * secret store, the renderer never needs them.
+ */
+function blankSecretValues(settings) {
+  if (!settings || typeof settings !== 'object') return settings;
+  const out = { ...settings };
+  for (const name of SECRET_KEYS) out[name] = '';
+  return out;
 }
 
 module.exports = {
@@ -187,6 +270,8 @@ module.exports = {
   normalizeSettings,
   CONFIG_DIR,
   DEFAULT_SETTINGS,
+  getLoadStatus,
+  blankSecretValues,
   loadSettings: load,
   saveSettings: save,
 };

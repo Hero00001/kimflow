@@ -7,6 +7,9 @@ let activeHotkey = null;
 let configuredHotkey = null;
 
 function normalizeHotkey(hotkey) {
+  // Guard before any splitting: a hostile multi-megabyte string would otherwise
+  // be split into millions of parts (F-12).
+  if (typeof hotkey !== 'string' || hotkey.length > 80) return '';
   const aliases = {
     CmdOrCtrl: process.platform === 'darwin' ? 'Command' : 'Control',
     CommandOrControl: process.platform === 'darwin' ? 'Command' : 'Control',
@@ -80,6 +83,9 @@ const NAMED_KEY_LOOKUP = new Map(NAMED_KEYS.map((name) => [name.toLowerCase(), n
 const KEY_PATTERN = new RegExp(`^[A-Za-z0-9]$|^(F(?:[1-9]|1[0-2])|${NAMED_KEYS.join('|')})$`);
 
 function isValidHotkey(hotkey) {
+  // Reject absurdly long inputs up front (F-12) — before normalizeHotkey would
+  // split them into millions of parts.
+  if (typeof hotkey !== 'string' || hotkey.length > 80) return false;
   // Validate the NORMALIZED form, so a manually typed lowercase hotkey
   // ("f2", "ctrl+shift+d") is judged by what Electron will actually receive.
   const value = normalizeHotkey(hotkey).trim();

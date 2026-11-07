@@ -17,7 +17,8 @@ function normalizeVocabulary(value) {
   for (const entry of value) {
     if (typeof entry !== 'string') continue;
     const term = entry.trim();
-    if (term) terms.push(term);
+    // Bound each term so a single giant entry cannot dominate the boost (F-12).
+    if (term && term.length <= 200) terms.push(term);
   }
   return terms.slice(0, MAX_TERMS);
 }

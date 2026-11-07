@@ -13,7 +13,7 @@ const {
   STATE,
 } = require('./backend/recorder.cjs');
 const { getSecret, setSecretsDir, migrateSecrets } = require('./backend/secrets.cjs');
-const { loadSettings, saveSettings, normalizeSettings, CONFIG_DIR } = require('./backend/settings.cjs');
+const { loadSettings, saveSettings, normalizeSettings, CONFIG_DIR, getLoadStatus, blankSecretValues } = require('./backend/settings.cjs');
 const { buildOverlayWindowOptions } = require('./backend/overlay-window.cjs');
 const { createWidgetWindow, destroyWidgetWindow } = require('./backend/widget-window.cjs');
 const { audioByteLength } = require('./backend/audio.cjs');
@@ -50,7 +50,12 @@ app.setName(APP_NAME);
 // an Arabic machine is never re-detected back to Arabic. Mirrors the
 // inputLanguageMigrated one-time-migration pattern in backend/settings.cjs.
 function ensureUiLanguage(settings) {
-  if (settings && settings.uiLanguage === '') {
+  // Only persist a detected UI language when we actually read a real config.
+  // If the last load failed (locked file, corrupt JSON), writing defaults here
+  // would overwrite the user's real settings (A1 / F-11). On a first run
+  // (status 'missing') the defaults ARE the correct baseline, so detection
+  // still persists.
+  if (settings && settings.uiLanguage === '' && getLoadStatus() !== 'read-error' && getLoadStatus() !== 'corrupt') {
     const code = String(app.getLocale() || '').slice(0, 2).toLowerCase();
     settings.uiLanguage = UI_LANGUAGES.includes(code) ? code : 'en';
     try {
@@ -262,8 +267,9 @@ function registerIpc() {
   ipcMain.handle('get-settings', (event) => {
     assertTrustedSender(event);
     // Resolve a never-chosen UI language before the renderer sees it, so the
-    // renderer always receives a concrete value.
-    return ensureUiLanguage(loadSettings());
+    // renderer always receives a concrete value. Secret fields are blanked so
+    // they never leave the main process.
+    return blankSecretValues(ensureUiLanguage(loadSettings()));
   });
   // `async` so a failure is always a rejected promise, exactly as Electron
   // reports it to the renderer.
@@ -281,7 +287,8 @@ function registerIpc() {
       candidate.hotkey = getActiveHotkey() || requestedHotkey;
     }
     const saved = saveSettings(candidate);
-    sendToWindows('settings-updated', saved);
+    const safe = blankSecretValues(saved);
+    sendToWindows('settings-updated', safe);
     // Pre-resolve the Gemini model so the next stop skips discovery.
     if (saved.translationEnabled) {
       void require('./backend/translation.service.cjs').warmup({
@@ -306,7 +313,7 @@ function registerIpc() {
       error.details = `Requested: ${requestedHotkey}. In effect: ${saved.hotkey}.${bareNote}`;
       throw error;
     }
-    return saved;
+    return safe;
   });
   // Device enumeration happens in the renderer because mediaDevices belongs to
   // the browser context. Keep this channel for backwards compatibility, but do
@@ -408,7 +415,7 @@ function registerIpc() {
       const settings = loadSettings();
       settings.whisperBinaryPath = exePath;
       const saved = saveSettings(settings);
-      sendToWindows('settings-updated', saved);
+      sendToWindows('settings-updated', blankSecretValues(saved));
       return exePath;
     } finally {
       engineDownloadState.delete(flavor);
@@ -439,7 +446,7 @@ function registerIpc() {
     const settings = loadSettings();
     settings.whisperBinaryPath = exePath;
     const saved = saveSettings(settings);
-    sendToWindows('settings-updated', saved);
+    sendToWindows('settings-updated', blankSecretValues(saved));
     return exePath;
   });
   ipcMain.handle('detect-gpu', async (event) => {

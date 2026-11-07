@@ -7,7 +7,6 @@ import {
   winMax,
   winClose,
 } from './dom';
-import { setSettings } from './store';
 import { errorMessage } from './utils';
 import { t } from './i18n';
 import { STATES, setState, showError, showToast, showTranscript } from './status';
@@ -86,22 +85,10 @@ async function init() {
     setState(await window.api.getRecordingState());
     refreshHistory();
   } catch (error) {
-    setSettings({
-      microphone: 'default', engine: 'local', whisperModel: 'small',
-      whisperRuntime: 'whisper-cpp', whisperBinaryPath: '',
-      deepgramApiKey: '', deepgramModel: 'auto', speechmaticsApiKey: '', recordingMode: 'toggle',
-      polishMode: 'light',
-      customVocabulary: [],
-      aiPolish: false,
-      hotkey: 'CmdOrCtrl+Shift+Space', accentColor: '#8b5cf6',
-      translationEnabled: false, translationProvider: 'gemini',
-      geminiApiKey: '', geminiModel: '', inputLanguage: 'auto', translationTarget: 'en',
-      // '' = "not yet chosen", mirroring backend/settings.cjs. Only used when
-      // getSettings() failed; normalizeUILanguage('') renders English.
-      uiLanguage: '',
-      // The flow-bar widget is the default floating UI; see backend/settings.cjs.
-      useFlowBarWidget: true,
-    });
+    // A startup error (e.g. getSettings() failed to respond) must NOT fabricate a
+    // full defaults object and drop it into the shared store: the next settings
+    // edit would then persist those defaults over the user's real config (F-14).
+    // Keep whatever state already loaded and surface the error instead.
     setState(STATES.READY);
     showError(errorMessage(error, 'error.loadSettings'));
   }
