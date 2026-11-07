@@ -213,6 +213,10 @@ async function stopRecording(settings, windows, audioBuffer) {
     // the transcription result must never break on an optional pass.
     let finalText = cleaned;
     let polished = false;
+    // Non-fatal problems the user should still know about (A10): an AI-polish
+    // failure must not be silent — the transcript is used, but the feature
+    // quietly not working is worth a visible warning.
+    const warnings = [];
     if (settings.aiPolish) {
       try {
         const polishedText = await translationService.polish({
@@ -230,7 +234,8 @@ async function stopRecording(settings, windows, audioBuffer) {
           polished = true;
         }
       } catch {
-        // Fall back to the rule-polished text.
+        // Fall back to the rule-polished text, and say so.
+        warnings.push('ai-polish-failed');
       }
     }
     let pasteOk = true;
@@ -268,7 +273,7 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Emit the transcript immediately so translation latency never blocks
     // display/paste. The translation result follows on the same channel.
     if (settings.translationEnabled) {
-      emitTranscription(windows, { text: finalText, translation: null, translationError: null, translating: true, pasteFallback, pasteOk, polished });
+      emitTranscription(windows, { text: finalText, translation: null, translationError: null, translating: true, pasteFallback, pasteOk, polished, warnings });
     }
 
     // Translation is a best-effort add-on. A provider failure must never
@@ -318,10 +323,10 @@ async function stopRecording(settings, windows, audioBuffer) {
       // The IPC layer broadcasts the returned result exactly once;
       // emitting it here too would deliver the final transcript
       // twice on the same channel.
-      const final = { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };
+      const final = { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished, warnings };
       return final;
     }
-    return { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished };
+    return { text: finalText, translation, translationError, translating: false, pasteFallback, pasteOk, polished, warnings };
   } finally {
     if (activeAbortController === abortController) activeAbortController = null;
     try { fs.unlinkSync(tempPath); } catch { /* no temp file to remove */ }

@@ -50,6 +50,8 @@ interface TranscriptionResult {
   pasteFallback: string | null;
   pasteOk: boolean;
   aborted?: boolean;
+  /** Non-fatal problems worth telling the user about (e.g. 'ai-polish-failed'). */
+  warnings?: string[];
 }
 
 interface HotkeyEvent {

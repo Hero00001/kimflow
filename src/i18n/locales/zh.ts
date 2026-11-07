@@ -251,5 +251,7 @@ export const zh: Record<LocaleKey, string> = {
   'error.apiKeyMissing': '缺少 API 密钥 — 请先在设置中添加。', // API key missing — add it in Settings first.
   'error.network': '网络错误 — 请检查连接并重试。', // Network error — check connection and retry.
   'error.noSpeech': '未检测到语音 — 请检查麦克风音量并重试。', // No speech detected — check mic level and try again.
+  'error.storage': '无法写入磁盘 — 请检查可用空间和文件夹权限。', // Could not write to disk — check free space and folder permissions.
+  'warning.aiPolishFailed': 'AI 润色本次失败 — 已使用未润色的文本。', // AI Polish failed this time — the un-polished transcript was used.
   'error.transcriptionFailedDetail': '转录失败 — 请查看详情并重试。', // Transcription failed — see details and try again.
 };

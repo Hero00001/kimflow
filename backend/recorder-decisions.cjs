@@ -16,15 +16,16 @@ function errorMessageText(error) {
 }
 
 // Single abort classifier shared by the recorder and engine catch sites.
-// Matches an aborted signal, an AbortError name, or abort wording in the
-// message. Unifies three previously divergent checks (/abort/i,
-// /aborted/i, /aborted|abortion/i) on the broadest form — the only strings
-// that change classification mention "abort" without "aborted", which in
-// practice is abort-machinery misuse, correctly treated as abort.
+// Strictly name/signal-based: AbortError is what every abort path throws
+// (engines' throwIfAborted, awaitAbortable, local-whisper's re-throw) and
+// CanceledError is what axios throws when its signal aborts. Message text is
+// deliberately NOT inspected: "Deepgram request aborted by peer (HTTP 502)"
+// is a real network failure and used to be silently swallowed as a
+// cancellation, making the dictation vanish with zero error (A4 / F-15).
 function isAbortError(error, signal) {
   if (signal?.aborted) return true;
-  if (error && error.name === 'AbortError') return true;
-  return /abort/i.test(errorMessageText(error));
+  if (error && (error.name === 'AbortError' || error.name === 'CanceledError')) return true;
+  return false;
 }
 
 // Builds the shared AbortError without throwing, for promise-race rejection.

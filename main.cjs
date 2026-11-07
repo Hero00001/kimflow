@@ -607,6 +607,13 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
+  // Mirror console output into a file BEFORE anything can fail: the packaged
+  // app has no terminal, so crash-recovery and engine diagnostics were
+  // invisible. Failures here degrade to console-only, never break startup.
+  try {
+    require('./backend/logging.cjs').installFileLogging(path.join(app.getPath('userData'), 'logs'));
+  } catch { /* logging must never break startup */ }
+
   // Secret storage must be relocated BEFORE any settings load or IPC can
   // touch a secret. Electron's safeStorage blobs decrypt with the AES key in
   // the app's `Local State` inside userData, so the blobs must live there

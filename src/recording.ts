@@ -1,7 +1,8 @@
 import { recordBtn, micBtn, pauseBtn, stopBtn, endBtn, statusError } from './dom';
 import { getSettings } from './store';
 import { errorDetails, friendlyError } from './utils';
-import { STATES, getCurrentState, setState, showError, showPasteFallback, showTranscript } from './status';
+import { t } from './i18n';
+import { STATES, getCurrentState, setState, showError, showPasteFallback, showTranscript, showToast } from './status';
 import { clearTranslation, showTranslating, showTranslation } from './translation';
 import {
   abortCapture,
@@ -165,6 +166,11 @@ export function handleHotkeyPressed(event: HotkeyEvent) {
 
 export function handleTranscriptionResult(result: TranscriptionResult) {
   if (result && result.aborted) return;
+  // Non-fatal problems surface as a toast, not an error: the dictation
+  // succeeded, but the user should know a feature quietly didn't (A10).
+  if (result && Array.isArray(result.warnings)) {
+    if (result.warnings.includes('ai-polish-failed')) showToast(t('warning.aiPolishFailed'));
+  }
   if (result) {
     showTranscript(result.text);
     if (result.translating) showTranslating();

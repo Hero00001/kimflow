@@ -54,8 +54,11 @@ export function errorDetails(error: unknown): string | undefined {
     const details = (error as Error & { details: string }).details;
     return details.length ? details : undefined;
   }
+  // Every message ≤180 chars used to be discarded here, which hid the actual
+  // reason for almost every backend error — the tooltip that should explain
+  // the failure was blank (C1). The raw message IS the detail.
   const message = rawMessage(error);
-  return message.length > 180 ? message : undefined;
+  return message.length ? message : undefined;
 }
 
 /**
@@ -75,20 +78,35 @@ export function friendlyError(error: unknown, fallbackKey: string): string {
   const known = KEY_BY_ENGLISH.get(message.split('\n')[0]);
   if (known) return t(known);
 
-  // (3) Recognisable failure signatures. Values are locale keys, not English.
+  // getUserMedia failures happen in THIS renderer, so the DOMException name
+  // survives — the most reliable microphone classification there is.
+  const name = error instanceof Error ? error.name : '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return t('error.micBlocked');
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return t('error.micNotFound');
+  if (name === 'NotReadableError') return t('error.micBusy');
+
+  // (3) Recognisable failure signatures. Ordered so a specific failure is
+  // never shadowed by a broad pattern: disk errors before mic permission
+  // (an EACCES on the temp WAV is NOT a microphone problem — A5), and auth
+  // before the generic "denied" ("403 permission denied" is a key error — #21).
   const table: Array<[RegExp, string]> = [
-    [/permission|not allowed|denied/i, 'error.micBlocked'],
+    [/EACCES|ENOSPC|EROFS|disk full/i, 'error.storage'],
     [/device not found|no microphone|overconstrained/i, 'error.micNotFound'],
+    [/401|403|invalid api key/i, 'error.invalidApiKey'],
+    [/permission|not allowed|denied/i, 'error.micBlocked'],
     [/ENOENT|binary not found/i, 'error.whisperBinaryNotFound'],
     [/model not found/i, 'error.whisperModelNotFound'],
     [/crashed|0xC000/i, 'error.whisperCrashed'],
-    [/401|403|invalid api key/i, 'error.invalidApiKey'],
     [/ENOTFOUND|fetch failed|timeout/i, 'error.network'],
     [/empty transcript|no speech|no transcript/i, 'error.noSpeech'],
   ];
   for (const [pattern, key] of table) if (pattern.test(message)) return t(key);
 
-  if (/abort/i.test(message)) return '';
+  // The canonical abort message is still silent. A broad /abort/i used to
+  // silence REAL failures like "Deepgram request aborted by peer (HTTP 502)"
+  // — abort classification is name/signal-based in the backend now, and the
+  // aborted-object check above is the only other silencer (A4 / F-15).
+  if (message === 'Transcription aborted') return '';
 
   // (4) Caller-provided fallback.
   return t(fallbackKey);

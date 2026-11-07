@@ -248,6 +248,8 @@ export const en = {
   'error.apiKeyMissing': 'API key missing — add it in Settings first.',
   'error.network': 'Network error — check connection and retry.',
   'error.noSpeech': 'No speech detected — check mic level and try again.',
+  'error.storage': 'Could not write to disk — check free space and folder permissions.',
+  'warning.aiPolishFailed': 'AI Polish failed this time — the un-polished transcript was used.',
   'error.transcriptionFailedDetail': 'Transcription failed — see details and try again.',
 } as const;
 

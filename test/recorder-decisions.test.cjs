@@ -34,12 +34,15 @@ test('detects AbortError by name', () => {
   assert.equal(isAbortError(err, { aborted: false }), true);
 });
 
-test('detects abort by message text', () => {
-  assert.equal(isAbortError(new Error('Request aborted by user'), null), true);
+test('message text is NOT an abort signal (A4/F-15)', () => {
+  // The old /abort/i message match swallowed real provider failures like
+  // "Deepgram request aborted by peer (HTTP 502)" as silent cancellations.
+  assert.equal(isAbortError(new Error('Request aborted by user'), null), false);
+  assert.equal(isAbortError(new Error('Deepgram request aborted by peer (HTTP 502)'), { aborted: false }), false);
 });
 
 test('tolerates a missing signal', () => {
-  assert.equal(isAbortError(new Error('Request aborted'), null), true);
+  assert.equal(isAbortError(new Error('Request aborted'), null), false);
   assert.equal(isAbortError(new Error('boom'), null), false);
 });
 

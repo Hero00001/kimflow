@@ -243,6 +243,8 @@ export const ar: Record<LocaleKey, string> = {
   'error.apiKeyMissing': 'مفتاح API مفقود — أضفه من الإعدادات أولًا.', // API key missing — add it in Settings first.
   'error.network': 'خطأ في الشبكة — تحقق من الاتصال وأعد المحاولة.', // Network error — check connection and retry.
   'error.noSpeech': 'لم يتم اكتشاف كلام — تحقق من مستوى الميكروفون وأعد المحاولة.', // No speech detected — check mic level and try again.
+  'error.storage': 'تعذّر الكتابة على القرص — تحقّق من المساحة الحرة وأذونات المجلد.', // Could not write to disk — check free space and folder permissions.
+  'warning.aiPolishFailed': 'فشل التحسين الذكي هذه المرة — تم استخدام النص غير المحسّن.', // AI Polish failed this time — the un-polished transcript was used.
   'error.transcriptionFailedDetail': 'فشل النسخ — راجع التفاصيل وأعد المحاولة.', // Transcription failed — see details and try again.
 
   // ══════════════════════════════════════════════════════════════════════
