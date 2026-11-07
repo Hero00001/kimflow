@@ -60,6 +60,30 @@ app.setName(APP_NAME);
 // was never handed out by main must not reach execFile (N4) or the
 // check-whisper existence oracle (#04).
 const knownBinaryPaths = new Set();
+// Main-owned persistence for dialog-selected binaries: config.json's
+// whisperBinaryPath is renderer-writable (and therefore not trusted across
+// restarts), but the user's dialog choice must survive one. This file lives
+// in userData, which the renderer has no API to write.
+let trustedBinariesFile = null;
+
+/**
+ * Trust a binary for this session AND persist it across restarts.
+ * The in-memory set is enough for engine-managed paths (re-seeded each
+ * start); dialog selections need the file.
+ */
+function rememberTrustedBinary(binaryPath) {
+  if (typeof binaryPath !== 'string' || !binaryPath) return;
+  knownBinaryPaths.add(binaryPath);
+  if (!trustedBinariesFile) return;
+  try {
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(trustedBinariesFile, 'utf8')); } catch { /* first entry */ }
+    if (!Array.isArray(list)) list = [];
+    if (!list.includes(binaryPath)) list.push(binaryPath);
+    if (list.length > 20) list = list.slice(-20);
+    fs.writeFileSync(trustedBinariesFile, JSON.stringify(list, null, 2), 'utf8');
+  } catch { /* best-effort: the path is still trusted for this session */ }
+}
 
 // First-run UI-language detection.
 //
@@ -620,7 +644,7 @@ function registerIpc() {
       properties: ['openFile'],
     });
     if (result.canceled || !result.filePaths?.length) return null;
-    knownBinaryPaths.add(result.filePaths[0]);
+    rememberTrustedBinary(result.filePaths[0]);
     return result.filePaths[0];
   });
   ipcMain.handle('check-whisper-binary', async (event, binaryPath) => {
@@ -766,9 +790,17 @@ app.whenReady().then(() => {
   } catch { /* no config dir yet */ }
 
   // A managed-engine path persisted by an earlier session stays trusted; a
-  // dialog-selected path does not survive restart (re-select once). Runs
-  // AFTER the relocation: loadSettings() can hit the plaintext-key migration,
-  // which must write to the relocated secret store, not the legacy one.
+  // dialog-selected path survives restart through the main-owned
+  // trusted-binaries file (config.json is renderer-writable and is NOT a
+  // trust source). Runs AFTER the relocation: loadSettings() can hit the
+  // plaintext-key migration, which must write to the relocated secret store,
+  // not the legacy one.
+  try {
+    trustedBinariesFile = path.join(app.getPath('userData'), 'trusted-binaries.json');
+    let persisted = [];
+    try { persisted = JSON.parse(fs.readFileSync(trustedBinariesFile, 'utf8')); } catch { /* first run */ }
+    if (Array.isArray(persisted)) for (const entry of persisted) knownBinaryPaths.add(entry);
+  } catch { /* userData unavailable in stripped test environments */ }
   try {
     const configured = loadSettings().whisperBinaryPath;
     if (configured) {

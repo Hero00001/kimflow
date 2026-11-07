@@ -87,6 +87,34 @@ test('check-whisper-binary rejects paths the main process never handed out (#04)
   assert.equal(await check(event, process.execPath), false, 'even the electron binary path is rejected');
 });
 
+test('a dialog-selected binary stays trusted across restart via the main-owned trust file', async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'kimflow-b6-'));
+  t.after(() => { try { fs.rmSync(home, { recursive: true, force: true }); } catch {} });
+  // Simulate an earlier session having persisted the user's dialog choice.
+  // userData is renderer-unwritable, so this is main's own trust store.
+  const userData = path.join(home, 'userData');
+  fs.mkdirSync(userData, { recursive: true });
+  fs.writeFileSync(
+    path.join(userData, 'trusted-binaries.json'),
+    JSON.stringify([process.execPath]),
+    'utf8',
+  );
+  const harness = await loadMain({ locale: 'en-US', home });
+  t.after(() => harness.restore());
+  const event = { sender: { id: harness.instances[0].webContents.id } };
+  assert.equal(
+    await harness.handlers.get('check-whisper-binary')(event, process.execPath),
+    true,
+    'the persisted dialog selection is trusted after restart',
+  );
+  // ...while a renderer-forged path that main never handed out is not.
+  assert.equal(
+    await harness.handlers.get('check-whisper-binary')(event, path.join(os.tmpdir())),
+    false,
+    'config-supplied paths are still not a trust source',
+  );
+});
+
 // ── #05 + F-13: Gemini key handling ─────────────────────────────────────────
 
 function loadGeminiWithFakeAxios(t, impl) {
