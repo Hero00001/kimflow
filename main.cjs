@@ -291,9 +291,15 @@ function createWindows() {
     // The overlay owns its controls, so it must receive mouse input. Its
     // controls can be moved with the frameless window drag region.
     overlayWindow.setIgnoreMouseEvents(false);
-    loadEntry(overlayWindow, getOverlayEntry()).catch((error) => {
-      console.error('[KimFlow] Failed to load overlay window:', error);
-    });
+    // Show after first paint, not at creation: a transparent window shown
+    // before its page is ready flashed a white rectangle (#18).
+    loadEntry(overlayWindow, getOverlayEntry())
+      .then(() => {
+        if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.showInactive();
+      })
+      .catch((error) => {
+        console.error('[KimFlow] Failed to load overlay window:', error);
+      });
   }
   hardenWindow(overlayWindow, 'floating window');
 

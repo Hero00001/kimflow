@@ -64,5 +64,8 @@
       "target": "AppImage",
       "icon": "app icon/icon.png"
     }
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

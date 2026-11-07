@@ -16,7 +16,9 @@ function buildOverlayWindowOptions({ preloadPath, iconPath }) {
     transparent: true,
     backgroundColor: '#00000000',
     hasShadow: false,
-    show: true,
+    // Shown only after the page has painted (main.cjs legacy branch): showing
+    // a transparent window before first paint flashed a white rectangle (#18).
+    show: false,
     title: 'KimFlow',
     icon: iconPath,
     webPreferences: {

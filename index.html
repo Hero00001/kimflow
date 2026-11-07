@@ -216,7 +216,10 @@
                         <div class="s-row binary-row">
                           <span class="s-label" data-i18n="settings.binary.selectLabel"></span>
                           <div class="model-row">
-                            <span id="binary-path-display" class="binary-path" data-i18n="settings.binary.notSelected"></span>
+                            <!-- Runtime-owned: settings-form writes this on init and
+                                 after every binary change; a data-i18n stamp here would
+                                 lie about the real state (#06). -->
+                            <span id="binary-path-display" class="binary-path"></span>
                             <button id="select-binary-btn" class="btn-primary" type="button" data-i18n="settings.binary.browse"></button>
                             <button id="recheck-binary-btn" class="btn-secondary" type="button" data-i18n="settings.binary.recheck"></button>
                             <button id="clear-binary-btn" class="btn-danger-sm" type="button" data-i18n-title="settings.binary.clearTitle">✕</button>
@@ -239,7 +242,7 @@
                     <div class="s-row">
                       <span class="s-label"></span>
                       <div class="api-key-footer">
-                        <span class="api-key-notice" id="speechmatics-key-status" data-i18n="settings.key.none"></span>
+                        <span class="api-key-notice" id="speechmatics-key-status"></span>
                         <button id="speechmatics-test-btn" class="btn-secondary" type="button" data-i18n="settings.key.testConnection"></button>
                       </div>
                     </div>
@@ -258,7 +261,7 @@
                     <div class="s-row">
                       <span class="s-label"></span>
                       <div class="api-key-footer">
-                        <span class="api-key-notice" id="deepgram-key-status" data-i18n="settings.key.none"></span>
+                        <span class="api-key-notice" id="deepgram-key-status"></span>
                       </div>
                     </div>
                     <div class="s-row">
@@ -308,13 +311,18 @@
 
                   <div class="s-row hidden" id="gemini-row">
                     <span class="s-label" data-i18n="settings.translation.geminiKey"></span>
-                    <input type="password" id="gemini-key" data-i18n-placeholder="settings.key.geminiKeyPlaceholder" />
+                    <div class="api-key-row">
+                      <input type="password" id="gemini-key" data-i18n-placeholder="settings.key.geminiKeyPlaceholder" />
+                      <!-- Mirrors the Deepgram/Speechmatics remove buttons (#23): clearing
+                           the field alone used to leave the stored secret in place. -->
+                      <button id="gemini-remove-key" class="btn-danger-sm" type="button" data-i18n-title="settings.key.removeTitle">✕</button>
+                    </div>
                   </div>
 
                   <div class="s-row hidden" id="gemini-key-status-row">
                     <span class="s-label"></span>
                     <div class="api-key-footer">
-                      <span class="api-key-notice" id="gemini-key-status" data-i18n="settings.key.none"></span>
+                      <span class="api-key-notice" id="gemini-key-status"></span>
                     </div>
                   </div>
 

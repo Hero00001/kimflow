@@ -104,6 +104,11 @@ async function downloadEngineZip(mainWindow, flavor) {
   const spec = getEngineSpec(validateFlavor(flavor));
   fs.mkdirSync(enginesRoot(), { recursive: true });
   const tempDest = path.join(enginesRoot(), `.${spec.key}-${crypto.randomUUID()}.zip`);
+  // Declared out here so the failure path can close the streams BEFORE
+  // unlinking: on Windows an unlink against an open write stream fails with
+  // EBUSY/EPERM and leaks a partial zip (issue #16).
+  let writer = null;
+  let responseStream = null;
   try {
     const response = await axios.get(spec.url, {
       responseType: 'stream',
@@ -115,11 +120,13 @@ async function downloadEngineZip(mainWindow, flavor) {
     }
     const total = Number(response.headers['content-length']) || 0;
     let downloaded = 0;
-    const writer = fs.createWriteStream(tempDest);
+    writer = fs.createWriteStream(tempDest);
+    responseStream = response.data;
     response.data.on('data', (chunk) => {
       downloaded += chunk.length;
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('download-progress', {
+          kind: 'engine',
           downloaded, total, percent: total ? (downloaded / total) * 100 : 0,
         });
       }
@@ -138,6 +145,10 @@ async function downloadEngineZip(mainWindow, flavor) {
     }
     return tempDest;
   } catch (error) {
+    // Close both streams first: unlinking a file whose write stream is still
+    // open fails on Windows and leaks the partial zip (issue #16).
+    try { if (responseStream && typeof responseStream.destroy === 'function') responseStream.destroy(); } catch { /* best-effort */ }
+    try { if (writer && typeof writer.destroy === 'function') writer.destroy(); } catch { /* best-effort */ }
     try { fs.unlinkSync(tempDest); } catch { /* partial download cleanup */ }
     throw error;
   }

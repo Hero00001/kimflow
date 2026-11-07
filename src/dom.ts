@@ -57,6 +57,7 @@ export const providerSelect = document.getElementById('provider-select') as HTML
 export const inputLanguageSelect = document.getElementById('input-language-select') as HTMLSelectElement;
 export const translateToSelect = document.getElementById('translate-to-select') as HTMLSelectElement;
 export const geminiKey = document.getElementById('gemini-key') as HTMLInputElement;
+export const geminiRemoveKey = document.getElementById('gemini-remove-key') as HTMLButtonElement;
 export const geminiKeyStatus = document.getElementById('gemini-key-status')!;
 export const geminiKeyStatusRow = document.getElementById('gemini-key-status-row')!;
 export const geminiModel = document.getElementById('gemini-model') as HTMLInputElement;

@@ -62,6 +62,8 @@ interface DownloadProgress {
   downloaded: number;
   total: number;
   percent: number;
+  /** Which download the progress belongs to — model and engine downloads share one channel (#17). */
+  kind?: 'model' | 'engine';
 }
 
 interface HistoryEntry {

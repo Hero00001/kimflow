@@ -15,14 +15,14 @@ KimFlow is designed for fast, keyboard-driven dictation without requiring a brow
 - **Optional Gemini translation** that translates the finalized transcript into a user-selected target language.
 - **Microphone selection** using the Electron renderer's media-device API.
 - **Recording controls** for start, pause, resume, stop/transcribe, and cancel.
-- **Floating control widget** that can be dragged around the desktop.
+- **Floating flow-bar capsule** that can be dragged around the desktop and mirrors the recording state.
 - **Recording feedback** with animated voice waves and visible recording state.
 - **Accent color customization** while retaining the dark visual theme.
-- **Configurable global hotkey** with shortcut recording in Settings.
+- **Configurable global hotkey** (default `Ctrl+Shift+Space`) with shortcut recording in Settings.
 - **Automatic text cleanup and paste-back** into the focused application.
 - **Whisper model download support** for Tiny, Base, Small, and Medium models.
 - **Persistent settings** stored in the user's home directory.
-- **Windows, macOS, and Linux packaging targets** through `electron-builder`.
+- **Windows packaging** (NSIS installer) through `electron-builder`. macOS/Linux build configs exist but are not tested release targets.
 
 ## How It Works
 
@@ -38,7 +38,8 @@ The microphone stream is owned by the main renderer window. The floating widget 
 
 ## Requirements
 
-- **Node.js 18 or newer**. Node 18+ is required by the Deepgram SDK and is recommended for the complete toolchain.
+- **Node.js 24** (the version CI pins and the one bundled inside Electron 45). Older Node versions are not tested.
+- **Fonts:** only Latin `woff2` files ship; Arabic and CJK text renders through OS font fallback.
 - **npm** (included with Node.js).
 - A working microphone and operating-system microphone permission.
 - **Electron development dependencies**, installed automatically by `npm install`.
@@ -100,7 +101,7 @@ Settings available when Local Whisper is selected:
 4. Paste the key into **API Key**.
 5. Record and stop the recording to submit the WAV file for transcription.
 
-KimFlow uses Deepgram's prerecorded transcription API with the multilingual `nova-3` model. For **Auto Detect**, the request uses `language=multi` so the dominant spoken language is transcribed in that language; a specific selected language is sent on its own. Language detection is only applied through `nova-3` multilingual — `detect_language` is not used with streaming connections.
+KimFlow uses Deepgram's prerecorded transcription API. The model is resolved per request: **Auto Detect** uses `nova-3` with `language=multi`; a selected language uses `nova-3` when that language is in nova-3's single-language set, and falls back to `nova-2` (with `detect_language: true` for Auto Detect) otherwise. Explicitly choosing `nova-2` or `nova-3` is honoured, with the same language downgrade applied to an unsupported `nova-3` choice.
 
 ### Speechmatics
 
@@ -132,9 +133,12 @@ The translation implementation is isolated in `TranslationService` with a `Gemin
 
 ### API key storage
 
-API keys (Deepgram, Speechmatics, and Gemini) are saved in the KimFlow settings file as part of the local configuration. Treat the configuration directory as sensitive and do not commit or share it.
+API keys (Deepgram, Speechmatics, and Gemini) are NOT stored in `config.json`. They are encrypted with the OS keychain (Electron `safeStorage`) and saved as binary blobs inside Electron's per-user data directory:
 
-- Windows/macOS/Linux: `~/.kimflow/config.json`
+- Windows: `%APPDATA%\KimFlow\` (alongside `Local State`, whose key decrypts the blobs)
+- The settings file `~/.kimflow/config.json` holds only non-secret settings.
+
+Treat both locations as sensitive and do not commit or share them.
 
 Older installations using `~/.typr` are migrated to `~/.kimflow` when KimFlow starts. The migration also attempts to preserve existing model files and other data.
 
@@ -194,7 +198,7 @@ npm run pack
 The unpacked application is written to:
 
 ```text
-dist-electron/
+dist-build/
 ```
 
 ### Create a distributable installer/package
@@ -203,12 +207,11 @@ dist-electron/
 npm run dist
 ```
 
-The exact output depends on the host operating system and the configured `electron-builder` targets. The current configuration includes:
-- Windows: NSIS installer.
-- macOS: DMG.
-- Linux: AppImage.
+The exact output depends on the host operating system and the configured `electron-builder` targets:
+- Windows: NSIS installer — the tested, released target.
+- macOS (DMG) and Linux (AppImage) targets are configured but are NOT tested or released; their icon references are stale.
 
-The application icon is sourced from `app icon/icon.png` and included in the packaged application files.
+On Windows the application icon is sourced from `app icon/icon.ico`.
 
 ## Project Structure
 
@@ -231,7 +234,7 @@ The application icon is sourced from `app icon/icon.png` and included in the pac
 │   └── icon.png           KimFlow application icon
 ├── src/
 │   ├── main.ts            Main renderer UI and microphone workflow
-│   ├── overlay.html       Floating microphone widget
+│   ├── overlay.html       Legacy floating overlay (fallback; Linux path)
 │   ├── style.css          Main application theme and layout
 │   └── electron.d.ts      Renderer-side Electron API types
 ├── index.html              Main renderer HTML entry point
@@ -310,6 +313,7 @@ Contributions are welcome.
 5. Run the available validation commands:
 
    ```bash
+   npm test
    npm run build
    node --check main.cjs
    node --check preload.cjs

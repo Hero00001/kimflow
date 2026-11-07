@@ -157,6 +157,7 @@ export const ar: Record<LocaleKey, string> = {
   'settings.key.enterSpeechmatics': 'أدخل مفتاح Speechmatics API أولًا.', // Enter a Speechmatics API key first.
   'settings.key.deepgramRemoved': 'تمت إزالة مفتاح Deepgram', // Deepgram key removed
   'settings.key.speechmaticsRemoved': 'تمت إزالة مفتاح Speechmatics', // Speechmatics key removed
+  'settings.key.geminiRemoved': 'تمت إزالة مفتاح Gemini', // Gemini key removed
 
   // ── Settings — Text cleanup section ──────────────────────────────────
   'settings.cleanup.speechCleanup': 'تنقية الكلام', // Speech Cleanup

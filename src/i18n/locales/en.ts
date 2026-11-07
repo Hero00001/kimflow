@@ -156,6 +156,7 @@ export const en = {
   'settings.key.enterSpeechmatics': 'Enter a Speechmatics API key first.',
   'settings.key.deepgramRemoved': 'Deepgram key removed',
   'settings.key.speechmaticsRemoved': 'Speechmatics key removed',
+  'settings.key.geminiRemoved': 'Gemini key removed',
 
   // ── Settings — Text cleanup section ──────────────────────────────────
   'settings.cleanup.speechCleanup': 'Speech Cleanup',

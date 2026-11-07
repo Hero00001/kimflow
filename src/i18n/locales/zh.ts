@@ -165,6 +165,7 @@ export const zh: Record<LocaleKey, string> = {
   'settings.key.enterSpeechmatics': '请先输入 Speechmatics API 密钥。', // Enter a Speechmatics API key first.
   'settings.key.deepgramRemoved': '已移除 Deepgram 密钥', // Deepgram key removed
   'settings.key.speechmaticsRemoved': '已移除 Speechmatics 密钥', // Speechmatics key removed
+  'settings.key.geminiRemoved': '已移除 Gemini 密钥', // Gemini key removed
 
   // ── Settings — Text cleanup section ──────────────────────────────────
   'settings.cleanup.speechCleanup': '语音整理', // Speech Cleanup

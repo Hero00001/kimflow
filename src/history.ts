@@ -74,7 +74,21 @@ export function setHistoryData(data: HistoryData) {
 
 function normalizeHistoryData(data: HistoryData): HistoryData {
   if (data && Array.isArray(data.sessions)) {
-    return { sessions: data.sessions.filter((entry) => entry && typeof entry === 'object') };
+    return {
+      sessions: data.sessions
+        .filter((entry) => entry && typeof entry === 'object')
+        // Field-level guards (#15): a malformed entry used to render as
+        // `undefined` titles, `NaN sec` durations and `Invalid Date`.
+        .map((entry) => ({
+          ...entry,
+          id: typeof entry.id === 'string' || typeof entry.id === 'number' ? entry.id : '',
+          title: typeof entry.title === 'string' ? entry.title : '',
+          text: typeof entry.text === 'string' ? entry.text : '',
+          createdAt: typeof entry.createdAt === 'number' && Number.isFinite(entry.createdAt) ? entry.createdAt : 0,
+          durationMs: typeof entry.durationMs === 'number' && Number.isFinite(entry.durationMs) && entry.durationMs >= 0 ? entry.durationMs : 0,
+          translation: typeof entry.translation === 'string' ? entry.translation : undefined,
+        })),
+    };
   }
   return { sessions: [] };
 }

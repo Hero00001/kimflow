@@ -54,6 +54,7 @@ async function downloadModel(mainWindow, modelSize) {
       downloaded += chunk.length;
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('download-progress', {
+          kind: 'model',
           downloaded, total, percent: total ? (downloaded / total) * 100 : 0,
         });
       }

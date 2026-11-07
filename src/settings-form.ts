@@ -18,6 +18,7 @@ import {
   inputLanguageSelect,
   translateToSelect,
   geminiKey,
+  geminiRemoveKey,
   geminiKeyStatus,
   geminiKeyStatusRow,
   geminiModel,
@@ -421,15 +422,20 @@ export async function checkModelStatus() {
 }
 
 export function handleDownloadProgress(progress: DownloadProgress) {
+  // Model and engine downloads share one channel (#17): ignore progress that
+  // does not belong to the download whose label is showing.
+  if (progress.kind && activeDownloadKind && progress.kind !== activeDownloadKind) return;
   const percent = Math.max(0, Math.min(100, progress.percent));
   progressFill.style.width = `${percent}%`;
   downloadLabel.textContent = activeDownloadLabel ? `${activeDownloadLabel}… ${Math.round(percent)}%` : '';
 }
 
 let activeDownloadLabel = '';
+let activeDownloadKind: 'model' | 'engine' | '' = '';
 
-function showDownloadProgress(label: string) {
+function showDownloadProgress(label: string, kind: 'model' | 'engine') {
   activeDownloadLabel = label;
+  activeDownloadKind = kind;
   downloadLabel.textContent = `${label}… 0%`;
   progressFill.style.width = '0%';
   downloadProgress.classList.remove('hidden');
@@ -445,7 +451,7 @@ function wireDownload() {
   downloadBtn.addEventListener('click', async () => {
     downloadBtn.disabled = true;
     downloadBtn.textContent = t('settings.download.downloading');
-    showDownloadProgress(t('settings.model.downloading', { model: modelSelect.value }));
+    showDownloadProgress(t('settings.model.downloading', { model: modelSelect.value }), 'model');
     try {
       await window.api.downloadModel(modelSelect.value);
       downloadBtn.textContent = t('settings.download.ready');
@@ -558,7 +564,7 @@ async function downloadEngineFlavor(flavor: string): Promise<void> {
   }
   clicked.disabled = true;
   clicked.textContent = t('settings.download.downloading');
-  showDownloadProgress(t('settings.engine.downloading', { flavor }));
+  showDownloadProgress(t('settings.engine.downloading', { flavor }), 'engine');
   try {
     const exePath = await window.api.downloadEngine(flavor);
     setCurrentBinaryPath(exePath);
@@ -724,6 +730,16 @@ export function wireSettingsControls() {
     void persist();
     refreshKeyStatus('speechmaticsApiKey');
     showToast(t('settings.key.speechmaticsRemoved'));
+  });
+
+  // The Gemini key used to have no remove affordance at all: clearing the
+  // field left the stored secret alive, so "removed" was a lie (#23).
+  geminiRemoveKey.addEventListener('click', async () => {
+    geminiKey.value = '';
+    try { await window.api.deleteSecret('geminiApiKey'); } catch { /* best-effort */ }
+    void persist();
+    refreshKeyStatus('geminiApiKey');
+    showToast(t('settings.key.geminiRemoved'));
   });
 
   selectBinaryBtn.addEventListener('click', async () => {
