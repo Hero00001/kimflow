@@ -162,10 +162,14 @@ test('the display-event handler performs the rescue (integration through createW
   destroyWidgetWindow();
 });
 
-test('a crashed widget renderer is reloaded, capped at three attempts', () => {
+test('a crashed widget renderer is reloaded, then the window is recreated', () => {
   const { FakeWindow, created } = fakeBrowserWindowFactory();
   const screen = fakeScreen();
-  createWidgetWindow({ BrowserWindow: FakeWindow, screen, preloadPath: 'preload.cjs' });
+  const seenByOwner = [];
+  createWidgetWindow({
+    BrowserWindow: FakeWindow, screen, preloadPath: 'preload.cjs',
+    onCreated: (win) => seenByOwner.push(win),
+  });
   const win = created[0];
   const handler = win.webContents.listeners.get('render-process-gone');
   assert.equal(typeof handler, 'function', 'render-process-gone is wired');
@@ -173,6 +177,20 @@ test('a crashed widget renderer is reloaded, capped at three attempts', () => {
   handler(); handler(); handler();
   assert.equal(win.webContents.reloadCalls, 3, 'the first three crashes each trigger a reload');
   handler();
-  assert.equal(win.webContents.reloadCalls, 3, 'a crash loop cannot spin the renderer forever');
+  // The old contract stopped here, leaving an invisible blank window — the
+  // exact "widget randomly disappeared" report. Recovery now recreates the
+  // window from the original options.
+  assert.equal(win.destroyed, true, 'the dead window is destroyed');
+  assert.equal(created.length, 2, 'a fresh widget window is created');
+  assert.ok(getWidgetWindow() === created[1], 'the module tracks the fresh window');
+  assert.ok(seenByOwner.includes(created[1]), 'the owner re-points its reference at the fresh window');
+
+  // The fresh window recovers on its own terms; within the recreate cool-down
+  // a further crash loop cannot spin up endless windows.
+  const freshHandler = created[1].webContents.listeners.get('render-process-gone');
+  freshHandler(); freshHandler(); freshHandler();
+  assert.equal(created[1].webContents.reloadCalls, 3, 'the fresh window reloads again');
+  freshHandler();
+  assert.equal(created.length, 2, 'the recreate cool-down prevents a crash loop');
   destroyWidgetWindow();
 });

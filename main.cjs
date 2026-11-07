@@ -209,6 +209,10 @@ function createWindows() {
       dev: isDevelopment(),
       preloadPath: path.join(__dirname, 'preload.cjs'),
       iconPath: ICON_PATH,
+      // Crash recovery recreates the window inside the module; without this
+      // the owner would keep pointing at the dead window and every IPC send
+      // from the fresh widget would fail assertTrustedSender.
+      onCreated: (win) => { overlayWindow = win; },
     });
   } else {
     overlayWindow = new BrowserWindow(buildOverlayWindowOptions({

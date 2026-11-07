@@ -62,12 +62,23 @@ const RESCUE_EVERY = 62;
 // widget disappeared". Reload to bring it back, but stop after repeated
 // crashes so a genuine bug cannot spin the renderer forever.
 const MAX_RENDERER_RELOADS = 3;
+// After the reload cap, one full window recreate is allowed per cool-down: a
+// fresh window resets the crash counter and re-anchors the capsule. Without
+// it, a crashier environment (transparent window + GPU hiccups during display
+// mode changes) leaves an invisible corpse — the exact "widget randomly
+// disappeared" report. The cool-down keeps a genuinely broken GPU/driver from
+// spinning new windows forever.
+const RECREATE_COOLDOWN_MS = 30000;
 const RELOAD_WINDOW_MS = 30000;
 
 let widgetWindow = null;
 let pollTimer = null;
 let screenApi = null;
 let stateReader = defaultRecorderState;
+// Options of the most recent createWidgetWindow call, so crash recovery can
+// rebuild the window exactly as the owner created it.
+let lastCreateOptions = null;
+let lastRecreateAt = 0;
 let displayListenerTarget = null;
 let displayListeners = [];
 let cursorInside = null; // last applied hit-test result
@@ -440,11 +451,31 @@ function registerWindowListeners(win) {
   let lastGoneAt = 0;
   try {
     if (win.webContents && typeof win.webContents.on === 'function') {
-      win.webContents.on('render-process-gone', () => {
+      win.webContents.on('render-process-gone', (_event, details) => {
+        const reason = details && details.reason ? details.reason : 'unknown';
         const now = Date.now();
         reloads = now - lastGoneAt < RELOAD_WINDOW_MS ? reloads + 1 : 1;
         lastGoneAt = now;
-        if (reloads > MAX_RENDERER_RELOADS || isDestroyed(win)) return;
+        console.error(`[KimFlow] Widget renderer gone (${reason}); recovery reload ${reloads}/${MAX_RENDERER_RELOADS}`);
+        if (isDestroyed(win)) return;
+        if (reloads > MAX_RENDERER_RELOADS) {
+          // Plain reloads are exhausted. Leaving the window dead and blank is
+          // indistinguishable from the widget vanishing — recreate it from the
+          // original options instead. The cool-down bounds a genuinely broken
+          // environment to one recreate per interval.
+          if (now - lastRecreateAt < RECREATE_COOLDOWN_MS) {
+            console.error('[KimFlow] Widget recreate skipped (cool-down active); the next crash retries');
+            return;
+          }
+          lastRecreateAt = now;
+          console.error('[KimFlow] Recreating the widget window after repeated renderer crashes');
+          try {
+            createWidgetWindow(lastCreateOptions || {});
+          } catch (error) {
+            console.error('[KimFlow] Widget recreation failed:', error instanceof Error ? error.message : error);
+          }
+          return;
+        }
         try {
           if (win.webContents && typeof win.webContents.reload === 'function') {
             win.webContents.reload();
@@ -479,6 +510,10 @@ function createWidgetWindow(options) {
 
   destroyWidgetWindow();
 
+  // Kept for crash-recovery recreation. `onCreated` (below) lets the owner
+  // re-point its window reference for every creation, initial or recreate.
+  lastCreateOptions = opts;
+
   screenApi = opts.screen || null;
   stateReader = typeof opts.getState === 'function' ? opts.getState : defaultRecorderState;
 
@@ -487,6 +522,13 @@ function createWidgetWindow(options) {
     iconPath: opts.iconPath,
   }));
   widgetWindow = win;
+  if (typeof opts.onCreated === 'function') {
+    try {
+      opts.onCreated(win);
+    } catch {
+      // The owner keeps its previous reference; nothing this module can do.
+    }
+  }
 
   // Both calls are optional platform niceties: a failure must degrade to a
   // normal always-on-top window instead of breaking creation.
@@ -520,8 +562,10 @@ function createWidgetWindow(options) {
       }
       startMousePoll();
     })
-    .catch(() => {
-      // A failed load is reported by the caller's own error handling.
+    .catch((error) => {
+      // A silent failure here shipped an invisible widget with zero
+      // diagnostics — at least say why the capsule never appeared.
+      console.error('[KimFlow] Widget window failed to load:', error instanceof Error ? error.message : error);
     });
 
   return win;
