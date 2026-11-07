@@ -62,12 +62,10 @@ export async function finishRecording() {
       setState(STATES.READY);
       return;
     }
-    if (result) {
-      showTranscript(result.text);
-      if (result.translating) showTranslating();
-      else showTranslation(result.translation, result.translationError);
-      if (result.pasteOk === false) showPasteFallback();
-    }
+    // The transcript/translation is applied exactly once, by
+    // handleTranscriptionResult via the main-process broadcast — the channel
+    // that also feeds the overlay and the widget. Applying the invoke return
+    // here as well rendered every transcript twice (#22).
   } catch (error) {
     abortCapture();
     await window.api.cancelRecording().catch(() => undefined);

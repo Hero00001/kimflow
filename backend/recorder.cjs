@@ -2,7 +2,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { AudioRecorder } = require('./audio.cjs');
-const { cleanupText } = require('./cleanup.cjs');
 const { pasteText } = require('./paste.cjs');
 const { transcribeDeepgram, transcribeSpeechmatics, transcribeLocal } = require('./transcribe.cjs');
 const translationService = require('./translation.service.cjs');
@@ -203,7 +202,11 @@ async function stopRecording(settings, windows, audioBuffer) {
     // Cancellation cannot always abort a provider's in-flight HTTP request,
     // but it must prevent a late result from being pasted or shown.
     if (shouldDropResult(currentOperation, operationId)) return { text: '', aborted: true };
-    const cleaned = cleanupText(transcription?.text || '', settings.polishMode);
+    // Every engine already applies cleanupText with the user's polish mode
+    // (engines/deepgram.cjs, engines/speechmatics.cjs, engines/local-whisper.cjs).
+    // Cleaning here a SECOND time ran the destructive 'thorough' rules twice
+    // and deleted valid words (F-02), so the transcript is used as delivered.
+    const cleaned = (transcription?.text || '').trim();
     if (!cleaned) { const e = new Error('No speech detected — check mic level and try again.'); e.details = `empty transcript (engine=${settings.engine})`; throw e; }
     // AI polish is a best-effort refinement of the rule-polished text. Any
     // failure (no key, quota, network) falls back to `cleaned` silently —
@@ -219,6 +222,9 @@ async function stopRecording(settings, windows, audioBuffer) {
           apiKey: settings.geminiApiKey || getSecret('geminiApiKey'),
           model: settings.geminiModel || undefined,
         });
+        // A cancel during AI polish must not adopt (and later paste) the late
+        // result (F-01).
+        if (shouldDropResult(currentOperation, operationId)) return { text: '', aborted: true };
         if (polishedText) {
           finalText = polishedText;
           polished = true;
@@ -233,6 +239,9 @@ async function stopRecording(settings, windows, audioBuffer) {
     // that process exits. Awaiting it is what lets a failed paste reach the
     // user as the "paste failed, text copied to clipboard" fallback.
     const doPaste = async (text) => {
+      // A cancel that lands while translation/AI polish is in flight must
+      // never inject the late result into the user's document (F-01).
+      if (shouldDropResult(currentOperation, operationId)) return;
       const pasteResult = await pasteText(text);
       pasteOk = !pasteResult || pasteResult.ok !== false;
       if (!pasteOk) pasteFallback = text;
@@ -242,15 +251,18 @@ async function stopRecording(settings, windows, audioBuffer) {
     // pasting the original first would defeat the feature.
     if (!settings.translationEnabled) await doPaste(selectPasteText({ translationEnabled: false, translation: null, finalText }));
     let historyId = null;
-    try {
-      const entry = history.addSession({
-        text: finalText,
-        durationMs: startedAt ? Date.now() - startedAt : 0,
-      });
-      historyId = entry ? entry.id : null;
-      notifyHistory(windows);
-    } catch (error) {
-      console.error('[KimFlow] Failed to save history:', error.message);
+    if (!shouldDropResult(currentOperation, operationId)) {
+      // A dictation the user cancelled must not land in history either (F-01).
+      try {
+        const entry = history.addSession({
+          text: finalText,
+          durationMs: startedAt ? Date.now() - startedAt : 0,
+        });
+        historyId = entry ? entry.id : null;
+        notifyHistory(windows);
+      } catch (error) {
+        console.error('[KimFlow] Failed to save history:', error.message);
+      }
     }
 
     // Emit the transcript immediately so translation latency never blocks
@@ -277,6 +289,18 @@ async function stopRecording(settings, windows, audioBuffer) {
         });
       } catch (error) {
         translationError = error instanceof Error && error.message ? error.message : String(error);
+      }
+      if (shouldDropResult(currentOperation, operationId)) {
+        // Cancelled while translating: the history entry was already written
+        // before the translation started, so take it back — a cancelled
+        // dictation lands nowhere (F-01).
+        if (historyId) {
+          try {
+            history.removeSession(historyId);
+            notifyHistory(windows);
+          } catch { /* best-effort */ }
+        }
+        return { text: '', aborted: true };
       }
       await doPaste(selectPasteText({ translationEnabled: true, translation, finalText }));
       if (historyId) {

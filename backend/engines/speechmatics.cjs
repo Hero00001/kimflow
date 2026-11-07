@@ -86,6 +86,7 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode, vocab
 
   // Step 2: Poll until the job completes (max 120s)
   const deadline = Date.now() + 120000;
+  let done = false;
   while (Date.now() < deadline) {
     throwIfAborted(signal);
     await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -98,7 +99,7 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode, vocab
       });
       debugLog('Speechmatics: status', { jobId, status: statusResp.data?.job?.status });
       const status = statusResp.data?.job?.status;
-      if (status === 'done') break;
+      if (status === 'done') { done = true; break; }
       if (status === 'rejected') {
         const errMsg = statusResp.data?.job?.error || 'Job was rejected';
         throw new Error(`Speechmatics rejected job: ${errMsg}`);
@@ -108,6 +109,11 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode, vocab
       if (msg.startsWith('Speechmatics rejected')) throw error;
       debugLog('Speechmatics: poll error', { jobId, error: msg });
     }
+  }
+  if (!done) {
+    // A deadline fall-through used to fetch (and paste) whatever the
+    // transcript endpoint returned for an unfinished job (#01).
+    throw new Error('Speechmatics transcription timed out after 120 seconds');
   }
 
   // Step 3: Fetch the transcript as plain text
@@ -127,9 +133,12 @@ async function transcribe(apiKey, audioPath, language, signal, polishMode, vocab
       throw new Error(`Speechmatics transcript fetch failed (${transcriptResp.status})`);
     }
 
-    const text = typeof transcriptResp.data === 'string'
-      ? transcriptResp.data.trim()
-      : JSON.stringify(transcriptResp.data);
+    // Only plain text is a transcript. A non-string payload (an error body, a
+    // job-status JSON) used to be JSON.stringify'd into the user's document.
+    if (typeof transcriptResp.data !== 'string') {
+      throw new Error('Speechmatics returned a non-text transcript payload');
+    }
+    const text = transcriptResp.data.trim();
 
     if (!text) throw new Error('Speechmatics produced an empty transcript');
     throwIfAborted(signal);

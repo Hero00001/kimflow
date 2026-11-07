@@ -102,7 +102,10 @@ test('stale stop does not reset a newer live session', async (t) => {
 });
 
 test('normal stop still returns to ready', async (t) => {
-  const recorder = useIsolatedRecorder(t, async () => ({ text: 'hello world' }));
+  // Engine stubs return CLEANED text, matching the real engine contract: all
+  // three engines apply cleanupText themselves, and the recorder delivers the
+  // transcript as-is (the removed second cleanup pass was defect F-02).
+  const recorder = useIsolatedRecorder(t, async () => ({ text: 'Hello world.' }));
   await recorder.startRecording(SETTINGS, []);
   const result = await recorder.stopRecording(SETTINGS, [], new ArrayBuffer(8));
   assert.equal(result && result.text, 'Hello world.');
@@ -111,7 +114,7 @@ test('normal stop still returns to ready', async (t) => {
 });
 
 test('notifying a dead window never throws', async (t) => {
-  const recorder = useIsolatedRecorder(t, async () => ({ text: 'hi there' }));
+  const recorder = useIsolatedRecorder(t, async () => ({ text: 'Hi there.' }));
   const evilWindow = {
     isDestroyed: () => false,
     webContents: { send: () => { throw new Error('Object has been destroyed'); } },

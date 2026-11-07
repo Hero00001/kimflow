@@ -25,7 +25,10 @@ test('thorough still resolves self-corrections (on a discourse boundary)', () =>
   // "five, actually six" is a self-correction after a comma: only the
   // correction survives. A run-on "five actually six" no longer restarts —
   // see test/polish-thorough.test.cjs.
-  assert.equal(cleanupText("let's meet at five, actually six pm", 'thorough'), '6 Pm.');
+  // "6 pm." (not "6 Pm."): a digit consumes the capitalisation opportunity —
+  // the letter after a number is mid-clause, not a sentence start. The old
+  // "6 Pm." output was the digit-capitalisation defect (B2 / F-06).
+  assert.equal(cleanupText("let's meet at five, actually six pm", 'thorough'), '6 pm.');
 });
 
 test('the default mode is thorough', () => {

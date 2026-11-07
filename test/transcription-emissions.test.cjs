@@ -111,7 +111,9 @@ test('translated stop emits one interim update and returns the final result', as
     isDestroyed: () => false,
     webContents: { send: (channel, payload) => { if (channel === 'transcription-result') emissions.push(payload); } },
   };
-  const recorder = useIsolatedRecorder(t, async () => ({ text: 'hello world' }), async () => 'bonjour');
+  // Engine stub returns cleaned text per the real engine contract (F-02: the
+  // recorder no longer applies a second cleanup pass).
+  const recorder = useIsolatedRecorder(t, async () => ({ text: 'Hello world.' }), async () => 'bonjour');
   const settings = { ...SETTINGS, translationEnabled: true, translationTarget: 'en' };
   await recorder.startRecording(settings, [fakeWindow]);
   const result = await recorder.stopRecording(settings, [fakeWindow], new ArrayBuffer(8));

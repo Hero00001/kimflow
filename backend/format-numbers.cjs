@@ -107,12 +107,23 @@ function parseRun(words, start) {
     if (lower === 'point' && hasNumber) {
       let digits = '';
       let j = i + 1;
-      while (j < words.length && baseWord(words[j]) in DECIMAL_DIGITS) {
-        digits += String(DECIMAL_DIGITS[baseWord(words[j])]);
+      let stopSuffix = '';
+      while (j < words.length) {
+        const { word: digitWord, suffix: digitSuffix } = splitPunctuation(words[j]);
+        const digitLower = digitWord.toLowerCase();
+        if (!(digitLower in DECIMAL_DIGITS)) break;
+        digits += String(DECIMAL_DIGITS[digitLower]);
+        if (digitSuffix) {
+          // A punctuation-marked digit ends the decimal: "three point one,
+          // four" is 3.1 followed by 4, not the wrong number 3.14 (F-09).
+          stopSuffix = digitSuffix;
+          j += 1;
+          break;
+        }
         j += 1;
       }
       if (!digits) return null;
-      return finishWithUnit(words, `${total + current}.${digits}`, j, trailing);
+      return finishWithUnit(words, `${total + current}.${digits}`, j, stopSuffix || trailing);
     }
     break;
   }

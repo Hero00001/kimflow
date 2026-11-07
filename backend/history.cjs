@@ -100,6 +100,24 @@ function updateSession(id, { translation, translationTarget, translationError } 
   return entry;
 }
 
+/**
+ * Remove a single session by id.
+ *
+ * Used when a cancelled dictation must land nowhere: the entry is written
+ * before translation starts, so a cancel that lands mid-translation takes the
+ * entry back.
+ *
+ * @returns {boolean} true when an entry was removed
+ */
+function removeSession(id) {
+  const history = load();
+  const before = history.sessions.length;
+  history.sessions = history.sessions.filter((session) => session.id !== id);
+  if (history.sessions.length === before) return false;
+  save(history);
+  return true;
+}
+
 function clear() {
   // Removing the backup is part of clearing: it holds the previous
   // generation, which is exactly the data the user asked to delete.
@@ -114,6 +132,7 @@ module.exports = {
   save,
   addSession,
   updateSession,
+  removeSession,
   clear,
   HISTORY_PATH,
 };

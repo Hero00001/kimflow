@@ -29,14 +29,21 @@ function cleanupText(text, polishMode = 'thorough') {
       capitalizeNext = false;
     } else {
       result += ch;
-      if (ch === '.' || ch === '!' || ch === '?') {
+      if (/[0-9]/.test(ch)) {
+        // A digit consumes the capitalisation opportunity: "2024 was a good
+        // year" must not capitalise the first letter after the number (F-06 —
+        // digit-leading transcripts are common with Deepgram's numerals mode).
+        capitalizeNext = false;
+      } else if (ch === '.' || ch === '!' || ch === '?') {
         capitalizeNext = true;
       }
     }
   }
 
   const last = result[result.length - 1];
-  if (last && !/[.!?]/.test(last)) {
+  // A terminal comma, semicolon or colon already ends its clause — appending a
+  // full stop after it produced malformed output like "The items are:." (F-10).
+  if (last && !/[.!?,:;]/.test(last)) {
     result += '.';
   }
 
