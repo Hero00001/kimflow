@@ -88,11 +88,14 @@ export const en = {
   'settings.input.mode': 'Recording Mode',
   'settings.input.hotkey': 'Capture Hotkey',
   'settings.input.hotkeyAria': 'Capture hotkey',
+  'settings.input.pauseHotkey': 'Pause Hotkey',
+  'settings.input.pauseHotkeyAria': 'Pause hotkey',
   'settings.mode.toggle': 'Toggle',
   'settings.mode.pushToTalk': 'Push-to-Talk',
   'settings.hotkey.record': 'Record',
   'settings.hotkey.pressKeys': 'Press keys…',
   'settings.hotkey.placeholder': 'Ctrl+Shift+Space',
+  'settings.hotkey.pausePlaceholder': 'Disabled',
 
   // ── Settings — Transcription engine section ──────────────────────────
   'settings.engine.label': 'Engine',

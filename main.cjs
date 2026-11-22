@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, session, Menu, clipboard, dialog, screen } 
 const fs = require('fs');
 const path = require('path');
 
-const { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, isValidHotkey, getActiveHotkey } = require('./backend/hotkeys.cjs');
+const { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, isValidHotkey, getActiveHotkey, getActivePauseHotkey } = require('./backend/hotkeys.cjs');
 const {
   startRecording,
   stopRecording,
@@ -329,6 +329,28 @@ function requestRendererHotkey(pressed) {
 }
 
 /**
+ * The pause/resume toggle, driven by the optional pause hotkey.
+ *
+ * Runs entirely in the main process: pauseRecording/resumeRecording already
+ * broadcast the new state to every window, so no renderer relay is needed.
+ * ready/transcribing are a no-op (there is nothing to pause or resume).
+ * The catch guards the state race: the recorder throws when the state changed
+ * between the check above and the call.
+ */
+function handlePauseHotkey() {
+  const state = getState();
+  if (state === STATE.RECORDING) {
+    void pauseRecording([mainWindow, overlayWindow]).catch((error) => {
+      console.error('[KimFlow] Pause hotkey failed to pause recording:', error instanceof Error ? error.message : error);
+    });
+  } else if (state === STATE.PAUSED) {
+    void resumeRecording([mainWindow, overlayWindow]).catch((error) => {
+      console.error('[KimFlow] Pause hotkey failed to resume recording:', error instanceof Error ? error.message : error);
+    });
+  }
+}
+
+/**
  * Non-throwing sender check. `ipcMain.on` channels (one-way messages) must not
  * throw at the sender, so they use this and silently drop the message.
  *
@@ -423,10 +445,22 @@ function registerIpc() {
     // API key either, and the app becomes unconfigurable. The hotkey is
     // reported separately below.
     const requestedHotkey = candidate.hotkey;
-    const applied = isValidHotkey(requestedHotkey) && registerHotkeys(requestedHotkey);
+    const requestedPauseHotkey = candidate.pauseHotkey;
+    const applied = isValidHotkey(requestedHotkey) && registerHotkeys(requestedHotkey, requestedPauseHotkey);
     if (!applied) {
       // Keep the hotkey that is actually working, so the app stays usable.
       candidate.hotkey = getActiveHotkey() || requestedHotkey;
+      // A failing capture hotkey aborts the whole registration cycle before
+      // the pause hotkey is attempted, so the pair that is registered is the
+      // previously-working one (or none). Keep the saved value honest about
+      // what is actually in effect — a stored pauseHotkey that is not
+      // registered would silently resurrect a dead shortcut on next launch.
+      candidate.pauseHotkey = getActivePauseHotkey();
+    } else {
+      // The capture hotkey registered. The pause hotkey is best-effort: when
+      // it could not be claimed, hotkeys.cjs warned and restored the previous
+      // pause hotkey (or disabled it) — sync the saved value accordingly.
+      candidate.pauseHotkey = getActivePauseHotkey();
     }
     const saved = saveSettings(candidate);
     const safe = blankSecretValues(saved);
@@ -853,9 +887,9 @@ app.whenReady().then(() => {
   createWindows();
 
   const settings = ensureUiLanguage(loadSettings());
-  setHotkeyCallbacks(() => requestRendererHotkey(true));
+  setHotkeyCallbacks(() => requestRendererHotkey(true), handlePauseHotkey);
   const startupHotkey = settings.hotkey || 'CmdOrCtrl+Shift+Space';
-  if (!registerHotkeys(startupHotkey)) {
+  if (!registerHotkeys(startupHotkey, settings.pauseHotkey)) {
     // A taken hotkey previously failed silently: buttons worked but the
     // shortcut was dead with no indication. Say so once, up front.
     console.error(`[KimFlow] Capture hotkey "${startupHotkey}" is already in use; change it in Settings.`);

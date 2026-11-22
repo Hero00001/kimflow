@@ -39,6 +39,7 @@ function unavailableHotkey() {
     setHotkeyCallbacks: () => {},
     isValidHotkey: () => true,
     getActiveHotkey: () => 'Ctrl+Alt+Space',
+    getActivePauseHotkey: () => 'Ctrl+Alt+M',
   };
 }
 
@@ -102,6 +103,62 @@ test('a hotkey that registers is saved as requested', async (t) => {
   assert.equal(readConfig(home).hotkey, 'Ctrl+Shift+Space');
 });
 
+test('the pause hotkey is saved together with the capture hotkey', async (t) => {
+  const home = withTempHome(t);
+  const harness = await loadMain({ locale: 'en-US', home });
+  t.after(() => harness.restore());
+  const event = { sender: { id: harness.instances[0].webContents.id } };
+
+  const saved = await harness.handlers.get('save-settings')(event, {
+    hotkey: 'Ctrl+Shift+Space',
+    pauseHotkey: 'Ctrl+Alt+P',
+  });
+
+  assert.equal(saved.pauseHotkey, 'Ctrl+Alt+P');
+  assert.equal(readConfig(home).pauseHotkey, 'Ctrl+Alt+P');
+});
+
+test('an empty pause hotkey is saved as disabled, not replaced by a default', async (t) => {
+  const home = withTempHome(t);
+  const harness = await loadMain({ locale: 'en-US', home });
+  t.after(() => harness.restore());
+  const event = { sender: { id: harness.instances[0].webContents.id } };
+
+  const saved = await harness.handlers.get('save-settings')(event, {
+    hotkey: 'Ctrl+Shift+Space',
+    pauseHotkey: '',
+  });
+
+  assert.equal(saved.pauseHotkey, '', 'empty = disabled must survive the save');
+  assert.equal(readConfig(home).pauseHotkey, '');
+});
+
+test('when the capture hotkey fails, the saved pause hotkey reflects what is actually registered', async (t) => {
+  const home = withTempHome(t);
+  // unavailableHotkey() reports an active pause hotkey of Ctrl+Alt+M: the
+  // restore cycle brought the previously-working pair back, so the saved
+  // pauseHotkey must be that pair, not the requested (dead) one.
+  const harness = await loadMain({
+    locale: 'en-US',
+    home,
+    overrides: { 'hotkeys.cjs': unavailableHotkey() },
+  });
+  t.after(() => harness.restore());
+  const event = { sender: { id: harness.instances[0].webContents.id } };
+
+  await assert.rejects(
+    () => harness.handlers.get('save-settings')(event, {
+      hotkey: 'Ctrl+Shift+Space',
+      pauseHotkey: 'Ctrl+Alt+P',
+    }),
+    /hotkey/i,
+  );
+
+  const onDisk = readConfig(home);
+  assert.equal(onDisk.hotkey, 'Ctrl+Alt+Space', 'the working capture hotkey was kept');
+  assert.equal(onDisk.pauseHotkey, 'Ctrl+Alt+M', 'the pause hotkey that is actually registered was saved');
+});
+
 test('a hotkey that cannot be applied is reported even with no fallback', async (t) => {
   const home = withTempHome(t);
   // No hotkey is registered and none can be: the user picked a shortcut
@@ -117,6 +174,7 @@ test('a hotkey that cannot be applied is reported even with no fallback', async 
         setHotkeyCallbacks: () => {},
         isValidHotkey: () => true,
         getActiveHotkey: () => '',
+        getActivePauseHotkey: () => '',
       },
     },
   });

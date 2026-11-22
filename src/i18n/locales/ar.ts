@@ -89,11 +89,14 @@ export const ar: Record<LocaleKey, string> = {
   'settings.input.mode': 'وضع التسجيل', // Recording Mode
   'settings.input.hotkey': 'مفتاح الاختصار', // Capture Hotkey
   'settings.input.hotkeyAria': 'مفتاح اختصار التسجيل', // Capture hotkey
+  'settings.input.pauseHotkey': 'مفتاح الإيقاف المؤقت', // Pause Hotkey
+  'settings.input.pauseHotkeyAria': 'مفتاح الإيقاف المؤقت', // Pause hotkey
   'settings.mode.toggle': 'تبديل', // Toggle
   'settings.mode.pushToTalk': 'اضغط للتحدث', // Push-to-Talk
   'settings.hotkey.record': 'تسجيل', // Record
   'settings.hotkey.pressKeys': 'اضغط المفاتيح…', // Press keys…
   'settings.hotkey.placeholder': 'Ctrl+Shift+Space', // Ctrl+Shift+Space
+  'settings.hotkey.pausePlaceholder': 'معطّل', // Disabled
 
   // ── Settings — Transcription engine section ──────────────────────────
   'settings.engine.label': 'محرّك النسخ', // Engine

@@ -887,7 +887,26 @@ input[type="color"] {
 }
 
 .hotkey-editor { display: flex; align-items: center; gap: 8px; }
-.hotkey-editor input { min-width: 160px; }
+/* Compact key-cap: the hotkey display used to stretch across the row; a small
+   fixed square showing just the key reads better next to the Record button.
+   The generic `input[type="text"]` rules (flex: 1, min-width: 180px) are
+   overridden here, while the shared .hotkey-editor flex container keeps the
+   row layout intact. Values longer than the box (e.g. "Ctrl+Shift+Space")
+   clip with an ellipsis; the full combination stays in the tooltip and the
+   aria-label. */
+.hotkey-editor input {
+  flex: 0 0 auto;
+  width: 68px;
+  min-width: 68px;
+  max-width: 68px;
+  padding: 5px 6px;
+  text-align: center;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .hotkey-editor input.recording { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-subtle); }
 
 /* ── Toggle groups ────────────────────────────────────── */

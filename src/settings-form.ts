@@ -24,6 +24,8 @@ import {
   geminiModel,
   hotkeyInput,
   hotkeyRecord,
+  pauseHotkeyInput,
+  pauseHotkeyRecord,
   accentColor,
   uiLanguageSelect,
   engineGroup,
@@ -63,7 +65,6 @@ import {
   validateModelField,
 } from './translation';
 
-let recordingHotkey = false;
 let persistTimer: number | undefined;
 
 /** Deepgram models the model select offers; anything else resolves to 'auto'. */
@@ -306,7 +307,13 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   // so it is set here on first load.
   setTranslationActive(settings.translationEnabled === true);
   hotkeyInput.value = settings.hotkey;
+  hotkeyInput.title = formatHotkey(settings.hotkey);
   hotkeyDisplay.textContent = formatHotkey(settings.hotkey);
+  // The pause hotkey is optional: '' means disabled and must be preserved
+  // verbatim — unlike the capture hotkey, there is no fallback to another
+  // value when the field is empty.
+  pauseHotkeyInput.value = settings.pauseHotkey || '';
+  pauseHotkeyInput.title = formatHotkey(settings.pauseHotkey || '');
   accentColor.value = settings.accentColor;
   applyAccentColor(settings.accentColor);
   setTranslationUiFromSettings(settings.translationEnabled);
@@ -373,6 +380,9 @@ async function runPersist(): Promise<void> {
   settings.geminiModel = geminiModel.value.trim();
   settings.customVocabulary = vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 100);
   settings.hotkey = hotkeyInput.value.trim() || settings.hotkey;
+  // The pause hotkey has NO empty-fallback: clearing the field is how the
+  // hotkey is disabled, so '' must reach the backend as-is.
+  settings.pauseHotkey = pauseHotkeyInput.value.trim();
   settings.accentColor = accentColor.value;
   // The UI language is independent of inputLanguage / translationTarget:
   // it only changes how the interface renders.
@@ -391,6 +401,13 @@ async function runPersist(): Promise<void> {
     // applies a snapshot over the editable controls — so it would keep
     // showing the previous hotkey until the app restarted.
     hotkeyDisplay.textContent = formatHotkey(saved.hotkey);
+    // Keep the fields honest about what is actually in effect: when the
+    // requested pause hotkey could not be claimed, the backend restored the
+    // previous one (or disabled it) and saved that value.
+    hotkeyInput.value = saved.hotkey;
+    hotkeyInput.title = formatHotkey(saved.hotkey);
+    pauseHotkeyInput.value = saved.pauseHotkey || '';
+    pauseHotkeyInput.title = formatHotkey(saved.pauseHotkey || '');
   } catch (error) {
     const friendly = friendlyError(error, 'error.saveSettings');
     if (friendly) showError(friendly);
@@ -402,6 +419,12 @@ async function runPersist(): Promise<void> {
     if (effective && effective !== hotkeyInput.value) {
       hotkeyInput.value = effective;
       hotkeyDisplay.textContent = formatHotkey(effective);
+    }
+    // Same honesty rule for the pause hotkey after a failed save.
+    const effectivePause = getSettings()?.pauseHotkey;
+    if (typeof effectivePause === 'string' && effectivePause !== pauseHotkeyInput.value) {
+      pauseHotkeyInput.value = effectivePause;
+      pauseHotkeyInput.title = formatHotkey(effectivePause);
     }
   }
 }
@@ -601,6 +624,54 @@ async function refreshEngineSuggestion(): Promise<void> {
   }
 }
 
+/**
+ * Wire one hotkey editor: a text input plus a "Record" button that captures
+ * the next key combination. The capture and pause hotkey editors share the
+ * same behaviour; they differ only in the persistence rules around them
+ * (the capture hotkey falls back when emptied, the pause hotkey does not).
+ */
+function wireHotkeyEditor(input: HTMLInputElement, recordButton: HTMLButtonElement): void {
+  let recording = false;
+  const stopRecording = () => {
+    recording = false;
+    recordButton.textContent = t('settings.hotkey.record');
+    input.classList.remove('recording');
+  };
+  recordButton.addEventListener('click', () => {
+    recording = !recording;
+    recordButton.textContent = recording ? t('settings.hotkey.pressKeys') : t('settings.hotkey.record');
+    input.classList.toggle('recording', recording);
+    if (recording) input.focus();
+  });
+  input.addEventListener('keydown', (event) => {
+    if (!recording) return;
+    event.preventDefault();
+    // Escape or focus loss cancels capture instead of sticking on "Press keys…".
+    if (event.key === 'Escape') { stopRecording(); return; }
+    const modifiers = [
+      event.ctrlKey ? 'Ctrl' : '',
+      // The meta key is the Command key on macOS and the Super/Windows key
+      // elsewhere. Electron documents that the "Command" modifier has no effect
+      // on Windows and Linux, so emitting it there would bind the bare key.
+      event.metaKey ? (isWindows() ? 'Super' : 'Command') : '',
+      event.altKey ? 'Alt' : '',
+      event.shiftKey ? 'Shift' : '',
+    ].filter(Boolean);
+    const key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
+    if (!['Control', 'Meta', 'Alt', 'Shift'].includes(event.key)) {
+      input.value = [...modifiers, key].join('+');
+      // The compact key-cap box may clip a long value; the tooltip always
+      // carries the full combination.
+      input.title = formatHotkey(input.value);
+      stopRecording();
+      void persist();
+    }
+  });
+  input.addEventListener('blur', () => {
+    if (recording) stopRecording();
+  });
+}
+
 export function wireSettingsControls() {
   engineGroup.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
@@ -784,41 +855,9 @@ export function wireSettingsControls() {
 
   accentColor.addEventListener('input', () => { void persist(); });
   hotkeyInput.addEventListener('change', () => { void persist(); });
-  function stopHotkeyRecord() {
-    recordingHotkey = false;
-    hotkeyRecord.textContent = t('settings.hotkey.record');
-    hotkeyInput.classList.remove('recording');
-  }
-  hotkeyRecord.addEventListener('click', () => {
-    recordingHotkey = !recordingHotkey;
-    hotkeyRecord.textContent = recordingHotkey ? t('settings.hotkey.pressKeys') : t('settings.hotkey.record');
-    hotkeyInput.classList.toggle('recording', recordingHotkey);
-    if (recordingHotkey) hotkeyInput.focus();
-  });
-  hotkeyInput.addEventListener('keydown', (event) => {
-    if (!recordingHotkey) return;
-    event.preventDefault();
-    // Escape or focus loss cancels capture instead of sticking on "Press keys…".
-    if (event.key === 'Escape') { stopHotkeyRecord(); return; }
-    const modifiers = [
-      event.ctrlKey ? 'Ctrl' : '',
-      // The meta key is the Command key on macOS and the Super/Windows key
-      // elsewhere. Electron documents that the "Command" modifier has no effect
-      // on Windows and Linux, so emitting it there would bind the bare key.
-      event.metaKey ? (isWindows() ? 'Super' : 'Command') : '',
-      event.altKey ? 'Alt' : '',
-      event.shiftKey ? 'Shift' : '',
-    ].filter(Boolean);
-    const key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toUpperCase() : event.key;
-    if (!['Control', 'Meta', 'Alt', 'Shift'].includes(event.key)) {
-      hotkeyInput.value = [...modifiers, key].join('+');
-      stopHotkeyRecord();
-      void persist();
-    }
-  });
-  hotkeyInput.addEventListener('blur', () => {
-    if (recordingHotkey) stopHotkeyRecord();
-  });
+  pauseHotkeyInput.addEventListener('change', () => { void persist(); });
+  wireHotkeyEditor(hotkeyInput, hotkeyRecord);
+  wireHotkeyEditor(pauseHotkeyInput, pauseHotkeyRecord);
 
   wireDownload();
 }

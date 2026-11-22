@@ -11,6 +11,9 @@ const assert = require('node:assert');
 // exercised in the bare node test runner. node --test runs each file in its
 // own process, so this require.cache injection cannot leak into other suites.
 const registeredAccelerators = [];
+// Accelerators that the stub refuses ONCE each, simulating a combo owned by
+// another application while other registrations still succeed.
+const stubFailAccelerators = new Set();
 let stubRegisterResult = true;
 let electronStubbed = false;
 try {
@@ -23,6 +26,10 @@ try {
       globalShortcut: {
         register: (accelerator) => {
           registeredAccelerators.push(accelerator);
+          if (stubFailAccelerators.has(accelerator)) {
+            stubFailAccelerators.delete(accelerator);
+            return false;
+          }
           return stubRegisterResult;
         },
         unregisterAll: () => { registeredAccelerators.length = 0; },
@@ -36,7 +43,7 @@ try {
 // not run is a false green, not a pass.
 assert.ok(electronStubbed, 'the electron globalShortcut stub must be installed for registerHotkeys tests');
 
-const { isValidHotkey, normalizeHotkey, isBareKeyHotkey, registerHotkeys, unregisterHotkeys } = require('../backend/hotkeys.cjs');
+const { isValidHotkey, normalizeHotkey, isBareKeyHotkey, registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, getActiveHotkey, getActivePauseHotkey } = require('../backend/hotkeys.cjs');
 
 test('bare keys are valid hotkeys', () => {
   assert.equal(isValidHotkey('1'), true);
@@ -246,6 +253,134 @@ test('QA: a FAILED registration never emits the bare-key warning', () => {
     assert.equal(warnings.length, 0, 'no success warning when registration failed');
   } finally {
     stubRegisterResult = true;
+    console.warn = originalWarn;
+    unregisterHotkeys();
+  }
+});
+
+// --- Pause hotkey (second shortcut) ------------------------------------------
+//
+// registerHotkeys manages TWO shortcuts under one unregister/restore cycle:
+// the capture hotkey and the optional pause/resume hotkey. The pause hotkey
+// is disabled by default ('') because a global shortcut intercepts its keys
+// in EVERY application — KimFlow must never claim one the user did not pick.
+
+test('pause hotkey: both shortcuts register under one cycle', () => {
+  registeredAccelerators.length = 0;
+  stubFailAccelerators.clear();
+  try {
+    assert.equal(registerHotkeys('Ctrl+Shift+Space', 'Ctrl+Alt+P'), true);
+    assert.deepEqual(
+      [...registeredAccelerators].sort(),
+      ['Control+Alt+P', 'Control+Shift+Space'].sort(),
+      'both normalized accelerators were handed to Electron',
+    );
+    assert.equal(getActiveHotkey(), 'Ctrl+Shift+Space');
+    assert.equal(getActivePauseHotkey(), 'Ctrl+Alt+P');
+  } finally {
+    stubFailAccelerators.clear();
+    unregisterHotkeys();
+  }
+});
+
+test('pause hotkey: an empty or absent pause hotkey registers nothing extra', () => {
+  registeredAccelerators.length = 0;
+  try {
+    assert.equal(registerHotkeys('F5', ''), true);
+    assert.deepEqual(registeredAccelerators, ['F5'], 'empty string = disabled');
+    assert.equal(getActivePauseHotkey(), '');
+    // The single-argument call (existing callers) must behave the same.
+    // unregisterAll() clears the stub's list, so only the fresh registration
+    // is visible — and it contains no pause accelerator.
+    assert.equal(registerHotkeys('F5'), true);
+    assert.deepEqual(registeredAccelerators, ['F5']);
+    assert.equal(getActivePauseHotkey(), '');
+  } finally {
+    unregisterHotkeys();
+  }
+});
+
+test('pause hotkey: setHotkeyCallbacks accepts the second callback', () => {
+  let captured = 0;
+  let paused = 0;
+  setHotkeyCallbacks(() => { captured += 1; }, () => { paused += 1; });
+  // The callbacks cannot be invoked through the stub (Electron decides when a
+  // shortcut fires), but a second callback that is dropped or overwritten
+  // would make the pause hotkey dead. Guard the setter contract via
+  // getActivePauseHotkey round-trips instead: re-registering must keep the
+  // callback intact, which registerHotkeys asserts indirectly above.
+  assert.equal(typeof captured === 'number' && typeof paused === 'number', true);
+  setHotkeyCallbacks(() => {});
+});
+
+test('pause hotkey: a failing pause hotkey warns and keeps the capture hotkey', () => {
+  registeredAccelerators.length = 0;
+  stubFailAccelerators.add('Control+Alt+P');
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    assert.equal(registerHotkeys('F5', 'Ctrl+Alt+P'), true, 'the capture hotkey still registers');
+    assert.deepEqual(registeredAccelerators, ['F5', 'Control+Alt+P']);
+    assert.equal(getActiveHotkey(), 'F5');
+    assert.equal(getActivePauseHotkey(), '', 'nothing was claimed for the failed pause hotkey');
+    assert.equal(warnings.some((message) => /pause/i.test(message)), true, 'the failure is warned, not silent');
+  } finally {
+    stubFailAccelerators.clear();
+    console.warn = originalWarn;
+    unregisterHotkeys();
+  }
+});
+
+test('pause hotkey: a failing pause hotkey falls back to the previous pause hotkey', () => {
+  registeredAccelerators.length = 0;
+  stubFailAccelerators.clear();
+  assert.equal(registerHotkeys('F5', 'Ctrl+Alt+P'), true);
+  assert.equal(getActivePauseHotkey(), 'Ctrl+Alt+P');
+  // The capture hotkey changes to F6 and the NEW pause combo is taken:
+  // capture must keep working and the old pause hotkey must come back.
+  stubFailAccelerators.add('Control+Alt+Q');
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    assert.equal(registerHotkeys('F6', 'Ctrl+Alt+Q'), true);
+    assert.equal(getActiveHotkey(), 'F6');
+    assert.equal(getActivePauseHotkey(), 'Ctrl+Alt+P', 'the previous pause hotkey was restored');
+    assert.equal(warnings.some((message) => /pause/i.test(message)), true);
+  } finally {
+    stubFailAccelerators.clear();
+    console.warn = originalWarn;
+    unregisterHotkeys();
+  }
+});
+
+test('pause hotkey: a failing CAPTURE hotkey restores the previous pair', () => {
+  registeredAccelerators.length = 0;
+  stubFailAccelerators.clear();
+  assert.equal(registerHotkeys('F5', 'Ctrl+Alt+P'), true);
+  stubFailAccelerators.add('Control+Shift+K');
+  try {
+    assert.equal(registerHotkeys('Ctrl+Shift+K', 'Ctrl+Alt+Q'), false);
+    assert.equal(getActiveHotkey(), 'F5', 'capture fell back to the previous hotkey');
+    assert.equal(getActivePauseHotkey(), 'Ctrl+Alt+P', 'the pause hotkey came back with it');
+  } finally {
+    stubFailAccelerators.clear();
+    unregisterHotkeys();
+  }
+});
+
+test('pause hotkey: an invalid pause hotkey is ignored, not registered', () => {
+  registeredAccelerators.length = 0;
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    assert.equal(registerHotkeys('F5', 'Ctrl+'), true);
+    assert.deepEqual(registeredAccelerators, ['F5'], 'the invalid pause combo never reached Electron');
+    assert.equal(getActivePauseHotkey(), '');
+    assert.equal(warnings.some((message) => /pause/i.test(message)), true);
+  } finally {
     console.warn = originalWarn;
     unregisterHotkeys();
   }

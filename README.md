@@ -18,7 +18,7 @@ KimFlow is designed for fast, keyboard-driven dictation without requiring a brow
 - **Floating flow-bar capsule** that can be dragged around the desktop and mirrors the recording state.
 - **Recording feedback** with animated voice waves and visible recording state.
 - **Accent color customization** while retaining the dark visual theme.
-- **Configurable global hotkey** (default `Ctrl+Shift+Space`) with shortcut recording in Settings.
+- **Configurable global hotkeys** recorded in **Settings → Input**: a capture hotkey (default `Ctrl+Shift+Space`) and an optional pause/resume hotkey (default **disabled** — a global shortcut intercepts its keys in every application, so nothing is bound until you choose one).
 - **Automatic text cleanup and paste-back** into the focused application.
 - **Whisper model download support** for Tiny, Base, Small, and Medium models.
 - **Persistent settings** stored in the user's home directory.
@@ -262,6 +262,13 @@ On Windows the application icon is sourced from `app icon/icon.ico`.
 - Check that the current hotkey is a valid key (e.g. `F5`, `1`, `Space`) or a modifier plus a key (e.g. `Ctrl+Shift+Space`).
 - Confirm that microphone permission was granted.
 - If using development mode, make sure `npm run electron-dev` is still running.
+
+### The pause hotkey does not work
+
+- The pause hotkey is disabled by default. Set it under **Settings → Input → Pause Hotkey** using the **Record** button.
+- An empty Pause Hotkey field means the shortcut is off; clearing the field disables it again.
+- If the chosen pause hotkey is owned by another application it cannot be claimed; KimFlow keeps the capture hotkey working and falls back to the previous pause hotkey if there was one. Pick a free combination (adding modifiers, e.g. `Ctrl+Alt+P`, makes conflicts less likely).
+- While recording, pressing the pause hotkey toggles pause/resume; in the ready or transcribing states it does nothing.
 
 ### Transcription fails with Local Whisper
 

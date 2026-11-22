@@ -1,10 +1,17 @@
 const { globalShortcut } = require('electron');
 
 let onHotkeyPressed = null;
+// Optional pause/resume hotkey callback. Null when no pause hotkey is
+// configured — an absent callback never fires.
+let onPauseHotkeyPressed = null;
 let activeHotkey = null;
-// The hotkey as the user configured it, kept alongside the normalized form so
-// a failed re-registration can restore exactly what was working before.
+// The hotkeys as the user configured them, kept alongside the normalized
+// forms so a failed re-registration can restore exactly what was working
+// before — for BOTH shortcuts, because unregisterAll() releases the pair
+// together.
 let configuredHotkey = null;
+let activePauseHotkey = null;
+let configuredPauseHotkey = null;
 
 function normalizeHotkey(hotkey) {
   // Guard before any splitting: a hostile multi-megabyte string would otherwise
@@ -107,33 +114,132 @@ function isBareKeyHotkey(hotkey) {
   return /^[A-Z0-9]$|^F(?:[1-9]|1[0-2])$/.test(normalized);
 }
 
-function registerHotkeys(hotkey) {
+/**
+ * Register the optional pause/resume hotkey.
+ *
+ * An empty/absent value registers nothing — the pause hotkey is disabled by
+ * default because a global shortcut intercepts its keys in EVERY application,
+ * and KimFlow never claims one the user did not explicitly choose.
+ *
+ * Failure is SOFT: the capture hotkey is already registered by the time this
+ * runs, so a taken pause combo must never break it. The caller may pass the
+ * previously-working pause hotkey, which is restored when the new one cannot
+ * be claimed.
+ *
+ * @param {string|undefined} pauseHotkey the configured pause hotkey ('' = off)
+ * @param {string|null} previousPause normalized form of the pause hotkey that
+ *   was working before unregisterAll()
+ * @param {string|null} previousPauseConfigured configured form of the same
+ * @returns {boolean} true when a pause hotkey is registered afterwards
+ */
+function registerPauseHotkey(pauseHotkey, previousPause, previousPauseConfigured) {
+  const raw = typeof pauseHotkey === 'string' ? pauseHotkey.trim() : '';
+  if (!raw) {
+    // Disabled: drop whatever was registered before (unregisterAll already
+    // released it) and keep it that way.
+    activePauseHotkey = null;
+    configuredPauseHotkey = null;
+    return false;
+  }
+  const normalized = normalizeHotkey(raw);
+  if (!isValidHotkey(raw) || !normalized) {
+    console.warn(`[KimFlow] Ignoring invalid pause hotkey: ${raw}`);
+    activePauseHotkey = null;
+    configuredPauseHotkey = null;
+    return restorePauseHotkey(previousPause, previousPauseConfigured);
+  }
+  try {
+    const registered = globalShortcut.register(normalized, () => {
+      if (onPauseHotkeyPressed) onPauseHotkeyPressed();
+    });
+    if (registered) {
+      activePauseHotkey = normalized;
+      configuredPauseHotkey = raw;
+      return true;
+    }
+    console.warn(`[KimFlow] Pause hotkey could not be registered: ${normalized}. The capture hotkey is unaffected.`);
+  } catch (error) {
+    console.warn('[KimFlow] Failed to register pause hotkey:', error);
+  }
+  return restorePauseHotkey(previousPause, previousPauseConfigured);
+}
+
+/**
+ * Re-register the pause hotkey that was working before, if there was one.
+ * Soft failure: a pause hotkey that cannot come back is disabled with a
+ * warning — the capture hotkey keeps working either way.
+ */
+function restorePauseHotkey(previousPause, previousPauseConfigured) {
+  activePauseHotkey = null;
+  configuredPauseHotkey = null;
+  if (!previousPause) return false;
+  let restored = false;
+  try {
+    restored = globalShortcut.register(previousPause, () => {
+      if (onPauseHotkeyPressed) onPauseHotkeyPressed();
+    });
+  } catch {
+    restored = false;
+  }
+  if (restored) {
+    activePauseHotkey = previousPause;
+    configuredPauseHotkey = previousPauseConfigured;
+  } else {
+    console.warn(`[KimFlow] Previous pause hotkey could not be restored: ${previousPause}`);
+  }
+  return restored;
+}
+
+/**
+ * Register the capture hotkey and (optionally) the pause hotkey under ONE
+ * unregister/restore cycle — `globalShortcut.unregisterAll()` is all-or-
+ * nothing, so the two shortcuts must be managed as a pair.
+ *
+ * Failure semantics:
+ * - Capture hotkey fails  -> the previous CAPTURE hotkey is restored (and the
+ *   previous pause hotkey comes back with it); returns false. Existing
+ *   fallback behaviour is preserved exactly.
+ * - Pause hotkey fails    -> warn, restore the previous pause hotkey if there
+ *   was one, and keep the new capture hotkey working; the overall call still
+ *   returns true.
+ * - Empty/absent pause hotkey -> nothing is registered for it.
+ *
+ * @param {string} hotkey the capture hotkey
+ * @param {string|undefined} [pauseHotkey] optional pause/resume hotkey
+ * @returns {boolean} true when the capture hotkey registered
+ */
+function registerHotkeys(hotkey, pauseHotkey) {
   const normalized = normalizeHotkey(hotkey);
   if (!isValidHotkey(hotkey)) return false;
   if (!normalized) return false;
   const previous = activeHotkey;
   const previousConfigured = configuredHotkey;
+  const previousPause = activePauseHotkey;
+  const previousPauseConfigured = configuredPauseHotkey;
   unregisterHotkeys();
 
   try {
     const registered = globalShortcut.register(normalized, () => {
       if (onHotkeyPressed) onHotkeyPressed();
     });
-    if (registered) {
-      activeHotkey = normalized;
-      configuredHotkey = hotkey;
-      if (isBareKeyHotkey(normalized)) {
-        // Soft warning, not a block: the hotkey IS valid and registered.
-        console.warn(`[KimFlow] Bare key "${normalized}" is registered globally and may conflict with other applications (e.g. F2 rename in Explorer, in-app bindings). A combination like Ctrl+Alt+${normalized} is less conflict-prone.`);
-      }
-      return true;
+    if (!registered) {
+      console.error(`[KimFlow] Hotkey could not be registered: ${normalized}`);
+      restoreHotkey(previous, previousConfigured, previousPause, previousPauseConfigured);
+      return false;
     }
-    console.error(`[KimFlow] Hotkey could not be registered: ${normalized}`);
-    restoreHotkey(previous, previousConfigured);
-    return false;
+    activeHotkey = normalized;
+    configuredHotkey = hotkey;
+    if (isBareKeyHotkey(normalized)) {
+      // Soft warning, not a block: the hotkey IS valid and registered.
+      console.warn(`[KimFlow] Bare key "${normalized}" is registered globally and may conflict with other applications (e.g. F2 rename in Explorer, in-app bindings). A combination like Ctrl+Alt+${normalized} is less conflict-prone.`);
+    }
+    // Best-effort second shortcut: its failure never undoes the capture
+    // hotkey that just registered successfully.
+    registerPauseHotkey(pauseHotkey, previousPause, previousPauseConfigured);
+    return true;
   } catch (error) {
     console.error('[KimFlow] Failed to register hotkey:', error);
-    restoreHotkey(previous, previousConfigured);
+    restoreHotkey(previous, previousConfigured, previousPause, previousPauseConfigured);
     return false;
   }
 }
@@ -144,34 +250,37 @@ function registerHotkeys(hotkey) {
  * `unregisterHotkeys()` has already released every shortcut, so the app is
  * left with NONE when the restore fails. Claiming the old hotkey anyway would
  * tell the user they have a working shortcut when they have none.
+ *
+ * The pause hotkey is part of the same unregister cycle, so it is restored
+ * (or deliberately dropped) alongside the capture hotkey.
  */
-function restoreHotkey(previous, previousConfigured) {
+function restoreHotkey(previous, previousConfigured, previousPause, previousPauseConfigured) {
   if (!previous) {
     activeHotkey = null;
     configuredHotkey = null;
-    return false;
-  }
-  let restored = false;
-  try {
-    restored = globalShortcut.register(previous, () => {
-      if (onHotkeyPressed) onHotkeyPressed();
-    });
-  } catch {
-    restored = false;
-  }
-  if (restored) {
-    activeHotkey = previous;
-    configuredHotkey = previousConfigured;
   } else {
-    console.error(`[KimFlow] Previous hotkey could not be restored: ${previous}`);
-    activeHotkey = null;
-    configuredHotkey = null;
+    let restored = false;
+    try {
+      restored = globalShortcut.register(previous, () => {
+        if (onHotkeyPressed) onHotkeyPressed();
+      });
+    } catch {
+      restored = false;
+    }
+    if (restored) {
+      activeHotkey = previous;
+      configuredHotkey = previousConfigured;
+    } else {
+      console.error(`[KimFlow] Previous hotkey could not be restored: ${previous}`);
+      activeHotkey = null;
+      configuredHotkey = null;
+    }
   }
-  return restored;
+  restorePauseHotkey(previousPause, previousPauseConfigured);
 }
 
 /**
- * The hotkey currently registered, as the user configured it.
+ * The capture hotkey currently registered, as the user configured it.
  *
  * Used to fall back to a working shortcut when a new one cannot be claimed,
  * so an unavailable hotkey never leaves the app without one.
@@ -180,17 +289,33 @@ function getActiveHotkey() {
   return configuredHotkey || '';
 }
 
+/**
+ * The pause hotkey currently registered, as the user configured it.
+ * '' when no pause hotkey is registered (disabled by default, or the last
+ * registration attempt failed and no previous pause hotkey could come back).
+ */
+function getActivePauseHotkey() {
+  return configuredPauseHotkey || '';
+}
+
 function unregisterHotkeys() {
   globalShortcut.unregisterAll();
   activeHotkey = null;
   configuredHotkey = null;
+  activePauseHotkey = null;
+  configuredPauseHotkey = null;
 }
 
-function setHotkeyCallbacks(pressed) {
+/**
+ * Set the shortcut callbacks. `pressed` fires for the capture hotkey;
+ * `pausePressed` (optional) fires for the pause/resume hotkey.
+ */
+function setHotkeyCallbacks(pressed, pausePressed) {
   // Note: no release callback exists on purpose. OS global shortcuts only
   // fire on press — push-to-talk release is handled renderer-side, which
   // safely toggles instead (see handleTrigger in src/recording.ts).
   onHotkeyPressed = pressed;
+  onPauseHotkeyPressed = typeof pausePressed === 'function' ? pausePressed : null;
 }
 
-module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey, isBareKeyHotkey, getActiveHotkey };
+module.exports = { registerHotkeys, unregisterHotkeys, setHotkeyCallbacks, normalizeHotkey, isValidHotkey, isBareKeyHotkey, getActiveHotkey, getActivePauseHotkey };

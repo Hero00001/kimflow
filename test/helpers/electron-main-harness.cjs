@@ -34,10 +34,24 @@ function resolveFile(basePath) {
 // an IPC channel into a TypeError and, for `setSecretsDir`, silently trips the
 // startup catch at main.cjs:605-613 that selects the legacy ~/.kimflow path.
 const STUB_FACTORIES = {
-  'hotkeys.cjs': () => ({
-    registerHotkeys: () => true, unregisterHotkeys: () => {}, setHotkeyCallbacks: () => {},
-    isValidHotkey: () => true, getActiveHotkey: () => '',
-  }),
+  'hotkeys.cjs': () => {
+    // The stub registration always succeeds, so "what is actually registered"
+    // is the pair that was last requested — mirroring the real module's
+    // getActiveHotkey/getActivePauseHotkey contract, which main.cjs reads
+    // back after every registration cycle.
+    let lastPause = '';
+    return {
+      registerHotkeys: (_hotkey, pauseHotkey) => {
+        lastPause = typeof pauseHotkey === 'string' ? pauseHotkey : '';
+        return true;
+      },
+      unregisterHotkeys: () => { lastPause = ''; },
+      setHotkeyCallbacks: () => {},
+      isValidHotkey: () => true,
+      getActiveHotkey: () => '',
+      getActivePauseHotkey: () => lastPause,
+    };
+  },
   'recorder.cjs': () => ({
     startRecording: async () => {}, stopRecording: async () => ({ aborted: true }),
     pauseRecording: async () => {}, resumeRecording: async () => {}, cancelRecording: async () => {},

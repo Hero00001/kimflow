@@ -43,6 +43,11 @@ const DEFAULT_SETTINGS = {
   customVocabulary: [],
   aiPolish: false,
   hotkey: 'CmdOrCtrl+Shift+Space',
+  // Optional global pause/resume hotkey. '' (the default) means DISABLED:
+  // a global shortcut intercepts its keys in EVERY application, so KimFlow
+  // never claims one the user did not explicitly choose. Unlike `hotkey`,
+  // an empty value is a legitimate stored state, not a fallback trigger.
+  pauseHotkey: '',
   accentColor: '#8b5cf6',
   translationEnabled: false,
   translationProvider: 'gemini',
@@ -73,6 +78,20 @@ function coerceHotkey(value) {
   return raw.trim() || DEFAULT_SETTINGS.hotkey;
 }
 
+/**
+ * The pause hotkey may legitimately be '' (disabled — the default), unlike
+ * the capture hotkey whose empty value falls back to the default. Sharing
+ * the length guard with coerceHotkey: a valid hotkey is at most a few
+ * modifiers plus a key, so anything past 80 chars is not one (F-12).
+ * Format validation happens at registration time via hotkeys.cjs's
+ * isValidHotkey — the same machinery the capture hotkey uses.
+ */
+function coercePauseHotkey(value) {
+  const raw = typeof value === 'string' ? value : '';
+  if (raw.length > 80) return '';
+  return raw.trim();
+}
+
 function normalizeSettings(settings) {
   const merged = { ...DEFAULT_SETTINGS, ...(settings && typeof settings === 'object' ? settings : {}) };
   const targetLanguage = isKnownLanguage(merged.translationTarget) && merged.translationTarget !== AUTO
@@ -98,6 +117,7 @@ function normalizeSettings(settings) {
     customVocabulary: normalizeVocabulary(merged.customVocabulary),
     aiPolish: merged.aiPolish === true,
     hotkey: coerceHotkey(merged.hotkey),
+    pauseHotkey: coercePauseHotkey(merged.pauseHotkey),
     accentColor: HEX_COLOR.test(merged.accentColor) ? merged.accentColor.toLowerCase() : DEFAULT_SETTINGS.accentColor,
     translationEnabled: merged.translationEnabled === true,
     translationProvider: ['gemini'].includes(merged.translationProvider) ? merged.translationProvider : DEFAULT_SETTINGS.translationProvider,

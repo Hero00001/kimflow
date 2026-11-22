@@ -97,11 +97,14 @@ export const zh: Record<LocaleKey, string> = {
   'settings.input.mode': '录音模式', // Recording Mode
   'settings.input.hotkey': '捕获快捷键', // Capture Hotkey
   'settings.input.hotkeyAria': '捕获快捷键', // Capture hotkey
+  'settings.input.pauseHotkey': '暂停快捷键', // Pause Hotkey
+  'settings.input.pauseHotkeyAria': '暂停快捷键', // Pause hotkey
   'settings.mode.toggle': '切换', // Toggle
   'settings.mode.pushToTalk': '按键通话', // Push-to-Talk
   'settings.hotkey.record': '录制', // Record
   'settings.hotkey.pressKeys': '请按下按键…', // Press keys…
   'settings.hotkey.placeholder': 'Ctrl+Shift+Space', // Ctrl+Shift+Space
+  'settings.hotkey.pausePlaceholder': '未启用', // Disabled
 
   // ── Settings — Transcription engine section ──────────────────────────
   'settings.engine.label': '转录引擎', // Engine

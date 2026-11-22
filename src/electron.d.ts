@@ -12,6 +12,8 @@ interface Settings {
   customVocabulary: string[];
   aiPolish: boolean;
   hotkey: string;
+  /** Optional global pause/resume hotkey; '' (the default) means disabled. */
+  pauseHotkey: string;
   accentColor: string;
   translationEnabled: boolean;
   translationProvider: string;
