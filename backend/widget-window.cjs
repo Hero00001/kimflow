@@ -23,8 +23,8 @@ const BOTTOM_MARGIN = 20;
 // drift apart.
 const CAPSULE_SIZES = {
   idle: { w: 70, h: 22 },
-  listening: { w: 204, h: 42 },
-  paused: { w: 204, h: 42 },
+  listening: { w: 96, h: 36 },
+  paused: { w: 96, h: 36 },
   processing: { w: 78, h: 28 },
 };
 
@@ -71,8 +71,23 @@ const MAX_RENDERER_RELOADS = 3;
 const RECREATE_COOLDOWN_MS = 30000;
 const RELOAD_WINDOW_MS = 30000;
 
+// The click-through poll is a best-effort latency optimisation; correctness is
+// owned by the watchdog below. A 16 ms setInterval can die without anyone
+// noticing: the 'hide' event handler stops it, powerMonitor suspend freezes
+// it, and `resumeWidgetPoll` used to give up on an invisible window and NEVER
+// re-arm it. A dead poll leaves `setIgnoreMouseEvents(true)` stuck forever —
+// the exact "capsule went stale: cannot drag, cannot click" report. The
+// watchdog re-derives the hit test at 1 Hz, restarts the poll when it is
+// dead, re-applies the ignore state, and periodically re-asserts always-on-top
+// (Windows drops WS_EX_TOPMOST after display changes, sleep/wake and
+// fullscreen apps — the second half of the same report).
+const WATCHDOG_INTERVAL_MS = 1000;
+const WATCHDOG_TOPMOST_EVERY = 10; // ticks (~10s) between topmost re-assertions
+
 let widgetWindow = null;
 let pollTimer = null;
+let watchdogTimer = null;
+let watchdogTicks = 0;
 let screenApi = null;
 let stateReader = defaultRecorderState;
 // Options of the most recent createWidgetWindow call, so crash recovery can
@@ -86,6 +101,10 @@ let candidateInside = null; // current candidate, waiting for confirmation
 let candidateTicks = 0;
 let pollPausedUntil = 0;
 let pollTicks = 0; // counts towards the periodic off-screen rescue
+// The last value actually handed to setIgnoreMouseEvents, or null when the
+// platform never applies ignore states (Linux) or before the first call. The
+// watchdog compares against this to force a re-apply after any doubt.
+let lastAppliedIgnore = null;
 
 /**
  * Default state source: the recorder, read lazily so requiring this module
@@ -323,8 +342,12 @@ function registerDisplayListeners() {
   for (const event of ['display-metrics-changed', 'display-added', 'display-removed']) {
     // Rescue-only: a visible, user-placed capsule must not be snapped back
     // to bottom-centre by routine display events. ensureOnScreen re-anchors
-    // the window only when it is fully off-screen.
-    const handler = () => ensureOnScreen();
+    // the window only when it is fully off-screen. Display events are also a
+    // topmost-killer on Windows, so re-assert that too.
+    const handler = () => {
+      ensureOnScreen();
+      assertAlwaysOnTop();
+    };
     try {
       screenRef.on(event, handler);
       displayListeners.push({ event, handler });
@@ -342,9 +365,13 @@ function applyIgnoreMouse(ignore) {
   // uninteractive — so never call it on Linux at all.
   if (process.platform === 'linux') return;
   try {
-    if (typeof win.setIgnoreMouseEvents === 'function') win.setIgnoreMouseEvents(ignore);
+    if (typeof win.setIgnoreMouseEvents === 'function') {
+      win.setIgnoreMouseEvents(ignore);
+      lastAppliedIgnore = ignore;
+    }
   } catch {
     // Best-effort: a failure here only costs click-through, never the window.
+    // lastAppliedIgnore is left untouched so the watchdog re-applies.
   }
 }
 
@@ -370,11 +397,16 @@ function suspendWidgetPoll() {
 /** powerMonitor resume/unlock-screen: the poll re-arms on a visible window. */
 function resumeWidgetPoll() {
   pollSuspendedByPower = false;
-  const win = widgetWindow;
-  if (!win || isDestroyed(win)) return;
-  if (typeof win.isVisible === 'function') {
-    try { if (win.isVisible() === false) return; } catch { /* assume visible */ }
-  }
+  // Display sleep/wake is exactly when Windows loses both the topmost
+  // z-order and the applied ignore state — re-assert both.
+  lastAppliedIgnore = null; // force the next tick to re-apply, not compare
+  assertAlwaysOnTop();
+  // Deliberately NOT gated on isVisible() any more. The old behaviour gave
+  // up when the window happened to be hidden at the resume instant (hide
+  // event → poll stopped) and nothing ever re-armed it afterwards — the
+  // widget then stayed click-through forever. The poll tick itself no-ops
+  // while the window is hidden, and the watchdog re-arms it the moment the
+  // window becomes visible again.
   startMousePoll();
 }
 
@@ -424,6 +456,38 @@ function capsuleHitRect(state, now = Date.now()) {
   return { x, y, w: right - x, h: bottom - y };
 }
 
+/**
+ * Hit-test the cursor against the current capsule rect.
+ *
+ * @returns {boolean|null} true/false when the test ran, null when it could
+ *   not be answered (window gone, screen API broken, garbage readings).
+ */
+function computeCursorHitTest() {
+  const win = widgetWindow;
+  if (!win || isDestroyed(win)) return null;
+  const screenRef = screenApi;
+  if (!screenRef || typeof screenRef.getCursorScreenPoint !== 'function') return null;
+  if (typeof win.getBounds !== 'function') return null;
+
+  let cursor = null;
+  let bounds = null;
+  try {
+    cursor = screenRef.getCursorScreenPoint();
+    bounds = win.getBounds();
+  } catch {
+    return null;
+  }
+  if (!cursor || !bounds) return null;
+  if (!Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) return null;
+  if (!isFiniteRect(bounds)) return null;
+
+  const rect = capsuleHitRect(stateReader());
+  const x = cursor.x - bounds.x;
+  const y = cursor.y - bounds.y;
+  return x >= rect.x - HOVER_INFLATE && x <= rect.x + rect.w + HOVER_INFLATE
+    && y >= rect.y - HOVER_INFLATE && y <= rect.y + rect.h + HOVER_INFLATE;
+}
+
 function pollTick() {
   const win = widgetWindow;
   if (!win || isDestroyed(win)) {
@@ -448,25 +512,9 @@ function pollTick() {
     pollTicks = 0;
     ensureOnScreen();
   }
-  const screenRef = screenApi;
-  if (!screenRef || typeof screenRef.getCursorScreenPoint !== 'function') return;
-  if (typeof win.getBounds !== 'function') return;
 
-  let cursor = null;
-  let bounds = null;
-  try {
-    cursor = screenRef.getCursorScreenPoint();
-    bounds = win.getBounds();
-  } catch {
-    return;
-  }
-  if (!cursor || !bounds) return;
-
-  const rect = capsuleHitRect(stateReader());
-  const x = cursor.x - bounds.x;
-  const y = cursor.y - bounds.y;
-  const inside = x >= rect.x - HOVER_INFLATE && x <= rect.x + rect.w + HOVER_INFLATE
-    && y >= rect.y - HOVER_INFLATE && y <= rect.y + rect.h + HOVER_INFLATE;
+  const inside = computeCursorHitTest();
+  if (inside === null) return;
 
   // Hysteresis: the 4px inflation above means the cursor must travel well past
   // the edge to flip, and two agreeing ticks mean a single stray reading (or a
@@ -480,6 +528,105 @@ function pollTick() {
   if (cursorInside === inside) return;
   cursorInside = inside;
   applyIgnoreMouse(!inside);
+}
+
+/**
+ * Re-assert the topmost z-order, unless the OS already reports it.
+ *
+ * Windows silently demotes topmost transparent windows after display mode
+ * changes, sleep/wake and other fullscreen/topmost apps; a one-shot
+ * `setAlwaysOnTop` at creation does not survive that. Cheap to call: skipped
+ * entirely when `isAlwaysOnTop()` is available and still true.
+ *
+ * @returns {boolean} true when the window is (now) topmost.
+ */
+function assertAlwaysOnTop() {
+  const win = widgetWindow;
+  if (!win || isDestroyed(win)) return false;
+  try {
+    if (typeof win.isAlwaysOnTop === 'function' && win.isAlwaysOnTop()) return true;
+    if (typeof win.setAlwaysOnTop === 'function') {
+      win.setAlwaysOnTop(true, 'screen-saver');
+      return true;
+    }
+  } catch {
+    // Fall through: the next watchdog tick retries.
+  }
+  return false;
+}
+
+/**
+ * One watchdog tick: the self-healing safety net for the click-through system.
+ *
+ * Runs at 1 Hz for the widget window's whole life. Skips invisible windows
+ * and power-suspended sessions (the suspend path owns the ignore state then).
+ * Else:
+ *   1. restarts the 16 ms poll when it is dead (the primary stale-widget bug);
+ *   2. re-derives the hit test and re-applies the ignore state when it
+ *      differs from what was last applied — the poll is a latency
+ *      optimisation, the watchdog owns correctness;
+ *   3. when the hit test cannot be answered at all, fails OPEN (mouse events
+ *      allowed) instead of leaving the window stuck click-through. The
+ *      blocked area is only 260x64 — "stale" is the worse failure mode;
+ *   4. every WATCHDOG_TOPMOST_EVERY ticks re-asserts topmost and re-checks
+ *      that the window is on-screen.
+ */
+function watchdogTick() {
+  const win = widgetWindow;
+  if (!win || isDestroyed(win)) {
+    stopWatchdog();
+    return;
+  }
+  if (pollSuspendedByPower) return; // suspend/lock forces click-through itself
+  let visible = true;
+  try {
+    visible = win.isVisible() !== false;
+  } catch {
+    visible = true;
+  }
+  if (!visible) return;
+
+  // 1. A dead poll must never stay dead (hide/resume gap, thrown tick…).
+  if (!pollTimer) startMousePoll();
+
+  // 2+3. Re-derive the ignore state. Fail OPEN on an unanswerable test.
+  const inside = computeCursorHitTest();
+  if (process.platform !== 'linux') {
+    const desiredIgnore = inside === null ? false : !inside;
+    if (lastAppliedIgnore === null || lastAppliedIgnore !== desiredIgnore) {
+      if (inside !== null) {
+        // Keep the poll's hysteresis bookkeeping coherent with what the
+        // watchdog just applied, so the two writers never fight.
+        cursorInside = inside;
+        candidateInside = inside;
+        candidateTicks = HOVER_CONFIRM_TICKS;
+      }
+      applyIgnoreMouse(desiredIgnore);
+    }
+  }
+
+  // 4. Periodic hygiene.
+  watchdogTicks += 1;
+  if (watchdogTicks >= WATCHDOG_TOPMOST_EVERY) {
+    watchdogTicks = 0;
+    assertAlwaysOnTop();
+    ensureOnScreen();
+  }
+}
+
+function startWatchdog() {
+  if (watchdogTimer) return;
+  watchdogTimer = setInterval(watchdogTick, WATCHDOG_INTERVAL_MS);
+  // Same contract as the poll: never keep the process alive for it.
+  if (watchdogTimer && typeof watchdogTimer.unref === 'function') watchdogTimer.unref();
+}
+
+function stopWatchdog() {
+  if (watchdogTimer) {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
+  }
+  watchdogTicks = 0;
 }
 
 function registerWindowListeners(win) {
@@ -520,7 +667,18 @@ function registerWindowListeners(win) {
     // Optional event; ignore.
   }
   try {
-    win.on('show', () => startMousePoll());
+    win.on('show', () => {
+      startMousePoll();
+      assertAlwaysOnTop(); // re-shown windows often lost their topmost rank
+    });
+  } catch {
+    // Optional event; ignore.
+  }
+  try {
+    win.on('restore', () => {
+      startMousePoll();
+      assertAlwaysOnTop();
+    });
   } catch {
     // Optional event; ignore.
   }
@@ -631,6 +789,7 @@ function createWidgetWindow(options) {
   applyIgnoreMouse(true);
   registerDisplayListeners();
   registerWindowListeners(win);
+  startWatchdog();
 
   const loaded = typeof win.loadFile === 'function' ? win.loadFile(WIDGET_HTML_PATH) : Promise.resolve();
   Promise.resolve(loaded)
@@ -652,9 +811,10 @@ function createWidgetWindow(options) {
   return win;
 }
 
-/** Destroy the widget window and release its timer and screen listeners. */
+/** Destroy the widget window and release its timers and screen listeners. */
 function destroyWidgetWindow() {
   stopMousePoll();
+  stopWatchdog();
   removeDisplayListeners();
   const win = widgetWindow;
   widgetWindow = null;
@@ -666,6 +826,7 @@ function destroyWidgetWindow() {
   pollPausedUntil = 0;
   pollTicks = 0;
   pollSuspendedByPower = false;
+  lastAppliedIgnore = null;
   hitRectState = null;
   hitRectPrevious = null;
   hitRectChangedAt = 0;
@@ -683,6 +844,7 @@ module.exports = {
   WIN_H,
   BOTTOM_MARGIN,
   CAPSULE_SIZES,
+  WATCHDOG_INTERVAL_MS,
   WIDGET_HTML_PATH,
   buildWidgetWindowOptions,
   computeWidgetBounds,
@@ -692,6 +854,8 @@ module.exports = {
   createWidgetWindow,
   positionWidget,
   ensureOnScreen,
+  assertAlwaysOnTop,
+  watchdogTick,
   suspendWidgetPoll,
   resumeWidgetPoll,
   destroyWidgetWindow,

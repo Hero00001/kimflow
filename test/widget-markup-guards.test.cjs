@@ -18,7 +18,7 @@ const js = fs.readFileSync(path.join('src', 'widget', 'widget.js'), 'utf8').repl
 
 /** The `<div class="c c-idle">…</div>` block, which must stay decorative. */
 const idleBlock = /<div class="c c-idle"[^>]*>([\s\S]*?)<\/div>/.exec(html)[1];
-/** The `<div class="c c-live">…</div>` block, which owns the three controls. */
+/** The `<div class="c c-live">…</div>` block, which is visuals-only now. */
 const liveBlock = /<div class="c c-live"[^>]*>([\s\S]*)<\/div>\s*<div class="c c-proc"/.exec(html)[1];
 
 test('the idle capsule contains no interactive element', () => {
@@ -28,11 +28,15 @@ test('the idle capsule contains no interactive element', () => {
   assert.ok(!/on(click|mousedown|mouseup)=/i.test(idleBlock), 'no inline handlers');
 });
 
-test('every button in the document lives in the listening/paused layer', () => {
+test('the capsule contains no interactive element at all (visuals-only, 2026-11)', () => {
+  // The pause/stop/cancel buttons were removed by user request: they were
+  // unreachable on Windows (stale click-through) and recording control is
+  // keyboard-only via the global capture hotkey. The document must not grow
+  // interactive elements back without reworking the click-through system.
   const buttons = html.match(/<button\b/g) || [];
-  assert.equal(buttons.length, 3, `expected exactly 3 controls, found ${buttons.length}`);
-  const buttonsInLive = liveBlock.match(/<button\b/g) || [];
-  assert.equal(buttonsInLive.length, 3, 'all controls must be inside .c-live');
+  assert.equal(buttons.length, 0, 'the capsule is visuals-only: no buttons anywhere');
+  assert.ok(!/tabindex=/i.test(html), 'nothing in the widget is focusable');
+  assert.ok(!/<a\s/i.test(html), 'no links in the widget');
 });
 
 test('widget.js never sends a start action, whatever the quoting style', () => {
@@ -43,17 +47,19 @@ test('widget.js never sends a start action, whatever the quoting style', () => {
     'no un-commented `start` identifier should appear in the widget renderer');
 });
 
-test('widget.js only forwards the four documented overlay actions', () => {
-  const allowed = new Set(['pause', 'resume', 'stop', 'cancel']);
-  const literals = [...js.matchAll(/\bsend\(\s*['"`]([a-z]+)['"`]\s*\)/g)].map((match) => match[1]);
-  assert.ok(literals.length >= 2, 'expected send() calls for stop and cancel');
-  for (const action of literals) {
-    assert.ok(allowed.has(action), `send('${action}') is not an allowed overlay action`);
+test('the visuals-only widget forwards NO overlay actions at all', () => {
+  // With the buttons gone the widget must not grow a hidden action path:
+  // every send/overlayAction call would be unreachable UI logic drifting
+  // away from the keyboard-only control model. Comments are stripped first:
+  // prose may explain the bridge, code may not use it.
+  const code = js.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!/\bsend\s*\(/.test(code), 'widget.js must not define or call send()');
+  assert.ok(!/overlayAction/.test(code), 'widget.js must not reference overlayAction');
+  for (const action of ['pause', 'resume', 'stop', 'cancel']) {
+    assert.ok(!new RegExp(`['"\`]${action}['"\`]`).test(code),
+      `widget.js must not contain the action literal '${action}'`);
   }
-  // The pause button's action is chosen by a ternary; both arms must be legal.
-  const ternary = /send\(\s*state === 'paused' \? '([a-z]+)' : '([a-z]+)'\s*\)/.exec(js);
-  assert.ok(ternary, 'the pause/resume ternary changed shape; re-verify its actions');
-  assert.ok(allowed.has(ternary[1]) && allowed.has(ternary[2]));
+  void liveBlock; // still parsed above; the guard proves the regex keeps matching
 });
 
 test('no inline event handlers anywhere in the markup', () => {

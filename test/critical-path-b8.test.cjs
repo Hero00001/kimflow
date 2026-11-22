@@ -119,13 +119,12 @@ function loadWidgetRuntime({ api, search = '' }) {
   const stage = makeElement('stage');
   const barsEl = makeElement('bars');
   barsEl.bars = bars;
+  // The visuals-only capsule (2026-11) ships NO button elements: the DOM now
+  // resolves stage/bars/live-region only.
   const elements = {
     stage,
     bars: barsEl,
     'live-region': makeElement('live-region'),
-    'btn-pause': makeElement('btn-pause'),
-    'btn-stop': makeElement('btn-stop'),
-    'btn-cancel': makeElement('btn-cancel'),
   };
   let cssVar = null;
   const document = {
@@ -149,9 +148,12 @@ function loadWidgetRuntime({ api, search = '' }) {
 
 const TICK = () => new Promise((resolve) => setImmediate(resolve));
 
-test('widget buttons dispatch exactly one overlay action each (QA-04)', async (t) => {
+test('the visuals-only widget dispatches no overlay actions (QA-04)', async (t) => {
+  // 2026-11 UX change: the pause/stop/cancel buttons were removed from the
+  // capsule (unreachable on Windows; recording control is keyboard-only via
+  // the global capture hotkey). The runtime must not forward any action.
   const actions = [];
-  const { elements } = loadWidgetRuntime({
+  const { window } = loadWidgetRuntime({
     api: {
       overlayAction: (action) => { actions.push(action); return Promise.resolve(); },
       onRecordingState: () => () => {},
@@ -161,30 +163,28 @@ test('widget buttons dispatch exactly one overlay action each (QA-04)', async (t
       getSettings: () => Promise.resolve({}),
     },
   });
-  elements['btn-stop'].click();
-  elements['btn-cancel'].click();
-  elements['btn-pause'].click();
   await TICK();
-  assert.deepEqual(actions, ['stop', 'cancel', 'pause']);
+  assert.deepEqual(actions, [], 'the widget renderer never forwards overlay actions');
+  assert.equal(window.__kimflowWidgetReady, true, 'the runtime is healthy without buttons');
 });
 
-test('the pause button is context-aware: paused state sends resume (QA-04)', async (t) => {
-  const actions = [];
-  let stateCb = null;
+test('the widget runtime boots without button elements and mirrors state (QA-04)', async (t) => {
+  // Regression guard for the visuals-only capsule: removing the buttons must
+  // not crash the renderer on a DOM where those ids no longer exist — and
+  // the state projection must keep working unchanged.
   const { elements } = loadWidgetRuntime({
     api: {
-      overlayAction: (action) => { actions.push(action); return Promise.resolve(); },
-      onRecordingState: (cb) => { stateCb = cb; return () => {}; },
+      overlayAction: () => { throw new Error('the widget must never call overlayAction'); },
+      onRecordingState: () => () => {},
+      onMicLevel: () => () => {},
+      onSettingsUpdated: () => () => {},
       getRecordingState: () => Promise.resolve('paused'),
       getSettings: () => Promise.resolve({}),
     },
   });
   await TICK(); await TICK();
-  elements['btn-pause'].click();
-  await TICK();
-  assert.deepEqual(actions, ['resume'], 'clicking pause while paused resumes');
-  assert.equal(elements['btn-pause']['attr-aria-label'], 'Resume');
-  void stateCb;
+  assert.equal(elements.stage.dataset.state, 'paused');
+  assert.equal(elements['live-region'].textContent, 'Paused');
 });
 
 test('recording-state pushes project onto the capsule; garbage cannot crash it (QA-04)', async (t) => {

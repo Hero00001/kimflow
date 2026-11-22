@@ -65,10 +65,11 @@ test('widget.html contains no emoji and no visible text', () => {
 
 test('the only accessible text is the sr-only live region', () => {
   assert.match(html, /<div id="live-region" class="sr-only" role="status" aria-live="polite"><\/div>/);
-  // The three controls are announced through aria-label, never through glyphs.
-  for (const label of ['Pause', 'Stop and transcribe', 'Cancel recording']) {
-    assert.ok(html.includes(`aria-label="${label}"`), `missing aria-label "${label}"`);
-  }
+  // The capsule is visuals-only (2026-11): no controls, so nothing is
+  // announced through aria-label any more — state changes go through the
+  // sr-only live region alone.
+  assert.ok(!/<button\b/i.test(html), 'the visuals-only capsule has no buttons');
+  assert.ok(!/aria-label=/i.test(html), 'no controls left to label');
 });
 
 test('widget.html ships the spec structure: 5 idle dots, 12 bars, 5 processing dots', () => {
@@ -107,11 +108,14 @@ test('widget.css freezes the bars while paused', () => {
   assert.match(css, /\[data-state="paused"\] \.bars i\{animation:none;transform:scaleY\(\.18\)\}/);
 });
 
-test('widget.css keeps the capsule draggable and the buttons clickable', () => {
+test('widget.css keeps the capsule draggable with no interactive elements to opt out', () => {
   assert.match(css, /\.pill\{[^}]*-webkit-app-region:drag[^}]*\}/);
-  assert.match(css, /\.btn\{[^}]*-webkit-app-region:no-drag[^}]*\}/);
   assert.match(css, /\.pill\{[^}]*cursor:grab[^}]*\}/);
   assert.match(css, /\.pill:active\{cursor:grabbing\}/);
+  // The buttons are gone; a no-drag region would mean an interactive element
+  // crept back into a visuals-only capsule.
+  assert.ok(!/no-drag/.test(css), 'nothing in the capsule may opt out of the drag region');
+  assert.ok(!/\.btn/.test(css), 'button styling was removed with the buttons');
 });
 
 test('widget.css drives only the bars and processing dots from --live', () => {

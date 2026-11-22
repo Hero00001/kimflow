@@ -139,8 +139,10 @@ test('computeWidgetBounds falls back to the primary origin for garbage input', (
 
 test('capsuleRectForState anchors the capsule at the bottom centre', () => {
   assert.deepEqual(capsuleRectForState('idle'), { x: 95, y: 42, w: 70, h: 22 });
-  assert.deepEqual(capsuleRectForState('listening'), { x: 28, y: 22, w: 204, h: 42 });
-  assert.deepEqual(capsuleRectForState('paused'), { x: 28, y: 22, w: 204, h: 42 });
+  // The 2026-11 visuals-only change removed the three round controls; the
+  // listening/paused capsule shrunk from 204x42 to a bars-only 96x36.
+  assert.deepEqual(capsuleRectForState('listening'), { x: 82, y: 28, w: 96, h: 36 });
+  assert.deepEqual(capsuleRectForState('paused'), { x: 82, y: 28, w: 96, h: 36 });
   assert.deepEqual(capsuleRectForState('processing'), { x: 91, y: 36, w: 78, h: 28 });
 });
 

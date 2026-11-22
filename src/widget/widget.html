@@ -14,13 +14,12 @@
         <i class="dt"></i><i class="dt"></i><i class="dt"></i><i class="dt"></i><i class="dt"></i>
       </div>
 
-      <div class="c c-live">
-        <div class="bars" id="bars" aria-hidden="true">
+      <!-- Visuals only: recording control is keyboard-only (global hotkeys).
+           The capsule is the drag handle; it owns no interactive elements. -->
+      <div class="c c-live" aria-hidden="true">
+        <div class="bars" id="bars">
           <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
         </div>
-        <button class="btn" id="btn-pause" type="button" aria-label="Pause"><b class="ic ic-pause"></b></button>
-        <button class="btn" id="btn-stop" type="button" aria-label="Stop and transcribe"><b class="ic ic-stop"></b></button>
-        <button class="btn" id="btn-cancel" type="button" aria-label="Cancel recording"><b class="ic ic-x"></b></button>
       </div>
 
       <div class="c c-proc" aria-hidden="true">

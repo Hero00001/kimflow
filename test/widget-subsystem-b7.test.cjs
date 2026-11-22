@@ -119,7 +119,7 @@ test('suspendWidgetPoll stops the poll and forces click-through; resume re-arms 
 // ── W3: transition-aware hit rect ───────────────────────────────────────────
 
 test('during a capsule size transition the hit box covers old AND new rect (W3)', () => {
-  // idle (70x22) -> listening (204x42): the renderer animates for ~220 ms.
+  // idle (70x22) -> listening (96x36): the renderer animates for ~220 ms.
   const t0 = 1_000_000;
   const idle = capsuleHitRect('idle', t0);
   assert.deepEqual(idle, capsuleRectForStateShim('idle'), 'a stable state returns its own rect');

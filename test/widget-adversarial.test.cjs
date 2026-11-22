@@ -104,10 +104,12 @@ test('every capsule rect fits the window, is bottom-aligned and integral', () =>
 });
 
 test('the four capsule sizes are exactly the spec dimensions', () => {
+  // 2026-11 visuals-only change: the pause/stop/cancel buttons were removed
+  // from the capsule, shrinking listening/paused to a bars-only 96x36.
   assert.deepEqual(CAPSULE_SIZES, {
     idle: { w: 70, h: 22 },
-    listening: { w: 204, h: 42 },
-    paused: { w: 204, h: 42 },
+    listening: { w: 96, h: 36 },
+    paused: { w: 96, h: 36 },
     processing: { w: 78, h: 28 },
   });
 });

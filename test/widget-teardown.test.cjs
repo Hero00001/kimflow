@@ -128,7 +128,7 @@ test('destroying the window removes every screen listener', async (t) => {
   assert.deepEqual(screen.activeEvents(), []);
 });
 
-test('the cursor poll interval is unref-ed and cleared on destroy', async (t) => {
+test('the cursor poll and watchdog intervals are unref-ed and cleared on destroy', async (t) => {
   const { FakeWindow } = fakeBrowserWindow();
   const screen = trackingScreen();
   const originalSetInterval = global.setInterval;
@@ -148,13 +148,20 @@ test('the cursor poll interval is unref-ed and cleared on destroy', async (t) =>
     createWidgetWindow({ BrowserWindow: FakeWindow, screen, getState: () => 'recording' });
     await flush();
 
-    assert.equal(timers.length, 1, 'exactly one poll interval must be created');
-    assert.equal(timers[0].ms, 16, 'the poll runs once per frame');
-    assert.equal(timers[0].unrefCalled, true, 'the interval must be unref-ed or it keeps the process alive');
+    assert.equal(timers.length, 2, 'exactly the poll and the watchdog intervals must be created');
+    const pollTimer = timers.find((handle) => handle.ms === 16);
+    const watchdogTimer = timers.find((handle) => handle.ms === 1000);
+    assert.ok(pollTimer, 'the poll runs once per frame');
+    assert.ok(watchdogTimer, 'the watchdog runs at 1 Hz');
+    for (const handle of timers) {
+      assert.equal(handle.unrefCalled, true, 'no interval may keep the process alive');
+    }
 
-    // Still inside the patch: teardown must hand the same handle to clearInterval.
+    // Still inside the patch: teardown must hand every handle to clearInterval.
     assert.doesNotThrow(() => destroyWidgetWindow());
-    assert.deepEqual(cleared, [timers[0]], 'destroy must clear the poll interval');
+    assert.equal(cleared.length, 2, 'destroy must clear both intervals');
+    assert.ok(cleared.includes(pollTimer), 'the poll interval was cleared');
+    assert.ok(cleared.includes(watchdogTimer), 'the watchdog interval was cleared');
   } finally {
     global.setInterval = originalSetInterval;
     global.clearInterval = originalClearInterval;

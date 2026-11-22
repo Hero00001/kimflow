@@ -3,9 +3,13 @@
  *
  * Classic script: no imports, no bundler, no framework. It:
  *   - mirrors the recorder state the main process pushes on `recording-state`,
- *   - forwards button presses through `window.api.overlayAction(...)`,
  *   - paints the accent colour onto `--live`,
  *   - scales the bars from the microphone level (audio-reactive mode).
+ *
+ * The capsule is VISUALS-ONLY (2026-11 UX change, user request): the pause/
+ * stop/cancel buttons were removed and the widget forwards NO overlay
+ * actions. Recording control is keyboard-only through the global capture
+ * hotkey; the capsule itself is only a draggable status indicator.
  *
  * The state machine lives in `backend/recorder.cjs`; this file never invents a
  * state, it only projects one (see `widget-pure.js`).
@@ -51,9 +55,6 @@
   var stage = document.getElementById('stage');
   var barsEl = document.getElementById('bars');
   var liveRegion = document.getElementById('live-region');
-  var pauseBtn = document.getElementById('btn-pause');
-  var stopBtn = document.getElementById('btn-stop');
-  var cancelBtn = document.getElementById('btn-cancel');
   var bars = barsEl ? Array.prototype.slice.call(barsEl.querySelectorAll('i')) : [];
 
   var state = 'idle';
@@ -78,7 +79,6 @@
     state = next;
     if (stage) stage.dataset.state = next;
     if (liveRegion) liveRegion.textContent = LABELS[next] || '';
-    if (pauseBtn) pauseBtn.setAttribute('aria-label', next === 'paused' ? 'Resume' : 'Pause');
     if (next !== 'listening') {
       // Hand the bars back to the CSS keyframes.
       if (barsEl) barsEl.classList.remove('live');
@@ -123,18 +123,12 @@
   }
 
   // ---- bridge to the main process ----
+  //
+  // The widget is read-only by design: it never sends overlay actions back.
+  // (`overlayAction` still exists on the preload bridge for the legacy
+  // overlay window, which owns real controls.)
 
   var api = window.api;
-
-  function send(action) {
-    if (!api || typeof api.overlayAction !== 'function') return;
-    try {
-      var pending = api.overlayAction(action);
-      if (pending && typeof pending.catch === 'function') pending.catch(function () { /* main logged it */ });
-    } catch (error) {
-      // A rejected action must never break the widget's event handler.
-    }
-  }
 
   function applyAccent(settings) {
     var color = resolveAccentColor(settings && settings.accentColor);
@@ -166,18 +160,6 @@
   function applyRecordingState(recorderState) {
     if (forcedState) return;
     setState(toWidgetState(recorderState));
-  }
-
-  if (pauseBtn) {
-    pauseBtn.addEventListener('click', function () {
-      send(state === 'paused' ? 'resume' : 'pause');
-    });
-  }
-  if (stopBtn) {
-    stopBtn.addEventListener('click', function () { send('stop'); });
-  }
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', function () { send('cancel'); });
   }
 
   if (api && typeof api.onRecordingState === 'function') {
