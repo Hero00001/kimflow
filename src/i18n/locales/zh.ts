@@ -201,6 +201,10 @@ export const zh: Record<LocaleKey, string> = {
   'settings.appearance.uiLanguage': '界面语言', // UI language
   'settings.appearance.accent': '强调色', // Accent color
   'settings.appearance.accentAria': '选择强调色', // Choose accent color
+  'settings.appearance.theme': '主题', // Theme
+  'settings.appearance.themeSystem': '跟随系统', // System
+  'settings.appearance.themeLight': '浅色', // Light
+  'settings.appearance.themeDark': '深色', // Dark
 
   // ── Language names (written in their own language) ───────────────────
   'languages.en': 'English', // English

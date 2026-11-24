@@ -192,6 +192,10 @@ export const en = {
   'settings.appearance.uiLanguage': 'UI language',
   'settings.appearance.accent': 'Accent color',
   'settings.appearance.accentAria': 'Choose accent color',
+  'settings.appearance.theme': 'Theme',
+  'settings.appearance.themeSystem': 'System',
+  'settings.appearance.themeLight': 'Light',
+  'settings.appearance.themeDark': 'Dark',
 
   // ── Language names ───────────────────────────────────────────────────
   // The three UI-language names are written in their own language in every

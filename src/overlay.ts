@@ -7,6 +7,12 @@
  */
 import { applyLanguage, renderStatic, t } from './i18n';
 
+// Spec §Locked decisions: the floating overlay stays DARK in every theme.
+// Its stylesheet (inline in overlay.html) is self-contained and hardcoded
+// dark, but the attribute is set explicitly so a future default-theme flip
+// can never accidentally lighten this window via shared tokens.
+document.documentElement.dataset.theme = 'dark';
+
 const mic = document.getElementById('mic')!;
 const stateText = document.getElementById('state-text')!;
 const startBtn = document.getElementById('start-btn') as HTMLButtonElement;

@@ -49,6 +49,11 @@ const DEFAULT_SETTINGS = {
   // an empty value is a legitimate stored state, not a fallback trigger.
   pauseHotkey: '',
   accentColor: '#8b5cf6',
+  // UI theme: 'system' follows the OS light/dark preference live, 'light' and
+  // 'dark' pin it explicitly. Dark ships as the default (spec §Locked
+  // decisions) so existing installs see no change; the floating overlay/
+  // widget windows are always dark regardless of this value.
+  theme: 'dark',
   translationEnabled: false,
   translationProvider: 'gemini',
   geminiApiKey: '',
@@ -119,6 +124,7 @@ function normalizeSettings(settings) {
     hotkey: coerceHotkey(merged.hotkey),
     pauseHotkey: coercePauseHotkey(merged.pauseHotkey),
     accentColor: HEX_COLOR.test(merged.accentColor) ? merged.accentColor.toLowerCase() : DEFAULT_SETTINGS.accentColor,
+    theme: ['system', 'light', 'dark'].includes(merged.theme) ? merged.theme : DEFAULT_SETTINGS.theme,
     translationEnabled: merged.translationEnabled === true,
     translationProvider: ['gemini'].includes(merged.translationProvider) ? merged.translationProvider : DEFAULT_SETTINGS.translationProvider,
     geminiApiKey: stringValue(merged.geminiApiKey, ''),

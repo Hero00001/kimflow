@@ -28,6 +28,7 @@ import {
   pauseHotkeyRecord,
   accentColor,
   uiLanguageSelect,
+  themeSelect,
   engineGroup,
   localRow,
   speechmaticsRow,
@@ -51,7 +52,7 @@ import {
   statusError,
 } from './dom';
 import { getSettings, setSettings } from './store';
-import { applyAccentColor } from './theme';
+import { applyAccentColor, applyTheme, normalizeThemeSetting } from './theme';
 import { STATES, getCurrentState, onStateChange, refreshStatusText, showError, showToast } from './status';
 import { errorDetails, errorText, friendlyError } from './utils';
 import { applyLanguage, cssContentValue, normalizeUILanguage, renderStatic, t } from './i18n';
@@ -315,6 +316,10 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   pauseHotkeyInput.value = settings.pauseHotkey || '';
   pauseHotkeyInput.title = formatHotkey(settings.pauseHotkey || '');
   accentColor.value = settings.accentColor;
+  // Theme first, accent second — see the ordering note in theme.ts. The
+  // accent defaults live in the active theme's stylesheet block, and the
+  // runtime accent overwrite must land on top of the freshly applied theme.
+  applyTheme(settings.theme);
   applyAccentColor(settings.accentColor);
   setTranslationUiFromSettings(settings.translationEnabled);
   await populateLanguages();
@@ -384,6 +389,7 @@ async function runPersist(): Promise<void> {
   // hotkey is disabled, so '' must reach the backend as-is.
   settings.pauseHotkey = pauseHotkeyInput.value.trim();
   settings.accentColor = accentColor.value;
+  settings.theme = normalizeThemeSetting(themeSelect.value);
   // The UI language is independent of inputLanguage / translationTarget:
   // it only changes how the interface renders.
   settings.uiLanguage = uiLanguageSelect.value || settings.uiLanguage;
@@ -391,6 +397,8 @@ async function runPersist(): Promise<void> {
   // shared settings object: the object is replaced by every save response and
   // broadcast, and those snapshots can predate the user's latest change.
   Object.assign(settings, ownedSettings());
+  // Theme first, accent second — see the ordering note in theme.ts.
+  applyTheme(settings.theme);
   applyAccentColor(settings.accentColor);
   try {
     const saved = await window.api.saveSettings(settings);
@@ -716,6 +724,14 @@ export function wireSettingsControls() {
   // settings-updated broadcast re-applies it to the overlay as well.
   uiLanguageSelect.addEventListener('change', () => {
     applyLanguageToUi(uiLanguageSelect.value);
+    void persist();
+  });
+
+  // Changing the theme applies immediately (light/dark pin explicitly,
+  // system follows the OS live), then persists. runPersist re-applies both
+  // theme and accent in the documented order on every save.
+  themeSelect.addEventListener('change', () => {
+    applyTheme(themeSelect.value);
     void persist();
   });
 

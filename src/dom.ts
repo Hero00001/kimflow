@@ -49,6 +49,7 @@ export const pauseHotkeyInput = document.getElementById('pause-hotkey-input') as
 export const pauseHotkeyRecord = document.getElementById('pause-hotkey-record') as HTMLButtonElement;
 export const accentColor = document.getElementById('accent-color') as HTMLInputElement;
 export const uiLanguageSelect = document.getElementById('ui-language-select') as HTMLSelectElement;
+export const themeSelect = document.getElementById('theme-select') as HTMLSelectElement;
 export const historySearch = document.getElementById('history-search') as HTMLInputElement;
 export const historyList = document.getElementById('history-list')!;
 export const historyEmpty = document.getElementById('history-empty')!;

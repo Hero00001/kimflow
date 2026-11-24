@@ -193,6 +193,10 @@ export const ar: Record<LocaleKey, string> = {
   'settings.appearance.uiLanguage': 'لغة الواجهة', // UI language
   'settings.appearance.accent': 'لون التمييز', // Accent color
   'settings.appearance.accentAria': 'اختيار لون التمييز', // Choose accent color
+  'settings.appearance.theme': 'السمة', // Theme
+  'settings.appearance.themeSystem': 'النظام', // System
+  'settings.appearance.themeLight': 'فاتح', // Light
+  'settings.appearance.themeDark': 'داكن', // Dark
 
   // ── Language names (written in their own language) ───────────────────
   'languages.en': 'English', // English

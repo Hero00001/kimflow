@@ -15,6 +15,8 @@ interface Settings {
   /** Optional global pause/resume hotkey; '' (the default) means disabled. */
   pauseHotkey: string;
   accentColor: string;
+  /** UI theme: 'system' (follows OS), 'light', or 'dark' (the default). */
+  theme: string;
   translationEnabled: boolean;
   translationProvider: string;
   geminiApiKey: string;

@@ -13,6 +13,10 @@
   --success:        #22c55e;
   --danger:         #f43f5e;
   --danger-subtle:  rgba(244, 63, 94, 0.12);
+  /* Text-level danger shades (#fb7185/#fda4af rose tints) — readable on the
+     dark bg but too pale on white, so the light block overrides them. */
+  --danger-text:        #fb7185;
+  --danger-text-strong: #fda4af;
   --border:         rgba(255, 255, 255, 0.06);
   --border-strong:  rgba(255, 255, 255, 0.12);
   --radius:         12px;
@@ -22,6 +26,35 @@
                     "Noto Sans Arabic", "Segoe UI Arabic", "Microsoft YaHei",
                     "PingFang SC", "Noto Sans SC", sans-serif;
   --transition:     160ms ease;
+}
+
+/* ── Light theme (spec §Theme architecture) ──────────────────────────────
+   Black-and-white monochrome. `:root` above stays the dark set, so an absent
+   or "dark" data-theme is pixel-identical to the pre-theme appearance. The
+   light accent defaults to black; its hover/subtle pair mirrors what
+   theme.ts applyAccentColor() derives (lighten 0.12 / alpha tint) so a
+   custom accent and the shipped default behave the same way. Success/danger
+   keep their hues but are darkened just enough to pass contrast on white:
+   --success #15803d (4.5:1) and --danger #e11d48 (4.5:1) as text/bg fills. */
+[data-theme="light"] {
+  --bg:             #fafaf9;
+  --panel:          #ffffff;
+  --panel-hover:    #f1efe8;
+  --surface:        #ffffff;
+  --surface-hover:  #f1efe8;
+  --text:           #171717;
+  --text-secondary: #6f6e6a;
+  --text-tertiary:  #a5a39c;
+  --accent:         #171717;
+  --accent-hover:   #333333;
+  --accent-subtle:  rgba(0, 0, 0, 0.08);
+  --success:        #15803d;
+  --danger:         #e11d48;
+  --danger-subtle:  rgba(225, 29, 72, 0.10);
+  --danger-text:        #be123c;
+  --danger-text-strong: #9f1239;
+  --border:         rgba(0, 0, 0, 0.08);
+  --border-strong:  rgba(0, 0, 0, 0.16);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -301,9 +334,9 @@ body.platform-mac #window-controls { display: none; }
 }
 
 #record-btn.recording {
-  color: #fff;
+  color: var(--text);
   border-color: var(--accent);
-  background: rgba(139, 92, 246, 0.16);
+  background: var(--accent-subtle);
 }
 
 #record-btn.recording::after {
@@ -431,7 +464,7 @@ body.platform-mac #window-controls { display: none; }
 #translation-error {
   margin-top: 10px;
   font-size: 12px;
-  color: #fb7185;
+  color: var(--danger-text);
   flex-shrink: 0;
 }
 
@@ -468,10 +501,10 @@ body.platform-mac #window-controls { display: none; }
 .ctrl-btn.danger {
   border-color: transparent;
   background: var(--danger-subtle);
-  color: #fb7185;
+  color: var(--danger-text);
 }
 
-.ctrl-btn.danger:hover:not(:disabled) { background: rgba(244, 63, 94, 0.2); color: #fda4af; }
+.ctrl-btn.danger:hover:not(:disabled) { background: rgba(244, 63, 94, 0.2); color: var(--danger-text-strong); }
 
 .ctrl-btn:disabled { opacity: 0.38; cursor: default; }
 
@@ -784,7 +817,7 @@ kbd {
   align-items: center;
   justify-content: center;
   background: var(--danger-subtle);
-  color: #fb7185;
+  color: var(--danger-text);
   border: 1px solid transparent;
   border-radius: 7px;
   font-size: 12px;
@@ -794,7 +827,7 @@ kbd {
   flex-shrink: 0;
 }
 
-.btn-danger-sm:hover { background: rgba(244, 63, 94, 0.2); color: #fda4af; }
+.btn-danger-sm:hover { background: rgba(244, 63, 94, 0.2); color: var(--danger-text-strong); }
 
 .api-key-row {
   display: flex;
