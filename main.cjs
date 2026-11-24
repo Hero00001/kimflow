@@ -555,18 +555,32 @@ function registerIpc() {
     // model sizes keep the existing ggml-file check.
     return t.registryHas(modelSize) ? t.registryDownloaded(modelSize) : t.modelDownloaded(modelSize);
   });
+  // Registry ids ('sense-voice-int8', 'sherpa-runtime-win-x64') ride the same
+  // concurrency guard as the whisper engine flavors (QA fix 2026-11-24): two
+  // concurrent download-model calls for the same id must not race two full
+  // downloads into one target dir. Flavor ids are guarded in 'download-engine'
+  // below via the same Set.
+  const engineDownloadState = new Set();
+
   ipcMain.handle('download-model', async (event, modelSize) => {
     assertTrustedSender(event);
     const t = require('./backend/transcribe.cjs');
     if (t.registryHas(modelSize)) {
       if (process.platform !== 'win32') throw new Error('SenseVoice downloads are Windows-only in this version');
-      // The runtime sidecar ships as a separate registry entry; make sure it
-      // is in place before (or after) the model so one button click yields a
-      // working engine. Progress uses the same single 'model' channel.
-      if (modelSize === 'sense-voice-int8' && !t.registryDownloaded('sherpa-runtime-win-x64')) {
-        await t.downloadRegistryEntry(mainWindow, 'sherpa-runtime-win-x64');
+      // Same user-visible pattern as the flavor guard in 'download-engine'.
+      if (engineDownloadState.has(modelSize)) throw new Error('That model is already downloading');
+      engineDownloadState.add(modelSize);
+      try {
+        // The runtime sidecar ships as a separate registry entry; make sure it
+        // is in place before (or after) the model so one button click yields a
+        // working engine. Progress uses the same single 'model' channel.
+        if (modelSize === 'sense-voice-int8' && !t.registryDownloaded('sherpa-runtime-win-x64')) {
+          await t.downloadRegistryEntry(mainWindow, 'sherpa-runtime-win-x64');
+        }
+        return await t.downloadRegistryEntry(mainWindow, modelSize);
+      } finally {
+        engineDownloadState.delete(modelSize);
       }
-      return t.downloadRegistryEntry(mainWindow, modelSize);
     }
     return t.downloadModel(mainWindow, modelSize);
   });
@@ -575,12 +589,15 @@ function registerIpc() {
     const sherpa = require('./backend/engines/sherpa.cjs');
     const { registryDownloaded } = require('./backend/model-download.cjs');
     // Booleans only — never expose filesystem paths over IPC (B6 posture).
+    // `runtime` mirrors the ROUTER's own readiness check (resolveSherpaBinary
+    // alone, QA fix 2026-11-24): a bundled/env-override sidecar is used by
+    // resolveSherpaModel and must not be reported "not ready" here. The
+    // registry-runtime entry stays ONE way to satisfy this, not the only way.
     return {
-      runtime: sherpa.resolveSherpaBinary() !== null && registryDownloaded(sherpa.RUNTIME_ENTRY_ID),
+      runtime: sherpa.resolveSherpaBinary() !== null,
       model: registryDownloaded(sherpa.SENSE_VOICE_MODEL_ID),
     };
   });
-  const engineDownloadState = new Set();
 
   ipcMain.handle('download-engine', async (event, flavor) => {
     assertTrustedSender(event);
