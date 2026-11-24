@@ -13,67 +13,68 @@
 
 # KimFlow {{version}}
 
-This release fixes every finding from the full codebase audit, upgrades the
-Electron runtime to a supported major (closing ~40 Chromium advisories,
-including a contextIsolation bypass), and hardens how your API keys and
-recordings are stored.
+SenseVoice joins as a second local engine, the app gets a light theme, and the
+settings page is reorganized. A code review of all of that turned up six more
+bugs, fixed here too.
 
-## Security
+## New: SenseVoice local engine
 
-- **Electron 33 → 45.** The old runtime is end-of-life and carried ~40
-  advisories, including a contextIsolation bypass and permission-origin
-  confusion — the exact defenses KimFlow relies on.
-- **Your API keys are safer in transit.** Gemini requests now authenticate
-  with a request header instead of the URL query string.
-- **A compromised renderer can no longer navigate or open windows:**
-  navigation and window-open are denied on every window, and a window whose
-  URL is not a KimFlow page loses IPC trust.
-- **The whisper-binary existence oracle is closed**, and a renderer-supplied
-  binary path can never reach program execution.
-- All shipped dependencies audit clean. Axios/redirect advisories (SSRF,
-  credential leakage) are gone.
-- Content-Security-Policy on every window; all windows sandboxed.
+- **Chinese, Japanese, Korean and Cantonese dictation can now run fully
+  offline** through SenseVoice-Small. Pick it in Settings → Speech under Local
+  engine, next to Whisper.
+- One click downloads the runtime and the model (about 185 MB total) behind a
+  single progress bar. The runtime needs no VC++ Redistributable.
+- English, Arabic and every other language keep using Whisper. If SenseVoice
+  is missing or half-installed, dictation falls back to Whisper and the UI
+  tells you which one is active.
+- History entries now record what produced them: engine, model and polish
+  mode.
 
-## Dictation correctness
+## Appearance
 
-- A cancelled dictation now lands **nowhere**: no late paste into your
-  document, no leftover history entry — even if you cancel mid-translation.
-- Transcripts are no longer cleaned twice, which deleted valid words in
-  Thorough mode.
-- Digit-led sentences keep their casing ("23 apples", not "23 Apples");
-  spoken decimals no longer merge into wrong numbers ("three point one,
-  four" is 3.1 followed by 4).
-- A failed Speechmatics job can no longer paste raw JSON into your document.
+- **Light theme.** A black-and-white day mode sits next to the dark one.
+  Settings → Appearance → Theme offers System, Light and Dark. Dark stays the
+  default so nothing changes until you ask; System follows Windows live.
+- The accent color picker still works. Leave it alone and each theme uses its
+  own designed accent (black in light mode, purple in dark).
+- The floating overlay stays dark in both themes, since it sits on top of
+  whatever app you are typing into.
 
-## Reliability
+## Settings, reorganized
 
-- **Your settings can no longer be wiped** by a locked or corrupt config
-  file; saves are atomic with a backup, and a corrupt config recovers from
-  its backup.
-- **The floating capsule survives renderer crashes** (it now recreates
-  itself) and pauses its animation loop when the machine sleeps or locks.
-- A crashed app window reloads itself; the hotkey and the capsule keep
-  working.
-- Plugging in headphones no longer interrupts an active dictation; resuming
-  after a mic change fails loudly instead of silently recording silence.
-- Cancelling during transcription is finally possible (Escape or ✕).
-- The floating widget's own death no longer leaks its timer and listeners.
-- Stale temp recordings left by a crash are cleaned up at startup.
+- Input and Engine are now one Speech section. Text cleanup is called Output.
+  A row of section chips at the top opens, collapses and scrolls to each
+  section.
+- Every existing setting survived the move. Nothing was removed.
 
-## Clarity
+## History and vocabulary
 
-- Real errors now reach you: the tooltip always carries the actual reason,
-  disk problems say "disk", bad API keys say "API key" — and genuine network
-  failures are no longer silently swallowed as "cancelled".
-- An AI-Polish failure tells you it fell back to the un-polished text.
-- The Gemini key field has a **remove (✕)** button that actually deletes the
-  stored key.
-- A crash-recovery log is written to `%APPDATA%\KimFlow\logs\kimflow.log`.
-- README corrected: where keys are stored, the default hotkey
-  (`Ctrl+Shift+Space`), build outputs, and supported platforms.
+- Clearing history now asks twice. A stray click no longer wipes it.
+- Every history entry has a copy button.
+- The vocabulary field shows chips with a count instead of a bare textarea.
+  The stored format is unchanged.
+
+## Fixes
+
+- Changing any setting no longer silently flips the app to your Windows
+  theme. The Theme dropdown was not initialized on load, so the next save
+  rewrote the theme behind your back.
+- SenseVoice problems used to show up as "Whisper model not found" or
+  "Network error". They now say what actually happened.
+- Removing a vocabulary chip with blank lines in the list removed the wrong
+  line and left a chip that could not be removed.
+- A failed re-download can no longer destroy a working SenseVoice install,
+  and two downloads of the same model can no longer run at once.
+- The UI could show SenseVoice as not ready while it was actually in use.
+- Arabic and Chinese UI text ships with the app now (IBM Plex Sans Arabic,
+  Noto Sans SC), so it renders the same on every machine instead of depending
+  on your installed Windows fonts.
+- Labels across the app moved to sentence case, and the i18n tests now fail
+  when a translation goes missing or empty in any language.
 
 ## Known limitations
 
-- The Language dropdowns still show English names in the Arabic/Chinese UI
-  (tracked, needs native-speaker review).
-- A custom accent color's hover shade is generated, not hand-tuned.
+- SenseVoice does not support the vocabulary list; your words still apply to
+  Whisper and Deepgram.
+- The SenseVoice setup downloads about 185 MB on first use.
+- No auto-update and no code signing, unchanged from earlier releases.
