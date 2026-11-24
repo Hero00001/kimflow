@@ -487,6 +487,12 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   pauseHotkeyInput.value = settings.pauseHotkey || '';
   pauseHotkeyInput.title = formatHotkey(settings.pauseHotkey || '');
   accentColor.value = settings.accentColor;
+  // Initialize the select from the saved setting BEFORE any persist can read
+  // it: runPersist writes normalizeThemeSetting(themeSelect.value), and an
+  // uninitialized select reports its first option ('system'), which silently
+  // rewrote the user's theme on the next unrelated persist (e.g. an engine
+  // change) and flipped the UI when the OS preference differs.
+  themeSelect.value = normalizeThemeSetting(settings.theme);
   // Theme first, accent second — see the ordering note in theme.ts. The
   // accent defaults live in the active theme's stylesheet block, and the
   // runtime accent overwrite must land on top of the freshly applied theme.
@@ -932,13 +938,18 @@ export function wireSettingsControls() {
   vocabInput.addEventListener('change', () => { void persist(); });
   vocabInput.addEventListener('input', () => { refreshVocabUi(); schedulePersist(); });
 
-  // Chip-style section nav (retheme #03): open the target <details> (it may
-  // be collapsed) and scroll it into view. Details mechanics are kept.
+  // Chip-style section nav (retheme #03). Chips toggle: a collapsed target
+  // opens and scrolls into view; an open target collapses, so a second click
+  // behaves like the summary itself instead of pinning the section open.
   settingsNav.querySelectorAll<HTMLButtonElement>('.settings-nav-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
       const target = document.getElementById(chip.dataset.section || '');
-      if (!target) return;
-      if (target instanceof HTMLDetailsElement) target.open = true;
+      if (!(target instanceof HTMLDetailsElement)) return;
+      if (target.open) {
+        target.open = false;
+        return;
+      }
+      target.open = true;
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });

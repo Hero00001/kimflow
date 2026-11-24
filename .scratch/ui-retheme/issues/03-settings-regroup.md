@@ -20,3 +20,9 @@ In `index.html`: merge the Input and Engine sections into one **Speech** section
 - EVERY id survives: no id removed or renamed; only additive ids (section-speech/language/output/appearance, settings-nav). Build passes the dom.ts id gate.
 - i18n: removed `settings.section.input`, `settings.section.engine`, `settings.section.cleanup` from en/ar/zh (nothing else referenced them — verified by grep); added `settings.section.speech`, `settings.section.output`, `settings.navAria`. Key-count tests bumped 198 → 201. NOTE: row-label keys stay under `settings.cleanup.*` (e.g. `settings.cleanup.myWords`) — only the section key was renamed; renaming every row key would churn the ar/zh native-review comments for zero user-visible gain.
 - Tests: `i18n-markup.test.cjs` "five settings sections" updated to four (with the regroup rationale) and its `open` regex adjusted (`<details class="settings-section" open ` — the open section now also carries its id). Full suite 578/578 green; build green.
+
+## Comments
+
+### Design fix (2026-11-24, user-reported)
+
+Nav chips were "open + scroll only", so a second click could never collapse a section — chips read as toggles. Chips now toggle: collapsed target opens + scrolls; open target collapses. Summary rows keep native `<details>` behavior.

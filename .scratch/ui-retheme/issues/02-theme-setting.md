@@ -23,3 +23,13 @@ Add `theme: 'system' | 'light' | 'dark'` (default `'dark'`) to `DEFAULT_SETTINGS
 - DEVIATION: the ticket says "segmented control row"; implemented as a `<select>` per the lead's instruction ("follow the existing row markup pattern with a <select> like ui-language-select"). Swapping to a segmented toggle-group later is a markup-only change (ids survive).
 - The broadcast path (`applySettingsToUi`) deliberately does NOT re-apply the theme — same reasoning as uiLanguage: broadcast snapshots can predate the user's latest change, and the form owns the control (applied on load + on change).
 - Full suite green (578 tests), build green (dom.ts id gate).
+
+## Comments
+
+### Bugfix (2026-11-24, user-reported)
+
+**Symptom:** switching the engine to Local Whisper flipped the whole UI from dark to light.
+
+**Root cause:** `loadSettingsIntoUi` applied `applyTheme(settings.theme)` but never initialized `themeSelect.value`. The select reported its first option ('system'), so the next `runPersist()` — triggered by ANY unrelated setting change, e.g. an engine switch — wrote `theme: 'system'`, which resolves to the OS preference (light on this machine) and re-rendered light.
+
+**Fix:** `themeSelect.value = normalizeThemeSetting(settings.theme)` is now set in `loadSettingsIntoUi` before `applyTheme`. Persisted configs that already have `theme: 'system'` from the bug now behave correctly (system-following) instead of being silently pinned; users who want dark can pick Dark explicitly.
