@@ -48,14 +48,15 @@ test('index.html offers exactly auto / nova-3 / nova-2 in the Deepgram model sel
   assert.ok(!/<option value="whisper"/.test(html), 'index.html still has a whisper model option');
 });
 
-test('the locale set is exactly en/ar/zh with 192 keys each (unchanged by the rework)', () => {
+test('the locale set is exactly en/ar/zh with 194 keys each (unchanged by the rework)', () => {
   assert.deepEqual(Object.keys(LOCALES).sort(), ['ar', 'en', 'zh']);
   // 189 (186 + error.storage + warning.aiPolishFailed + settings.key.geminiRemoved)
   //   + the three pause-hotkey keys (settings.input.pauseHotkey,
   //     settings.input.pauseHotkeyAria, settings.hotkey.pausePlaceholder).
-  assert.equal(Object.keys(EN).length, 192);
-  assert.equal(Object.keys(AR).length, 192);
-  assert.equal(Object.keys(ZH).length, 192);
+  //   + history.clearConfirm + history.copyEntryAria (retheme #05).
+  assert.equal(Object.keys(EN).length, 194);
+  assert.equal(Object.keys(AR).length, 194);
+  assert.equal(Object.keys(ZH).length, 194);
 });
 
 test('every i18n key the placeholder mirroring can reference exists in all three locales', () => {

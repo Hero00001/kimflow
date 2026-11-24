@@ -58,7 +58,7 @@ function titleFromText(text) {
   return shortened;
 }
 
-function addSession({ text, durationMs, createdAt, translation, translationTarget, translationError }) {
+function addSession({ text, durationMs, createdAt, translation, translationTarget, translationError, engine, model, polishMode }) {
   const history = load();
   const entry = {
     id: crypto.randomUUID(),
@@ -67,6 +67,12 @@ function addSession({ text, durationMs, createdAt, translation, translationTarge
     createdAt: createdAt || Date.now(),
     durationMs: durationMs || 0,
   };
+  // Provenance (#04): which engine/model/polish mode produced the text.
+  // Stored only when known, so old callers keep writing the old shape and
+  // the file format changes purely additively.
+  if (engine) entry.engine = engine;
+  if (model) entry.model = model;
+  if (polishMode) entry.polishMode = polishMode;
   if (translation) entry.translation = translation;
   if (translationTarget) entry.translationTarget = translationTarget;
   if (translationError) entry.translationError = translationError;

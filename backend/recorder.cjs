@@ -262,6 +262,14 @@ async function stopRecording(settings, windows, audioBuffer) {
         const entry = history.addSession({
           text: finalText,
           durationMs: startedAt ? Date.now() - startedAt : 0,
+          // Provenance (#04): remember what produced this transcript so the
+          // history view can show e.g. `deepgram · nova-3 · light`.
+          // Speechmatics exposes no selectable model, so it gets none.
+          engine: settings.engine,
+          model: settings.engine === 'deepgram'
+            ? settings.deepgramModel
+            : settings.engine === 'local' ? settings.whisperModel : undefined,
+          polishMode: settings.polishMode,
         });
         historyId = entry ? entry.id : null;
         notifyHistory(windows);

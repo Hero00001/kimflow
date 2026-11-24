@@ -44,13 +44,13 @@ export const ar: Record<LocaleKey, string> = {
   'status.pause': 'إيقاف مؤقت', // Pause
   'status.resume': 'استئناف', // Resume
   'status.stop': 'إيقاف', // Stop
-  'status.startRecording': 'بدء التسجيل', // Start Recording
-  'status.stopRecording': 'إيقاف التسجيل', // Stop Recording
+  'status.startRecording': 'بدء التسجيل', // Start recording
+  'status.stopRecording': 'إيقاف التسجيل', // Stop recording
 
   // ── Transcribe page ──────────────────────────────────────────────────
   'transcribe.transcriptLabel': 'النص المنسوخ', // Transcript
   'transcribe.mic': 'الميكروفون', // Mic
-  'transcribe.endSession': 'إنهاء الجلسة', // End Session
+  'transcribe.endSession': 'إنهاء الجلسة', // End session
   'transcribe.hintStart': 'للبدء', // to start
   'transcribe.hintStop': 'للإيقاف', // to stop
   'transcribe.hintEsc': 'Esc', // Esc
@@ -67,6 +67,8 @@ export const ar: Record<LocaleKey, string> = {
   'history.search': 'البحث في السجل…', // Search history…
   'history.searchAria': 'البحث في السجل', // Search history
   'history.clear': 'مسح', // Clear
+  'history.clearConfirm': 'انقر مرة أخرى للمسح', // Click again to clear
+  'history.copyEntryAria': 'نسخ النص المنسوخ', // Copy transcript
   'history.emptyTitle': 'لا توجد تسجيلات بعد', // No recordings yet
   'history.emptySub': 'ستظهر النصوص المكتملة هنا.', // Finished transcripts will appear here.
   'history.today': 'اليوم', // Today
@@ -86,13 +88,13 @@ export const ar: Record<LocaleKey, string> = {
 
   // ── Settings — Input section ─────────────────────────────────────────
   'settings.input.microphone': 'الميكروفون', // Microphone
-  'settings.input.mode': 'وضع التسجيل', // Recording Mode
-  'settings.input.hotkey': 'مفتاح الاختصار', // Capture Hotkey
+  'settings.input.mode': 'وضع التسجيل', // Recording mode
+  'settings.input.hotkey': 'مفتاح الاختصار', // Capture hotkey
   'settings.input.hotkeyAria': 'مفتاح اختصار التسجيل', // Capture hotkey
-  'settings.input.pauseHotkey': 'مفتاح الإيقاف المؤقت', // Pause Hotkey
+  'settings.input.pauseHotkey': 'مفتاح الإيقاف المؤقت', // Pause hotkey
   'settings.input.pauseHotkeyAria': 'مفتاح الإيقاف المؤقت', // Pause hotkey
   'settings.mode.toggle': 'تبديل', // Toggle
-  'settings.mode.pushToTalk': 'اضغط للتحدث', // Push-to-Talk
+  'settings.mode.pushToTalk': 'اضغط للتحدث', // Push-to-talk
   'settings.hotkey.record': 'تسجيل', // Record
   'settings.hotkey.pressKeys': 'اضغط المفاتيح…', // Press keys…
   'settings.hotkey.placeholder': 'Ctrl+Shift+Space', // Ctrl+Shift+Space
@@ -103,7 +105,7 @@ export const ar: Record<LocaleKey, string> = {
   'settings.engine.local': 'Whisper المحلي', // Local Whisper
   'settings.engine.speechmatics': 'Speechmatics', // Speechmatics
   'settings.engine.deepgram': 'Deepgram', // Deepgram
-  'settings.engine.whisperModel': 'طراز Whisper', // Whisper Model
+  'settings.engine.whisperModel': 'طراز Whisper', // Whisper model
   'settings.engine.modelLabel': 'الطراز', // Model
   'settings.engine.advanced': 'متقدّم (ملف تنفيذي مخصّص)', // Advanced (custom binary)
   'settings.engine.download.flavor': 'تنزيل {flavor} (~{size})', // Download {flavor} (~{size})
@@ -133,16 +135,16 @@ export const ar: Record<LocaleKey, string> = {
   'settings.download.retry': 'إعادة المحاولة', // Retry
 
   // ── Settings — custom binary ─────────────────────────────────────────
-  'settings.binary.selectLabel': 'تحديد الملف التنفيذي', // Select Binary
+  'settings.binary.selectLabel': 'تحديد الملف التنفيذي', // Select binary
   'settings.binary.notSelected': 'لم يتم التحديد', // Not selected
   'settings.binary.browse': 'استعراض…', // Browse…
   'settings.binary.recheck': 'إعادة الفحص', // Recheck
   'settings.binary.clearTitle': 'مسح الملف التنفيذي المخصّص', // Clear custom binary
-  'settings.binary.noneSelected': 'لم يتم تحديد ملف تنفيذي. استخدم «تحديد الملف التنفيذي» أولًا.', // No binary selected. Use Select Binary first.
+  'settings.binary.noneSelected': 'لم يتم تحديد ملف تنفيذي. استخدم «تحديد الملف التنفيذي» أولًا.', // No binary selected. Use Select binary first.
   'settings.binary.cleared': 'تم مسح الملف التنفيذي المخصّص', // Custom binary cleared
 
   // ── Settings — API keys ──────────────────────────────────────────────
-  'settings.key.apiKey': 'مفتاح API', // API Key
+  'settings.key.apiKey': 'مفتاح API', // API key
   'settings.key.speechmaticsPlaceholder': 'أدخل مفتاح Speechmatics API', // Enter your Speechmatics API key
   'settings.key.deepgramPlaceholder': 'key-...', // key-...
   'settings.key.geminiKeyPlaceholder': 'AIza...', // AIza...
@@ -152,7 +154,7 @@ export const ar: Record<LocaleKey, string> = {
   'settings.key.volatile': '⚠ المفتاح محفوظ لهذه الجلسة فقط — سيُفقد عند إعادة تشغيل KimFlow', // ⚠ Key held for this session only — it will be lost when KimFlow restarts
   'settings.key.unreadable': '⚠ تعذّر قراءة المفتاح المحفوظ — أعد إدخاله أدناه', // ⚠ Saved key cannot be read — re-enter it below
   'settings.key.unavailable': 'حالة المفتاح غير متاحة', // Key status unavailable
-  'settings.key.testConnection': 'اختبار الاتصال', // Test Connection
+  'settings.key.testConnection': 'اختبار الاتصال', // Test connection
   'settings.key.testing': 'جارٍ الاختبار…', // Testing…
   'settings.key.connected': '✓ متصل', // ✓ Connected
   'settings.key.connectionSuccessful': 'تم الاتصال بنجاح', // Connection successful
@@ -163,24 +165,24 @@ export const ar: Record<LocaleKey, string> = {
   'settings.key.geminiRemoved': 'تمت إزالة مفتاح Gemini', // Gemini key removed
 
   // ── Settings — Text cleanup section ──────────────────────────────────
-  'settings.cleanup.speechCleanup': 'تنقية الكلام', // Speech Cleanup
+  'settings.cleanup.speechCleanup': 'تنقية الكلام', // Speech cleanup
   'settings.cleanup.off': 'إيقاف', // Off
   'settings.cleanup.light': 'خفيفة', // Light
   'settings.cleanup.thorough': 'شاملة', // Thorough
-  'settings.cleanup.myWords': 'كلماتي', // My Words
+  'settings.cleanup.myWords': 'كلماتي', // My words
   'settings.cleanup.vocabPlaceholder': 'اسم أو مصطلح واحد في كل سطر، مثال\nKimFlow\nAhmed', // One name or term per line, e.g. / KimFlow / Ahmed
   'settings.cleanup.vocabAria': 'مفردات مخصّصة، مصطلح واحد في كل سطر', // Custom vocabulary, one term per line
   'settings.cleanup.vocabHint': 'الأسماء والمصطلحات التي تقولها كثيرًا — تُرسل إلى المحرّك ليتعرّف عليها بشكل صحيح.', // Names & terms you say often — sent to the engine so it hears them right.
-  'settings.cleanup.aiPolish': 'تحسين بالذكاء الاصطناعي', // AI Polish
+  'settings.cleanup.aiPolish': 'تحسين بالذكاء الاصطناعي', // AI polish
 
   // ── Settings — Language & translation section ────────────────────────
   'settings.translation.label': 'الترجمة', // Translation
-  'settings.translation.provider': 'مزوّد الترجمة', // Translation Provider
+  'settings.translation.provider': 'مزوّد الترجمة', // Translation provider
   'settings.translation.providerGemini': 'Gemini', // Gemini
-  'settings.translation.inputLanguage': 'لغة الإدخال', // Input Language
-  'settings.translation.translateTo': 'الترجمة إلى', // Translate To
-  'settings.translation.geminiKey': 'مفتاح Gemini API', // Gemini API Key
-  'settings.translation.geminiModel': 'طراز Gemini', // Gemini Model
+  'settings.translation.inputLanguage': 'لغة الإدخال', // Input language
+  'settings.translation.translateTo': 'الترجمة إلى', // Translate to
+  'settings.translation.geminiKey': 'مفتاح Gemini API', // Gemini API key
+  'settings.translation.geminiModel': 'طراز Gemini', // Gemini model
   'settings.translation.geminiModelPlaceholder': 'gemini-3.6-flash (فارغ = تلقائي)', // gemini-3.6-flash (empty = automatic)
   'settings.translation.geminiModelAria': 'طراز Gemini', // Gemini model
   'settings.translation.modelAuto': 'اتركه فارغًا للاختيار التلقائي للطراز.', // Leave empty for automatic model selection.
@@ -188,15 +190,15 @@ export const ar: Record<LocaleKey, string> = {
   'settings.translation.validateFailed': 'تعذّر التحقق من الطراز الآن. سيتم التحقق منه قبل الترجمة.', // Could not validate model right now. It will be checked before translating.
 
   // ── Settings — Appearance section ────────────────────────────────────
-  'settings.appearance.uiLanguage': 'لغة الواجهة', // UI Language
-  'settings.appearance.accent': 'لون التمييز', // Accent Color
+  'settings.appearance.uiLanguage': 'لغة الواجهة', // UI language
+  'settings.appearance.accent': 'لون التمييز', // Accent color
   'settings.appearance.accentAria': 'اختيار لون التمييز', // Choose accent color
 
   // ── Language names (written in their own language) ───────────────────
   'languages.en': 'English', // English
   'languages.ar': 'العربية', // العربية
   'languages.zh': '中文（简体）', // 中文（简体）
-  'languages.auto': 'كشف تلقائي', // Auto Detect
+  'languages.auto': 'كشف تلقائي', // Auto detect
 
   // ── Floating overlay ─────────────────────────────────────────────────
   'overlay.listening': 'يستمع…', // Listening…
@@ -239,7 +241,7 @@ export const ar: Record<LocaleKey, string> = {
   'error.micBlocked': 'الميكروفون محظور — اسمح بالوصول من إعدادات النظام، ثم أعد المحاولة.', // Microphone blocked — allow access in system settings, then try again.
   'error.micNotFound': 'لم يتم العثور على الميكروفون — تحقق من الاتصال، ثم أعد المحاولة.', // Microphone not found — check connection, then try again.
   'error.micBusy': 'الميكروفون مشغول — أغلق التطبيقات الأخرى التي تستخدمه، ثم أعد المحاولة.', // Microphone is busy — close other apps using it, then try again.
-  'error.whisperBinaryNotFound': 'لم يتم العثور على ملف Whisper التنفيذي — استخدم «تحديد الملف التنفيذي» في الإعدادات لتحديد موقع whisper-cli.', // Whisper binary not found — use Select Binary in Settings to locate whisper-cli.
+  'error.whisperBinaryNotFound': 'لم يتم العثور على ملف Whisper التنفيذي — استخدم «تحديد الملف التنفيذي» في الإعدادات لتحديد موقع whisper-cli.', // Whisper binary not found — use Select binary in Settings to locate whisper-cli.
   'error.whisperNotExecutable': 'ملف Whisper التنفيذي غير قابل للتنفيذ — تحقق من الأذونات أو أعد تحديده في الإعدادات.', // Whisper binary is not executable — check permissions or re-select it in Settings.
   'error.whisperModelNotFound': 'لم يتم العثور على طراز Whisper — نزّله من الإعدادات أولًا.', // Whisper model not found — download it in Settings first.
   'error.whisperCrashed': 'تعطّل ملف Whisper التنفيذي — جرّب إصدار CPU فقط أو أعد تثبيت VC++ Redistributable.', // Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.
@@ -248,7 +250,7 @@ export const ar: Record<LocaleKey, string> = {
   'error.network': 'خطأ في الشبكة — تحقق من الاتصال وأعد المحاولة.', // Network error — check connection and retry.
   'error.noSpeech': 'لم يتم اكتشاف كلام — تحقق من مستوى الميكروفون وأعد المحاولة.', // No speech detected — check mic level and try again.
   'error.storage': 'تعذّر الكتابة على القرص — تحقّق من المساحة الحرة وأذونات المجلد.', // Could not write to disk — check free space and folder permissions.
-  'warning.aiPolishFailed': 'فشل التحسين الذكي هذه المرة — تم استخدام النص غير المحسّن.', // AI Polish failed this time — the un-polished transcript was used.
+  'warning.aiPolishFailed': 'فشل التحسين الذكي هذه المرة — تم استخدام النص غير المحسّن.', // AI polish failed this time — the un-polished transcript was used.
   'error.transcriptionFailedDetail': 'فشل النسخ — راجع التفاصيل وأعد المحاولة.', // Transcription failed — see details and try again.
 
   // ══════════════════════════════════════════════════════════════════════

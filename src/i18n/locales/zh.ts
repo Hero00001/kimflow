@@ -10,9 +10,9 @@
  *      translation" rather than native Chinese.
  *
  * Traps handled deliberately:
- *   - "AI Polish"  → 润色 ("polish" = refine text, NOT 波兰 = Poland).
- *   - "Push-to-Talk" → 按键通话 (Microsoft term).
- *   - "Speech Cleanup" → 语音整理 (cleanup of the transcribed speech).
+ *   - "AI polish"  → 润色 ("polish" = refine text, NOT 波兰 = Poland).
+ *   - "Push-to-talk" → 按键通话 (Microsoft term).
+ *   - "Speech cleanup" → 语音整理 (cleanup of the transcribed speech).
  *   - "Engine" → 转录引擎 (explicit transcription-engine wording, not bare 引擎).
  *
  * Each entry carries the English source string in a trailing comment so the
@@ -52,13 +52,13 @@ export const zh: Record<LocaleKey, string> = {
   'status.pause': '暂停', // Pause
   'status.resume': '继续', // Resume
   'status.stop': '停止', // Stop
-  'status.startRecording': '开始录音', // Start Recording
-  'status.stopRecording': '停止录音', // Stop Recording
+  'status.startRecording': '开始录音', // Start recording
+  'status.stopRecording': '停止录音', // Stop recording
 
   // ── Transcribe page ──────────────────────────────────────────────────
   'transcribe.transcriptLabel': '转录文本', // Transcript
   'transcribe.mic': '麦克风', // Mic
-  'transcribe.endSession': '结束会话', // End Session
+  'transcribe.endSession': '结束会话', // End session
   'transcribe.hintStart': '开始', // to start
   'transcribe.hintStop': '停止', // to stop
   'transcribe.hintEsc': 'Esc', // Esc
@@ -75,6 +75,8 @@ export const zh: Record<LocaleKey, string> = {
   'history.search': '搜索历史记录…', // Search history…
   'history.searchAria': '搜索历史记录', // Search history
   'history.clear': '清除', // Clear
+  'history.clearConfirm': '再次点击以清除', // Click again to clear
+  'history.copyEntryAria': '复制转录文本', // Copy transcript
   'history.emptyTitle': '暂无录音', // No recordings yet
   'history.emptySub': '完成的转录文本将显示在这里。', // Finished transcripts will appear here.
   'history.today': '今天', // Today
@@ -94,13 +96,13 @@ export const zh: Record<LocaleKey, string> = {
 
   // ── Settings — Input section ─────────────────────────────────────────
   'settings.input.microphone': '麦克风', // Microphone
-  'settings.input.mode': '录音模式', // Recording Mode
-  'settings.input.hotkey': '捕获快捷键', // Capture Hotkey
+  'settings.input.mode': '录音模式', // Recording mode
+  'settings.input.hotkey': '捕获快捷键', // Capture hotkey
   'settings.input.hotkeyAria': '捕获快捷键', // Capture hotkey
-  'settings.input.pauseHotkey': '暂停快捷键', // Pause Hotkey
+  'settings.input.pauseHotkey': '暂停快捷键', // Pause hotkey
   'settings.input.pauseHotkeyAria': '暂停快捷键', // Pause hotkey
   'settings.mode.toggle': '切换', // Toggle
-  'settings.mode.pushToTalk': '按键通话', // Push-to-Talk
+  'settings.mode.pushToTalk': '按键通话', // Push-to-talk
   'settings.hotkey.record': '录制', // Record
   'settings.hotkey.pressKeys': '请按下按键…', // Press keys…
   'settings.hotkey.placeholder': 'Ctrl+Shift+Space', // Ctrl+Shift+Space
@@ -111,7 +113,7 @@ export const zh: Record<LocaleKey, string> = {
   'settings.engine.local': '本地 Whisper', // Local Whisper
   'settings.engine.speechmatics': 'Speechmatics', // Speechmatics
   'settings.engine.deepgram': 'Deepgram', // Deepgram
-  'settings.engine.whisperModel': 'Whisper 模型', // Whisper Model
+  'settings.engine.whisperModel': 'Whisper 模型', // Whisper model
   'settings.engine.modelLabel': '模型', // Model
   'settings.engine.advanced': '高级（自定义二进制文件）', // Advanced (custom binary)
   'settings.engine.download.flavor': '下载 {flavor}（约 {size}）', // Download {flavor} (~{size})
@@ -141,16 +143,16 @@ export const zh: Record<LocaleKey, string> = {
   'settings.download.retry': '重试', // Retry
 
   // ── Settings — custom binary ─────────────────────────────────────────
-  'settings.binary.selectLabel': '选择二进制文件', // Select Binary
+  'settings.binary.selectLabel': '选择二进制文件', // Select binary
   'settings.binary.notSelected': '未选择', // Not selected
   'settings.binary.browse': '浏览…', // Browse…
   'settings.binary.recheck': '重新检查', // Recheck
   'settings.binary.clearTitle': '清除自定义二进制文件', // Clear custom binary
-  'settings.binary.noneSelected': '未选择二进制文件。请先使用“选择二进制文件”。', // No binary selected. Use Select Binary first.
+  'settings.binary.noneSelected': '未选择二进制文件。请先使用“选择二进制文件”。', // No binary selected. Use Select binary first.
   'settings.binary.cleared': '已清除自定义二进制文件', // Custom binary cleared
 
   // ── Settings — API keys ──────────────────────────────────────────────
-  'settings.key.apiKey': 'API 密钥', // API Key
+  'settings.key.apiKey': 'API 密钥', // API key
   'settings.key.speechmaticsPlaceholder': '输入您的 Speechmatics API 密钥', // Enter your Speechmatics API key
   'settings.key.deepgramPlaceholder': 'key-...', // key-...
   'settings.key.geminiKeyPlaceholder': 'AIza...', // AIza...
@@ -160,7 +162,7 @@ export const zh: Record<LocaleKey, string> = {
   'settings.key.volatile': '⚠ 密钥仅保留在本次会话中 — KimFlow 重启后将丢失', // ⚠ Key held for this session only — it will be lost when KimFlow restarts
   'settings.key.unreadable': '⚠ 无法读取已保存的密钥 — 请在下方重新输入', // ⚠ Saved key cannot be read — re-enter it below
   'settings.key.unavailable': '密钥状态不可用', // Key status unavailable
-  'settings.key.testConnection': '测试连接', // Test Connection
+  'settings.key.testConnection': '测试连接', // Test connection
   'settings.key.testing': '测试中…', // Testing…
   'settings.key.connected': '✓ 已连接', // ✓ Connected
   'settings.key.connectionSuccessful': '连接成功', // Connection successful
@@ -171,24 +173,24 @@ export const zh: Record<LocaleKey, string> = {
   'settings.key.geminiRemoved': '已移除 Gemini 密钥', // Gemini key removed
 
   // ── Settings — Text cleanup section ──────────────────────────────────
-  'settings.cleanup.speechCleanup': '语音整理', // Speech Cleanup
+  'settings.cleanup.speechCleanup': '语音整理', // Speech cleanup
   'settings.cleanup.off': '关闭', // Off
   'settings.cleanup.light': '轻度', // Light
   'settings.cleanup.thorough': '彻底', // Thorough
-  'settings.cleanup.myWords': '我的词汇', // My Words
+  'settings.cleanup.myWords': '我的词汇', // My words
   'settings.cleanup.vocabPlaceholder': '每行一个名称或术语，例如\nKimFlow\nAhmed', // One name or term per line, e.g. / KimFlow / Ahmed
   'settings.cleanup.vocabAria': '自定义词汇，每行一个术语', // Custom vocabulary, one term per line
   'settings.cleanup.vocabHint': '您经常说出的名称和术语 — 会发送给引擎，以便正确识别。', // Names & terms you say often — sent to the engine so it hears them right.
-  'settings.cleanup.aiPolish': 'AI 润色', // AI Polish
+  'settings.cleanup.aiPolish': 'AI 润色', // AI polish
 
   // ── Settings — Language & translation section ────────────────────────
   'settings.translation.label': '翻译', // Translation
-  'settings.translation.provider': '翻译服务商', // Translation Provider
+  'settings.translation.provider': '翻译服务商', // Translation provider
   'settings.translation.providerGemini': 'Gemini', // Gemini
-  'settings.translation.inputLanguage': '输入语言', // Input Language
-  'settings.translation.translateTo': '翻译为', // Translate To
-  'settings.translation.geminiKey': 'Gemini API 密钥', // Gemini API Key
-  'settings.translation.geminiModel': 'Gemini 模型', // Gemini Model
+  'settings.translation.inputLanguage': '输入语言', // Input language
+  'settings.translation.translateTo': '翻译为', // Translate to
+  'settings.translation.geminiKey': 'Gemini API 密钥', // Gemini API key
+  'settings.translation.geminiModel': 'Gemini 模型', // Gemini model
   'settings.translation.geminiModelPlaceholder': 'gemini-3.6-flash（留空 = 自动）', // gemini-3.6-flash (empty = automatic)
   'settings.translation.geminiModelAria': 'Gemini 模型', // Gemini model
   'settings.translation.modelAuto': '留空以自动选择模型。', // Leave empty for automatic model selection.
@@ -196,15 +198,15 @@ export const zh: Record<LocaleKey, string> = {
   'settings.translation.validateFailed': '目前无法验证模型。翻译前会再次检查。', // Could not validate model right now. It will be checked before translating.
 
   // ── Settings — Appearance section ────────────────────────────────────
-  'settings.appearance.uiLanguage': '界面语言', // UI Language
-  'settings.appearance.accent': '强调色', // Accent Color
+  'settings.appearance.uiLanguage': '界面语言', // UI language
+  'settings.appearance.accent': '强调色', // Accent color
   'settings.appearance.accentAria': '选择强调色', // Choose accent color
 
   // ── Language names (written in their own language) ───────────────────
   'languages.en': 'English', // English
   'languages.ar': 'العربية', // العربية
   'languages.zh': '中文（简体）', // 中文（简体）
-  'languages.auto': '自动检测', // Auto Detect
+  'languages.auto': '自动检测', // Auto detect
 
   // ── Floating overlay ─────────────────────────────────────────────────
   'overlay.listening': '正在聆听…', // Listening…
@@ -247,7 +249,7 @@ export const zh: Record<LocaleKey, string> = {
   'error.micBlocked': '麦克风被阻止 — 请在系统设置中允许访问，然后重试。', // Microphone blocked — allow access in system settings, then try again.
   'error.micNotFound': '未找到麦克风 — 请检查连接，然后重试。', // Microphone not found — check connection, then try again.
   'error.micBusy': '麦克风正忙 — 请关闭其他正在使用它的应用，然后重试。', // Microphone is busy — close other apps using it, then try again.
-  'error.whisperBinaryNotFound': '未找到 Whisper 二进制文件 — 请在设置中使用“选择二进制文件”定位 whisper-cli。', // Whisper binary not found — use Select Binary in Settings to locate whisper-cli.
+  'error.whisperBinaryNotFound': '未找到 Whisper 二进制文件 — 请在设置中使用“选择二进制文件”定位 whisper-cli。', // Whisper binary not found — use Select binary in Settings to locate whisper-cli.
   'error.whisperNotExecutable': 'Whisper 二进制文件无法执行 — 请检查权限或在设置中重新选择。', // Whisper binary is not executable — check permissions or re-select it in Settings.
   'error.whisperModelNotFound': '未找到 Whisper 模型 — 请先在设置中下载。', // Whisper model not found — download it in Settings first.
   'error.whisperCrashed': 'Whisper 二进制文件崩溃 — 请尝试仅 CPU 版本，或重新安装 VC++ 可再发行组件。', // Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.
@@ -256,6 +258,6 @@ export const zh: Record<LocaleKey, string> = {
   'error.network': '网络错误 — 请检查连接并重试。', // Network error — check connection and retry.
   'error.noSpeech': '未检测到语音 — 请检查麦克风音量并重试。', // No speech detected — check mic level and try again.
   'error.storage': '无法写入磁盘 — 请检查可用空间和文件夹权限。', // Could not write to disk — check free space and folder permissions.
-  'warning.aiPolishFailed': 'AI 润色本次失败 — 已使用未润色的文本。', // AI Polish failed this time — the un-polished transcript was used.
+  'warning.aiPolishFailed': 'AI 润色本次失败 — 已使用未润色的文本。', // AI polish failed this time — the un-polished transcript was used.
   'error.transcriptionFailedDetail': '转录失败 — 请查看详情并重试。', // Transcription failed — see details and try again.
 };

@@ -600,6 +600,13 @@ kbd {
   flex-shrink: 0;
 }
 
+/* Per-entry copy affordance (#05): compact text-btn inside the entry row. */
+.history-item-copy {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 4px 8px;
+}
+
 /* ── Settings ─────────────────────────────────────────── */
 
 #settings-heading { font-size: 18px; font-weight: 600; }

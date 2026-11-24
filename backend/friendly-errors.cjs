@@ -13,7 +13,7 @@ function friendlyMessageFor(err){
   if(name==='NotAllowedError'||name==='SecurityError'||/permission|not allowed|denied/i.test(m)) return 'Microphone blocked — allow access in system settings, then try again.';
   if(name==='NotFoundError'||name==='OverconstrainedError'||/requested device not found|no microphone|device not found/i.test(m)) return 'Microphone not found — check connection, then try again.';
   if(/NotReadableError|busy|in use|could not start/i.test(m)) return 'Microphone is busy — close other apps using it, then try again.';
-  if(code==='ENOENT'||/ENOENT|binary not found|whisper binary not found/i.test(m)) return 'Whisper binary not found — use Select Binary in Settings to locate whisper-cli.';
+  if(code==='ENOENT'||/ENOENT|binary not found|whisper binary not found/i.test(m)) return 'Whisper binary not found — use Select binary in Settings to locate whisper-cli.';
   if(/model not found|download a model/i.test(m)) return 'Whisper model not found — download it in Settings first.';
   if(/crashed|0xC000|access violation|stack.*overrun/i.test(m)) return 'Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.';
   if(/api key not set|api key.*required/i.test(m)) return 'API key missing — add it in Settings first.';

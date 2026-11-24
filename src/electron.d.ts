@@ -77,6 +77,12 @@ interface HistoryEntry {
   translation?: string | null;
   translationTarget?: string;
   translationError?: string | null;
+  /** Provenance (#04): engine used for this transcript (e.g. 'deepgram'). */
+  engine?: string;
+  /** Provenance (#04): model used (e.g. 'nova-3'); absent when the engine has none. */
+  model?: string;
+  /** Provenance (#04): polish mode applied ('off' | 'light' | 'thorough'). */
+  polishMode?: string;
 }
 
 interface HistoryData {

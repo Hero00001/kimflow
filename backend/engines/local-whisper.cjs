@@ -111,7 +111,7 @@ async function transcribe(modelSize, audioPath, language, binaryPath, signal, po
 
   const whisperBinary = resolveWhisperBinary(binaryPath);
   if (!whisperBinary) {
-    throw new Error('Whisper binary not found. Use Select Binary in Settings to locate whisper-cli, or choose a cloud engine.');
+    throw new Error('Whisper binary not found. Use Select binary in Settings to locate whisper-cli, or choose a cloud engine.');
   }
 
   const langFlag = language && language !== 'auto' ? language : 'auto';

@@ -9,7 +9,7 @@ test('maps mic NotAllowedError to friendly text', () => {
 test('maps ENOENT binary to friendly text', () => {
   const err = new Error('spawn C:\\bin\\whisper-cli.exe ENOENT');
   err.code = 'ENOENT';
-  assert.equal(friendlyMessageFor(err), 'Whisper binary not found — use Select Binary in Settings to locate whisper-cli.');
+  assert.equal(friendlyMessageFor(err), 'Whisper binary not found — use Select binary in Settings to locate whisper-cli.');
 });
 test('returns null for unknown', () => {
   assert.equal(friendlyMessageFor(new Error('weird xyz 123')), null);

@@ -43,13 +43,13 @@ export const en = {
   'status.pause': 'Pause',
   'status.resume': 'Resume',
   'status.stop': 'Stop',
-  'status.startRecording': 'Start Recording',
-  'status.stopRecording': 'Stop Recording',
+  'status.startRecording': 'Start recording',
+  'status.stopRecording': 'Stop recording',
 
   // ── Transcribe page ──────────────────────────────────────────────────
   'transcribe.transcriptLabel': 'Transcript',
   'transcribe.mic': 'Mic',
-  'transcribe.endSession': 'End Session',
+  'transcribe.endSession': 'End session',
   'transcribe.hintStart': 'to start',
   'transcribe.hintStop': 'to stop',
   'transcribe.hintEsc': 'Esc',
@@ -66,6 +66,8 @@ export const en = {
   'history.search': 'Search history…',
   'history.searchAria': 'Search history',
   'history.clear': 'Clear',
+  'history.clearConfirm': 'Click again to clear',
+  'history.copyEntryAria': 'Copy transcript',
   'history.emptyTitle': 'No recordings yet',
   'history.emptySub': 'Finished transcripts will appear here.',
   'history.today': 'Today',
@@ -85,13 +87,13 @@ export const en = {
 
   // ── Settings — Input section ─────────────────────────────────────────
   'settings.input.microphone': 'Microphone',
-  'settings.input.mode': 'Recording Mode',
-  'settings.input.hotkey': 'Capture Hotkey',
+  'settings.input.mode': 'Recording mode',
+  'settings.input.hotkey': 'Capture hotkey',
   'settings.input.hotkeyAria': 'Capture hotkey',
-  'settings.input.pauseHotkey': 'Pause Hotkey',
+  'settings.input.pauseHotkey': 'Pause hotkey',
   'settings.input.pauseHotkeyAria': 'Pause hotkey',
   'settings.mode.toggle': 'Toggle',
-  'settings.mode.pushToTalk': 'Push-to-Talk',
+  'settings.mode.pushToTalk': 'Push-to-talk',
   'settings.hotkey.record': 'Record',
   'settings.hotkey.pressKeys': 'Press keys…',
   'settings.hotkey.placeholder': 'Ctrl+Shift+Space',
@@ -102,7 +104,7 @@ export const en = {
   'settings.engine.local': 'Local Whisper',
   'settings.engine.speechmatics': 'Speechmatics',
   'settings.engine.deepgram': 'Deepgram',
-  'settings.engine.whisperModel': 'Whisper Model',
+  'settings.engine.whisperModel': 'Whisper model',
   'settings.engine.modelLabel': 'Model',
   'settings.engine.advanced': 'Advanced (custom binary)',
   'settings.engine.download.flavor': 'Download {flavor} (~{size})',
@@ -132,16 +134,16 @@ export const en = {
   'settings.download.retry': 'Retry',
 
   // ── Settings — custom binary ─────────────────────────────────────────
-  'settings.binary.selectLabel': 'Select Binary',
+  'settings.binary.selectLabel': 'Select binary',
   'settings.binary.notSelected': 'Not selected',
   'settings.binary.browse': 'Browse…',
   'settings.binary.recheck': 'Recheck',
   'settings.binary.clearTitle': 'Clear custom binary',
-  'settings.binary.noneSelected': 'No binary selected. Use Select Binary first.',
+  'settings.binary.noneSelected': 'No binary selected. Use Select binary first.',
   'settings.binary.cleared': 'Custom binary cleared',
 
   // ── Settings — API keys ──────────────────────────────────────────────
-  'settings.key.apiKey': 'API Key',
+  'settings.key.apiKey': 'API key',
   'settings.key.speechmaticsPlaceholder': 'Enter your Speechmatics API key',
   'settings.key.deepgramPlaceholder': 'key-...',
   'settings.key.geminiKeyPlaceholder': 'AIza...',
@@ -151,7 +153,7 @@ export const en = {
   'settings.key.volatile': '⚠ Key held for this session only — it will be lost when KimFlow restarts',
   'settings.key.unreadable': '⚠ Saved key cannot be read — re-enter it below',
   'settings.key.unavailable': 'Key status unavailable',
-  'settings.key.testConnection': 'Test Connection',
+  'settings.key.testConnection': 'Test connection',
   'settings.key.testing': 'Testing…',
   'settings.key.connected': '✓ Connected',
   'settings.key.connectionSuccessful': 'Connection successful',
@@ -162,24 +164,24 @@ export const en = {
   'settings.key.geminiRemoved': 'Gemini key removed',
 
   // ── Settings — Text cleanup section ──────────────────────────────────
-  'settings.cleanup.speechCleanup': 'Speech Cleanup',
+  'settings.cleanup.speechCleanup': 'Speech cleanup',
   'settings.cleanup.off': 'Off',
   'settings.cleanup.light': 'Light',
   'settings.cleanup.thorough': 'Thorough',
-  'settings.cleanup.myWords': 'My Words',
+  'settings.cleanup.myWords': 'My words',
   'settings.cleanup.vocabPlaceholder': 'One name or term per line, e.g.\nKimFlow\nAhmed',
   'settings.cleanup.vocabAria': 'Custom vocabulary, one term per line',
   'settings.cleanup.vocabHint': 'Names & terms you say often — sent to the engine so it hears them right.',
-  'settings.cleanup.aiPolish': 'AI Polish',
+  'settings.cleanup.aiPolish': 'AI polish',
 
   // ── Settings — Language & translation section ────────────────────────
   'settings.translation.label': 'Translation',
-  'settings.translation.provider': 'Translation Provider',
+  'settings.translation.provider': 'Translation provider',
   'settings.translation.providerGemini': 'Gemini',
-  'settings.translation.inputLanguage': 'Input Language',
-  'settings.translation.translateTo': 'Translate To',
-  'settings.translation.geminiKey': 'Gemini API Key',
-  'settings.translation.geminiModel': 'Gemini Model',
+  'settings.translation.inputLanguage': 'Input language',
+  'settings.translation.translateTo': 'Translate to',
+  'settings.translation.geminiKey': 'Gemini API key',
+  'settings.translation.geminiModel': 'Gemini model',
   'settings.translation.geminiModelPlaceholder': 'gemini-3.6-flash (empty = automatic)',
   'settings.translation.geminiModelAria': 'Gemini model',
   'settings.translation.modelAuto': 'Leave empty for automatic model selection.',
@@ -187,8 +189,8 @@ export const en = {
   'settings.translation.validateFailed': 'Could not validate model right now. It will be checked before translating.',
 
   // ── Settings — Appearance section ────────────────────────────────────
-  'settings.appearance.uiLanguage': 'UI Language',
-  'settings.appearance.accent': 'Accent Color',
+  'settings.appearance.uiLanguage': 'UI language',
+  'settings.appearance.accent': 'Accent color',
   'settings.appearance.accentAria': 'Choose accent color',
 
   // ── Language names ───────────────────────────────────────────────────
@@ -197,7 +199,7 @@ export const en = {
   'languages.en': 'English',
   'languages.ar': 'العربية',
   'languages.zh': '中文（简体）',
-  'languages.auto': 'Auto Detect',
+  'languages.auto': 'Auto detect',
 
   // ── Floating overlay ─────────────────────────────────────────────────
   'overlay.listening': 'Listening…',
@@ -244,7 +246,7 @@ export const en = {
   'error.micBlocked': 'Microphone blocked — allow access in system settings, then try again.',
   'error.micNotFound': 'Microphone not found — check connection, then try again.',
   'error.micBusy': 'Microphone is busy — close other apps using it, then try again.',
-  'error.whisperBinaryNotFound': 'Whisper binary not found — use Select Binary in Settings to locate whisper-cli.',
+  'error.whisperBinaryNotFound': 'Whisper binary not found — use Select binary in Settings to locate whisper-cli.',
   'error.whisperNotExecutable': 'Whisper binary is not executable — check permissions or re-select it in Settings.',
   'error.whisperModelNotFound': 'Whisper model not found — download it in Settings first.',
   'error.whisperCrashed': 'Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.',
@@ -253,7 +255,7 @@ export const en = {
   'error.network': 'Network error — check connection and retry.',
   'error.noSpeech': 'No speech detected — check mic level and try again.',
   'error.storage': 'Could not write to disk — check free space and folder permissions.',
-  'warning.aiPolishFailed': 'AI Polish failed this time — the un-polished transcript was used.',
+  'warning.aiPolishFailed': 'AI polish failed this time — the un-polished transcript was used.',
   'error.transcriptionFailedDetail': 'Transcription failed — see details and try again.',
 } as const;
 
