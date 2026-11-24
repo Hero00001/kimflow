@@ -14,6 +14,8 @@ const fullApi = {
   getRecordingState: () => ipcRenderer.invoke('get-recording-state'),
   checkModelDownloaded: (modelSize) => ipcRenderer.invoke('check-model-downloaded', modelSize),
   downloadModel: (modelSize) => ipcRenderer.invoke('download-model', modelSize),
+  // SenseVoice readiness (runtime sidecar + model). Booleans only.
+  sherpaStatus: () => ipcRenderer.invoke('sherpa-status'),
   downloadEngine: (flavor) => ipcRenderer.invoke('download-engine', flavor),
   activateEngine: (flavor) => ipcRenderer.invoke('activate-engine', flavor),
   engineStatus: () => ipcRenderer.invoke('engine-status'),

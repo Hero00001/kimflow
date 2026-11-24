@@ -95,6 +95,8 @@ function defaultFakes() {
       transcribeDeepgram: async () => ({ text: state.engineText, detectedLanguage: 'en' }),
       transcribeSpeechmatics: async () => ({ text: '', detectedLanguage: null }),
       transcribeLocal: async () => ({ text: '', detectedLanguage: null }),
+      transcribeSherpa: async () => ({ text: '', detectedLanguage: null }),
+      resolveSherpaModel: () => ({ fallback: 'whisper-cpp' }),
     },
     'translation.service.cjs': {
       translate: async () => 'TRANSLATED',

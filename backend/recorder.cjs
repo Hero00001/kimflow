@@ -3,7 +3,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { AudioRecorder } = require('./audio.cjs');
 const { pasteText } = require('./paste.cjs');
-const { transcribeDeepgram, transcribeSpeechmatics, transcribeLocal } = require('./transcribe.cjs');
+const { transcribeDeepgram, transcribeSpeechmatics, transcribeLocal, transcribeSherpa, resolveSherpaModel } = require('./transcribe.cjs');
 const translationService = require('./translation.service.cjs');
 const { CONFIG_DIR } = require('./settings.cjs');
 const { getSecret } = require('./secrets.cjs');
@@ -178,11 +178,31 @@ async function stopRecording(settings, windows, audioBuffer) {
       });
     }
     let transcription;
+    // Provenance (#04 retheme): remember which engine/model actually produced
+    // this transcript. The SenseVoice branch below overwrites both when
+    // routing takes the sherpa path; a fallback keeps the whisper identity.
+    let provenanceEngine = settings.engine;
+    let provenanceModel = settings.engine === 'deepgram'
+      ? settings.deepgramModel
+      : settings.engine === 'local' ? settings.whisperModel : undefined;
     try {
       switch (settings.engine) {
-        case 'local':
+        case 'local': {
+          // SenseVoice routing (sensevoice spec): only zh/yue/ja/ko, only
+          // when localEngine is sherpa-onnx AND sidecar + model are present;
+          // every other case falls back to whisper.cpp unchanged.
+          if (settings.localEngine === 'sherpa-onnx') {
+            const routed = resolveSherpaModel(language, settings.sherpaModel, { localEngine: 'sherpa-onnx' });
+            if (!routed.fallback) {
+              provenanceEngine = 'sherpa-onnx';
+              provenanceModel = routed.model;
+              transcription = await transcribeSherpa(routed.model, tempPath, language, signal, settings.polishMode, settings.customVocabulary);
+              break;
+            }
+          }
           transcription = await transcribeLocal(settings.whisperModel, tempPath, language, settings.whisperBinaryPath || '', signal, settings.polishMode, settings.customVocabulary);
           break;
+        }
         case 'deepgram':
           transcription = await transcribeDeepgram(settings.deepgramApiKey || getSecret('deepgramApiKey'), tempPath, language, settings.deepgramModel, signal, settings.polishMode, settings.customVocabulary);
           break;
@@ -263,12 +283,10 @@ async function stopRecording(settings, windows, audioBuffer) {
           text: finalText,
           durationMs: startedAt ? Date.now() - startedAt : 0,
           // Provenance (#04): remember what produced this transcript so the
-          // history view can show e.g. `deepgram · nova-3 · light`.
+          // history view can show e.g. `sherpa-onnx · sense-voice-int8 · light`.
           // Speechmatics exposes no selectable model, so it gets none.
-          engine: settings.engine,
-          model: settings.engine === 'deepgram'
-            ? settings.deepgramModel
-            : settings.engine === 'local' ? settings.whisperModel : undefined,
+          engine: provenanceEngine,
+          model: provenanceModel,
           polishMode: settings.polishMode,
         });
         historyId = entry ? entry.id : null;

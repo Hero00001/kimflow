@@ -78,6 +78,10 @@ const STUB_FACTORIES = {
   'transcribe.cjs': () => ({
     modelDownloaded: () => false, downloadModel: async () => {},
     testDeepgramConnection: async () => ({}), testSpeechmaticsConnection: async () => ({}),
+    // SenseVoice registry surface (sensevoice #03) — the sherpa-status /
+    // routed model handlers call these on every settings load.
+    registryHas: () => false, registryDownloaded: () => false,
+    downloadRegistryEntry: async () => {},
   }),
   'engine-download.cjs': () => ({
     engineInstalled: () => false,

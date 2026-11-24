@@ -126,6 +126,13 @@ export const en = {
   'settings.model.nova2': 'Nova 2',
   'settings.model.auto': 'Auto (recommended)',
   'settings.model.downloading': 'Downloading {model} model',
+  'settings.model.senseVoice': 'SenseVoice-Small · zh/yue/ja/ko · 155 MB',
+
+  // ── Settings — local engine flavor (sensevoice #05) ───────────────────
+  'settings.localEngine.label': 'Local engine',
+  'settings.localEngine.whisperCpp': 'Whisper.cpp',
+  'settings.localEngine.sherpaOnnx': 'SenseVoice',
+  'settings.localEngine.fallbackNote': 'SenseVoice is not ready — dictation falls back to Whisper.cpp.',
 
   // ── Settings — model download button ─────────────────────────────────
   'settings.download.download': 'Download',

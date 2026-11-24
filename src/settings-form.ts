@@ -30,6 +30,9 @@ import {
   uiLanguageSelect,
   themeSelect,
   engineGroup,
+  localEngineRow,
+  localEngineGroup,
+  localEngineStatus,
   localRow,
   speechmaticsRow,
   deepgramRow,
@@ -83,6 +86,40 @@ const DEEPGRAM_MODEL_VALUES: ReadonlySet<string> = new Set(['auto', 'nova-3', 'n
 const MAX_VOCAB_TERMS = 100;
 
 /**
+ * Whisper model options for #model-select, in display order. The select is
+ * re-populated from here whenever the local engine flavor changes; options
+ * carry data-i18n so renderStatic re-translates them like the static markup
+ * used to.
+ */
+const WHISPER_MODEL_OPTIONS: ReadonlyArray<{ value: string; labelKey: string }> = [
+  { value: 'tiny', labelKey: 'settings.model.tiny' },
+  { value: 'base', labelKey: 'settings.model.base' },
+  { value: 'small', labelKey: 'settings.model.small' },
+  { value: 'medium', labelKey: 'settings.model.medium' },
+];
+
+/**
+ * SenseVoice registry entry (backend/model-download.cjs). Honest label:
+ * languages + size. One entry for now; more registry ids would go here.
+ */
+const SENSE_VOICE_OPTIONS: ReadonlyArray<{ value: string; labelKey: string }> = [
+  { value: 'sense-voice-int8', labelKey: 'settings.model.senseVoice' },
+];
+
+/** Populate #model-select with the option set for the given local engine. */
+function populateModelOptions(localEngine: string): void {
+  const options = localEngine === 'sherpa-onnx' ? SENSE_VOICE_OPTIONS : WHISPER_MODEL_OPTIONS;
+  const elements = options.map(({ value, labelKey }) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.setAttribute('data-i18n', labelKey);
+    option.textContent = t(labelKey);
+    return option;
+  });
+  modelSelect.replaceChildren(...elements);
+}
+
+/**
  * The custom Whisper binary currently selected.
  *
  * This is one of six settings with no form control of their own, so their
@@ -107,7 +144,7 @@ function activeToggleValue(group: HTMLElement, attribute: 'value' | 'mode'): str
 /** The six settings the settings form owns, read from the UI. */
 function ownedSettings(): Pick<
   Settings,
-  'engine' | 'recordingMode' | 'polishMode' | 'translationEnabled' | 'aiPolish' | 'whisperBinaryPath'
+  'engine' | 'recordingMode' | 'polishMode' | 'translationEnabled' | 'aiPolish' | 'whisperBinaryPath' | 'localEngine'
 > {
   return {
     engine: activeToggleValue(engineGroup, 'value') || 'local',
@@ -116,6 +153,7 @@ function ownedSettings(): Pick<
     translationEnabled: activeToggleValue(translationGroup, 'value') === 'on',
     aiPolish: activeToggleValue(aiPolishGroup, 'value') === 'on',
     whisperBinaryPath: currentBinaryPath,
+    localEngine: currentLocalEngine(),
   };
 }
 
@@ -224,6 +262,7 @@ function applyLanguageToUi(language: string): void {
   refreshStatusText();
   renderHistory();
   refreshVocabUi();
+  void refreshSherpaStatus();
   // renderStatic re-applies every `data-i18n` attribute, which resets the
   // key-status spans to their "No key saved" placeholder — even when a key
   // IS stored. Re-derive them from the OS keychain after each re-render.
@@ -261,7 +300,9 @@ function setTranslationActive(enabled: boolean) {
 
 function setEngine(engine: string) {
   if (!getSettings()) return;
+  currentEngineValue = engine;
   localRow.classList.toggle('hidden', engine !== 'local');
+  refreshLocalEngineRowVisibility();
   speechmaticsRow.classList.toggle('hidden', engine !== 'speechmatics');
   deepgramRow.classList.toggle('hidden', engine !== 'deepgram');
   engineGroup.querySelectorAll('.toggle-btn').forEach((button) => {
@@ -271,6 +312,69 @@ function setEngine(engine: string) {
     void refreshEngineButtons();
     void refreshEngineSuggestion();
   }
+}
+
+/** The engine the UI is currently showing (may be ahead of the store). */
+let currentEngineValue = 'local';
+
+/** The local-engine flavor currently shown by its toggle group. */
+function currentLocalEngine(): string {
+  return activeToggleValue(localEngineGroup, 'value') || 'whisper-cpp';
+}
+
+/** #local-engine-row shows only for the local engine, and only on Windows. */
+function refreshLocalEngineRowVisibility(): void {
+  const show = currentEngineValue === 'local' && isWindowsEngineHost();
+  localEngineRow.classList.toggle('hidden', !show);
+}
+
+/** Whisper-specific rows (flavor downloads, suggestion, custom binary) — the sherpa sidecar has none of them. */
+function refreshWhisperOnlyRows(): void {
+  const sherpa = currentLocalEngine() === 'sherpa-onnx';
+  const show = isWindowsEngineHost() && !sherpa;
+  document.getElementById('engine-download-row')?.classList.toggle('hidden', !show);
+  document.getElementById('engine-suggestion-row')?.classList.toggle('hidden', !show);
+  localRow.querySelector('.engine-setup-section')?.classList.toggle('hidden', sherpa);
+}
+
+/**
+ * SenseVoice readiness note (ticket 05): visible fallback explanation when
+ * the sidecar or model is missing, ready-state otherwise. Never fakes
+ * readiness — an unknown status shows the fallback note.
+ */
+async function refreshSherpaStatus(): Promise<void> {
+  if (currentLocalEngine() !== 'sherpa-onnx') {
+    localEngineStatus.classList.add('hidden');
+    return;
+  }
+  try {
+    const status = await window.api.sherpaStatus();
+    localEngineStatus.textContent = status.runtime && status.model
+      ? t('settings.download.ready')
+      : t('settings.localEngine.fallbackNote');
+  } catch {
+    localEngineStatus.textContent = t('settings.localEngine.fallbackNote');
+  }
+  localEngineStatus.classList.remove('hidden');
+}
+
+/**
+ * Switch the local engine flavor: retarget the toggle group, repopulate the
+ * model select for that flavor, restore the right model value, and refresh
+ * whisper-only row visibility + the readiness note.
+ */
+function setLocalEngine(value: string): void {
+  const next = value === 'sherpa-onnx' ? 'sherpa-onnx' : 'whisper-cpp';
+  localEngineGroup.querySelectorAll('.toggle-btn').forEach((button) => {
+    button.classList.toggle('active', (button as HTMLElement).dataset.value === next);
+  });
+  populateModelOptions(next);
+  modelSelect.value = next === 'sherpa-onnx'
+    ? 'sense-voice-int8'
+    : (getSettings()?.whisperModel || 'small');
+  refreshWhisperOnlyRows();
+  void refreshSherpaStatus();
+  void checkModelStatus();
 }
 
 function setTranslationUiFromSettings(enabled: boolean) {
@@ -353,7 +457,9 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   uiLanguageSelect.value = normalizeUILanguage(settings.uiLanguage);
   applyLanguageToUi(settings.uiLanguage);
   setEngine(settings.engine);
-  modelSelect.value = settings.whisperModel || 'small';
+  // Local engine flavor: sets the toggle, populates #model-select for that
+  // flavor and selects the right model value (whisper model or SenseVoice).
+  setLocalEngine(settings.localEngine === 'sherpa-onnx' ? 'sherpa-onnx' : 'whisper-cpp');
   showBinaryName(settings.whisperBinaryPath || '');
   // The key inputs are write-only: the backend blanks key fields before
   // returning them, so populating these from a settings payload could only
@@ -434,8 +540,10 @@ function persist(): void {
 async function runPersist(): Promise<void> {
   const settings = getSettings();
   if (!settings) return;
+  // The model select shows the SenseVoice entry when the local engine flavor
+  // is sherpa-onnx; only a whisper selection may write whisperModel.
   settings.microphone = micSelect.value || 'default';
-  settings.whisperModel = modelSelect.value;
+  if (currentLocalEngine() !== 'sherpa-onnx') settings.whisperModel = modelSelect.value;
   settings.whisperRuntime = 'whisper-cpp';
   // API keys are trimmed: keys pasted from an email or a website often carry
   // a trailing newline, and a stored "key\n" is rejected by the provider in
@@ -547,7 +655,10 @@ function wireDownload() {
   downloadBtn.addEventListener('click', async () => {
     downloadBtn.disabled = true;
     downloadBtn.textContent = t('settings.download.downloading');
-    showDownloadProgress(t('settings.model.downloading', { model: modelSelect.value }), 'model');
+    // Label from the option text so a registry entry (SenseVoice-Small ·
+    // zh/yue/ja/ko · 155 MB) does not render as a raw id in the progress bar.
+    const modelLabel = modelSelect.selectedOptions[0]?.textContent || modelSelect.value;
+    showDownloadProgress(t('settings.model.downloading', { model: modelLabel }), 'model');
     try {
       await window.api.downloadModel(modelSelect.value);
       downloadBtn.textContent = t('settings.download.ready');
@@ -593,9 +704,8 @@ function isWindowsEngineHost(): boolean {
 }
 
 function applyEngineWindowsGate(): void {
-  const show = isWindowsEngineHost();
-  document.getElementById('engine-download-row')?.classList.toggle('hidden', !show);
-  document.getElementById('engine-suggestion-row')?.classList.toggle('hidden', !show);
+  refreshLocalEngineRowVisibility();
+  refreshWhisperOnlyRows();
 }
 
 function isTranscribingNow(): boolean {
@@ -765,6 +875,15 @@ export function wireSettingsControls() {
     const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
     if (!button?.dataset.value) return;
     setPolishActive(button.dataset.value);
+    void persist();
+  });
+
+  // Local engine flavor (whisper.cpp vs SenseVoice): applies immediately,
+  // then persists. runPersist guards whisperModel against the sherpa select.
+  localEngineGroup.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest('.toggle-btn') as HTMLElement | null;
+    if (!button?.dataset.value) return;
+    setLocalEngine(button.dataset.value);
     void persist();
   });
 

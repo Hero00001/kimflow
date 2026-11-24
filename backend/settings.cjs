@@ -35,6 +35,14 @@ const DEFAULT_SETTINGS = {
   deepgramModel: 'auto',
   speechmaticsApiKey: '',
   recordingMode: 'toggle',
+  // Which engine powers the 'local' engine choice (sensevoice spec §Locked
+  // decisions): whisper.cpp is today's behavior and the default; sherpa-onnx
+  // routes ONLY zh/yue/ja/ko dictation to SenseVoice-Small (when the sidecar
+  // + model are downloaded — backend/engines/sherpa.cjs resolves per request
+  // and falls back to whisper.cpp otherwise).
+  localEngine: 'whisper-cpp',
+  // Registry id of the SenseVoice model (backend/model-download.cjs registry).
+  sherpaModel: 'sense-voice-int8',
   // 'light' is the safe default: it removes fillers/repeats and converts
   // spoken punctuation, but does NOT rewrite sentences. The aggressive
   // 'thorough' mode (word deletion, self-correction restarts) must be an
@@ -118,6 +126,8 @@ function normalizeSettings(settings) {
       : DEFAULT_SETTINGS.deepgramModel,
     speechmaticsApiKey: stringValue(merged.speechmaticsApiKey, ''),
     recordingMode: ['toggle', 'push-to-talk'].includes(merged.recordingMode) ? merged.recordingMode : DEFAULT_SETTINGS.recordingMode,
+    localEngine: ['whisper-cpp', 'sherpa-onnx'].includes(merged.localEngine) ? merged.localEngine : DEFAULT_SETTINGS.localEngine,
+    sherpaModel: ['sense-voice-int8'].includes(merged.sherpaModel) ? merged.sherpaModel : DEFAULT_SETTINGS.sherpaModel,
     polishMode: ['off', 'light', 'thorough'].includes(merged.polishMode) ? merged.polishMode : DEFAULT_SETTINGS.polishMode,
     customVocabulary: normalizeVocabulary(merged.customVocabulary),
     aiPolish: merged.aiPolish === true,

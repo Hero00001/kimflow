@@ -14,6 +14,10 @@ interface Settings {
   hotkey: string;
   /** Optional global pause/resume hotkey; '' (the default) means disabled. */
   pauseHotkey: string;
+  /** Which engine powers the 'local' choice: 'whisper-cpp' | 'sherpa-onnx'. */
+  localEngine: string;
+  /** Registry id of the SenseVoice model (see backend/model-download.cjs). */
+  sherpaModel: string;
   accentColor: string;
   /** UI theme: 'system' (follows OS), 'light', or 'dark' (the default). */
   theme: string;
@@ -100,6 +104,8 @@ interface Window {
     getRecordingState: () => Promise<string>;
     checkModelDownloaded: (modelSize: string) => Promise<boolean>;
     downloadModel: (modelSize: string) => Promise<void>;
+    /** SenseVoice readiness: { runtime, model } booleans (sherpa-onnx sidecar). */
+    sherpaStatus: () => Promise<{ runtime: boolean; model: boolean }>;
     downloadEngine: (flavor: string) => Promise<string>;
     activateEngine: (flavor: string) => Promise<string>;
     engineStatus: () => Promise<Record<string, 'missing' | 'ready' | 'downloading' | 'incompatible'>>;

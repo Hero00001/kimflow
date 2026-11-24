@@ -99,6 +99,7 @@ test('the documented live channel set is exactly this (guards the contract itsel
     'save-settings',
     'secret-state',
     'select-whisper-binary',
+    'sherpa-status',
     'start-recording',
     'stop-recording',
     'test-deepgram-connection',

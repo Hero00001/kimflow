@@ -189,6 +189,20 @@
                     </div>
                   </div>
 
+                  <!-- Local engine flavor (sensevoice spec): whisper.cpp (today's
+                       behavior) vs the SenseVoice sidecar. Windows-only; the
+                       resolver still falls back to whisper per language. -->
+                  <div class="s-row hidden" id="local-engine-row">
+                    <span class="s-label" data-i18n="settings.localEngine.label"></span>
+                    <div class="model-field">
+                      <div class="toggle-group" id="local-engine-group">
+                        <button class="toggle-btn active" data-value="whisper-cpp" data-i18n="settings.localEngine.whisperCpp"></button>
+                        <button class="toggle-btn" data-value="sherpa-onnx" data-i18n="settings.localEngine.sherpaOnnx"></button>
+                      </div>
+                      <div id="local-engine-status" class="model-status neutral hidden" aria-live="polite"></div>
+                    </div>
+                  </div>
+
                   <!-- Local Whisper Settings -->
                   <div class="engine-settings hidden" id="local-row">
                     <div class="engine-settings-header" data-i18n="settings.engine.local"></div>

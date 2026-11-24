@@ -130,6 +130,8 @@ function loadRecorderWithFailingPolish(t) {
       transcribeLocal: async () => ({ text: 'Hello world.', detectedLanguage: 'en' }),
       transcribeDeepgram: async () => ({ text: 'Hello world.', detectedLanguage: 'en' }),
       transcribeSpeechmatics: async () => ({ text: '', detectedLanguage: null }),
+      transcribeSherpa: async () => ({ text: '', detectedLanguage: null }),
+      resolveSherpaModel: () => ({ fallback: 'whisper-cpp' }),
     },
     '../backend/translation.service.cjs': {
       warmup: async () => {},

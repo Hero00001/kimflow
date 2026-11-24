@@ -127,6 +127,13 @@ export const ar: Record<LocaleKey, string> = {
   'settings.model.nova2': 'Nova 2', // Nova 2
   'settings.model.auto': 'تلقائي (مستحسن)', // Auto (recommended)
   'settings.model.downloading': 'جارٍ تنزيل طراز {model}', // Downloading {model} model
+  'settings.model.senseVoice': 'SenseVoice-Small · zh/yue/ja/ko · 155 MB', // SenseVoice-Small · zh/yue/ja/ko · 155 MB
+
+  // ── Settings — local engine flavor (sensevoice #05) ───────────────────
+  'settings.localEngine.label': 'المحرك المحلي', // Local engine
+  'settings.localEngine.whisperCpp': 'Whisper.cpp', // Whisper.cpp
+  'settings.localEngine.sherpaOnnx': 'SenseVoice', // SenseVoice
+  'settings.localEngine.fallbackNote': '‏SenseVoice غير جاهز — يتم النسخ عبر Whisper.cpp بدلًا منه.', // SenseVoice is not ready — dictation falls back to Whisper.cpp.
 
   // ── Settings — model download button ─────────────────────────────────
   'settings.download.download': 'تنزيل', // Download

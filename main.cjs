@@ -550,11 +550,35 @@ function registerIpc() {
   });
   ipcMain.handle('check-model-downloaded', (event, modelSize) => {
     assertTrustedSender(event);
-    return require('./backend/transcribe.cjs').modelDownloaded(modelSize);
+    const t = require('./backend/transcribe.cjs');
+    // Registry ids (e.g. 'sense-voice-int8') check the registry; whisper
+    // model sizes keep the existing ggml-file check.
+    return t.registryHas(modelSize) ? t.registryDownloaded(modelSize) : t.modelDownloaded(modelSize);
   });
   ipcMain.handle('download-model', async (event, modelSize) => {
     assertTrustedSender(event);
-    return require('./backend/transcribe.cjs').downloadModel(mainWindow, modelSize);
+    const t = require('./backend/transcribe.cjs');
+    if (t.registryHas(modelSize)) {
+      if (process.platform !== 'win32') throw new Error('SenseVoice downloads are Windows-only in this version');
+      // The runtime sidecar ships as a separate registry entry; make sure it
+      // is in place before (or after) the model so one button click yields a
+      // working engine. Progress uses the same single 'model' channel.
+      if (modelSize === 'sense-voice-int8' && !t.registryDownloaded('sherpa-runtime-win-x64')) {
+        await t.downloadRegistryEntry(mainWindow, 'sherpa-runtime-win-x64');
+      }
+      return t.downloadRegistryEntry(mainWindow, modelSize);
+    }
+    return t.downloadModel(mainWindow, modelSize);
+  });
+  ipcMain.handle('sherpa-status', (event) => {
+    assertTrustedSender(event);
+    const sherpa = require('./backend/engines/sherpa.cjs');
+    const { registryDownloaded } = require('./backend/model-download.cjs');
+    // Booleans only — never expose filesystem paths over IPC (B6 posture).
+    return {
+      runtime: sherpa.resolveSherpaBinary() !== null && registryDownloaded(sherpa.RUNTIME_ENTRY_ID),
+      model: registryDownloaded(sherpa.SENSE_VOICE_MODEL_ID),
+    };
   });
   const engineDownloadState = new Set();
 
