@@ -69,7 +69,9 @@ test('the locale set is exactly en/ar/zh with 206 keys each', () => {
   //   + settings.localEngine.whisperCpp + settings.localEngine.sherpaOnnx
   //   + settings.localEngine.fallbackNote
   //     (SenseVoice local engine picker, sensevoice #05).
-  assert.equal(Object.keys(EN).length, 206);
+  //   + error.senseVoiceModelNotFound + error.senseVoiceRuntimeNotFound
+  //     (SenseVoice friendly-error mirrors, QA fix 2026-11-24).
+  assert.equal(Object.keys(EN).length, 208);
 });
 
 // ── Category 2: placeholder parity ──────────────────────────────────────────

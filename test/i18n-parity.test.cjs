@@ -56,8 +56,10 @@ test('no locale defines extra keys beyond English (extras are listed)', () => {
 });
 
 test('every locale value is a non-empty string', () => {
+  // EN is included deliberately (QA fix 2026-11-24): an empty en value is as
+  // broken as an empty ar/zh value — it used to be skipped by this loop.
   const bad = [];
-  for (const [lang, locale] of Object.entries(LOCALES)) {
+  for (const [lang, locale] of Object.entries({ en: EN, ...LOCALES })) {
     for (const [key, value] of Object.entries(locale)) {
       if (typeof value !== 'string' || value.length === 0) bad.push(`${lang}: ${key}`);
     }

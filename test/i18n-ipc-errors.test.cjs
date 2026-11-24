@@ -77,6 +77,8 @@ const BACKEND_CASES = [
   { name: 'whisperBinaryNotFound', error: Object.assign(new Error('spawn whisper-cli ENOENT'), { code: 'ENOENT' }), key: 'error.whisperBinaryNotFound' },
   { name: 'whisperNotExecutable', error: Object.assign(new Error('spawn whisper-cli failed'), { code: 'EACCES' }), key: 'error.whisperNotExecutable' },
   { name: 'whisperModelNotFound', error: new Error('model not found'), key: 'error.whisperModelNotFound' },
+  { name: 'senseVoiceModelNotFound', error: new Error('SenseVoice model not found — download it in Settings first.'), key: 'error.senseVoiceModelNotFound' },
+  { name: 'senseVoiceRuntimeNotFound', error: new Error('SenseVoice sidecar not found — sherpa-onnx-offline is not installed.'), key: 'error.senseVoiceRuntimeNotFound' },
   { name: 'whisperCrashed', error: new Error('whisper crashed 0xC0000005'), key: 'error.whisperCrashed' },
   { name: 'invalidApiKey', error: new Error('HTTP 401 Unauthorized'), key: 'error.invalidApiKey' },
   { name: 'apiKeyMissing', error: new Error('api key not set'), key: 'error.apiKeyMissing' },
@@ -85,8 +87,8 @@ const BACKEND_CASES = [
   { name: 'transcriptionFailedDetail', error: new Error('whisper.cpp failed with stderr: boom'), key: 'error.transcriptionFailedDetail' },
 ];
 
-test('the backend produces the exact English locale strings (12 cases)', () => {
-  assert.equal(BACKEND_CASES.length, 12);
+test('the backend produces the exact English locale strings (14 cases)', () => {
+  assert.equal(BACKEND_CASES.length, 14);
   for (const { name, error, key } of BACKEND_CASES) {
     assert.equal(friendlyMessageFor(error), EN[key], `${name}: backend string must equal en[${key}]`);
   }

@@ -6,7 +6,8 @@
  *      `:root` is the dark set, `[data-theme="light"]` the light set).
  *   2. `applyAccentColor(color)` overwrites `--accent`/`--accent-hover`/
  *      `--accent-subtle` inline on `<html>`, overriding whichever theme
- *      block supplied the defaults.
+ *      block supplied the defaults — EXCEPT at DEFAULT_ACCENT, where the
+ *      inline properties are removed so the theme block's defaults win.
  *
  * ORDERING: callers must apply the theme BEFORE the accent colour
  * (loadSettingsIntoUi / runPersist both do `applyTheme(); applyAccentColor();`).
@@ -52,8 +53,32 @@ function lighten(hex: string, amount: number) {
   return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 }
 
+/**
+ * The default accent colour. MUST match `DEFAULT_SETTINGS.accentColor` in
+ * backend/settings.cjs (which normalizes every stored value to a valid hex,
+ * so `applyAccentColor` always receives this string when the user has not
+ * picked a custom accent).
+ */
+export const DEFAULT_ACCENT = '#8b5cf6';
+
+/** The three custom properties a custom accent overwrites inline. */
+const ACCENT_PROPERTIES: readonly string[] = ['--accent', '--accent-hover', '--accent-subtle'];
+
 export function applyAccentColor(color: string) {
   if (!/^#[0-9a-f]{6}$/i.test(color)) return;
+  // At the default, REMOVE the inline overrides instead of setting them, so
+  // the ACTIVE THEME BLOCK supplies its designed defaults (dark = the purple
+  // default, light = the black #171717 accent). Setting them here used to
+  // make the light theme's black accent unreachable, and also left stale
+  // inline properties behind when a user returned to the default colour.
+  // Intentional consequence (documented): a user who explicitly picks #8b5cf6
+  // gets the theme's default accent rather than a pinned purple.
+  if (color.toLowerCase() === DEFAULT_ACCENT) {
+    for (const property of ACCENT_PROPERTIES) {
+      document.documentElement.style.removeProperty(property);
+    }
+    return;
+  }
   document.documentElement.style.setProperty('--accent', color);
   // A hover state that equals the base colour is invisible (issue #08). The
   // stylesheet's default pair is accent -> a lighter variant; custom accents

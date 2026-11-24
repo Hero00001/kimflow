@@ -260,6 +260,8 @@ export const ar: Record<LocaleKey, string> = {
   'error.whisperBinaryNotFound': 'لم يتم العثور على ملف Whisper التنفيذي — استخدم «تحديد الملف التنفيذي» في الإعدادات لتحديد موقع whisper-cli.', // Whisper binary not found — use Select binary in Settings to locate whisper-cli.
   'error.whisperNotExecutable': 'ملف Whisper التنفيذي غير قابل للتنفيذ — تحقق من الأذونات أو أعد تحديده في الإعدادات.', // Whisper binary is not executable — check permissions or re-select it in Settings.
   'error.whisperModelNotFound': 'لم يتم العثور على طراز Whisper — نزّله من الإعدادات أولًا.', // Whisper model not found — download it in Settings first.
+  'error.senseVoiceModelNotFound': 'لم يتم العثور على طراز SenseVoice — نزّله من الإعدادات أولًا.', // SenseVoice model not found — download it in Settings first.
+  'error.senseVoiceRuntimeNotFound': 'لم يتم العثور على بيئة تشغيل SenseVoice — نزّلها من الإعدادات أولًا.', // SenseVoice runtime not found — download it in Settings first.
   'error.whisperCrashed': 'تعطّل ملف Whisper التنفيذي — جرّب إصدار CPU فقط أو أعد تثبيت VC++ Redistributable.', // Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.
   'error.invalidApiKey': 'مفتاح API غير صالح — تحقق من الإعدادات وأعد المحاولة.', // Invalid API key — check Settings and try again.
   'error.apiKeyMissing': 'مفتاح API مفقود — أضفه من الإعدادات أولًا.', // API key missing — add it in Settings first.

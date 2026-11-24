@@ -62,6 +62,7 @@ import { getSettings, setSettings } from './store';
 import { applyAccentColor, applyTheme, normalizeThemeSetting } from './theme';
 import { STATES, getCurrentState, onStateChange, refreshStatusText, showError, showToast } from './status';
 import { errorDetails, errorText, friendlyError } from './utils';
+import { parseVocabChips, removeVocabLine } from './vocab';
 import { applyLanguage, cssContentValue, normalizeUILanguage, renderStatic, t } from './i18n';
 import { renderHistory } from './history';
 import {
@@ -209,11 +210,14 @@ function parseVocabTerms(): string[] {
  * The textarea stays the editing surface, so multi-line paste and every
  * existing listener keep working; chips are a view over its value. Removing
  * a chip deletes that line from the textarea and persists immediately.
+ *
+ * Each chip carries the RAW line index it came from (src/vocab.ts): splicing
+ * by the filtered term index used to delete the wrong line whenever the
+ * textarea held a blank line, leaving an unremovable ghost chip.
  */
 function renderVocabChips(): void {
-  const terms = parseVocabTerms();
   const chips: Array<HTMLElement> = [];
-  terms.forEach((term, index) => {
+  for (const { term, lineIndex } of parseVocabChips(vocabInput.value.split('\n'))) {
     const chip = document.createElement('span');
     chip.className = 'vocab-chip';
     const label = document.createElement('span');
@@ -225,16 +229,14 @@ function renderVocabChips(): void {
     remove.textContent = '✕';
     remove.setAttribute('aria-label', t('settings.output.removeTerm'));
     remove.addEventListener('click', () => {
-      const lines = vocabInput.value.split('\n');
-      lines.splice(index, 1);
-      vocabInput.value = lines.join('\n');
+      vocabInput.value = removeVocabLine(vocabInput.value.split('\n'), lineIndex).join('\n');
       renderVocabChips();
       updateVocabCount();
       void persist();
     });
     chip.append(label, remove);
     chips.push(chip);
-  });
+  }
   vocabChips.replaceChildren(...chips);
 }
 

@@ -21,3 +21,7 @@ Replace the raw `#vocab-input` textarea presentation with per-term chips plus a 
 - Count re-renders on textarea input, on load (`loadSettingsIntoUi`), and on UI-language change (`applyLanguageToUi` → `refreshVocabUi()`), so the localized `n / 100 terms` string never goes stale.
 - i18n (en/ar/zh): `settings.output.vocabCount` ('{count} / {max} terms'), `settings.output.vocabLimit`, `settings.output.removeTerm`. Placeholder parity holds ({count}/{max} in every locale); key-count tests bumped to 201; parity test green.
 - Full suite 578/578 green; build green (dom.ts id gate covers the three new ids).
+
+### Fix (2026-11-24)
+
+- Chip ✕ spliced the textarea by the FILTERED term index, so with any blank line ('alpha\n\nbeta') removing 'beta' (filtered index 1) deleted the empty line and left 'beta' as an unremovable ghost chip. Fix: new pure helpers in `src/vocab.ts` — `parseVocabChips(lines)` builds chips carrying their RAW line index, `removeVocabLine(lines, rawIndex)` splices by it (out-of-range/stale clicks are a safe no-op copy). `renderVocabChips` now uses both; persisted format untouched. Coverage: `test/vocab-chips.test.cjs` (blank lines, trailing newline, duplicates, 200-char terms, stale-index no-ops).

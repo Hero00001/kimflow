@@ -267,6 +267,8 @@ export const en = {
   'error.whisperBinaryNotFound': 'Whisper binary not found — use Select binary in Settings to locate whisper-cli.',
   'error.whisperNotExecutable': 'Whisper binary is not executable — check permissions or re-select it in Settings.',
   'error.whisperModelNotFound': 'Whisper model not found — download it in Settings first.',
+  'error.senseVoiceModelNotFound': 'SenseVoice model not found — download it in Settings first.',
+  'error.senseVoiceRuntimeNotFound': 'SenseVoice runtime not found — download it in Settings first.',
   'error.whisperCrashed': 'Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.',
   'error.invalidApiKey': 'Invalid API key — check Settings and try again.',
   'error.apiKeyMissing': 'API key missing — add it in Settings first.',

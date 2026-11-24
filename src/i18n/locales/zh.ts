@@ -268,6 +268,8 @@ export const zh: Record<LocaleKey, string> = {
   'error.whisperBinaryNotFound': '未找到 Whisper 二进制文件 — 请在设置中使用“选择二进制文件”定位 whisper-cli。', // Whisper binary not found — use Select binary in Settings to locate whisper-cli.
   'error.whisperNotExecutable': 'Whisper 二进制文件无法执行 — 请检查权限或在设置中重新选择。', // Whisper binary is not executable — check permissions or re-select it in Settings.
   'error.whisperModelNotFound': '未找到 Whisper 模型 — 请先在设置中下载。', // Whisper model not found — download it in Settings first.
+  'error.senseVoiceModelNotFound': '未找到 SenseVoice 模型 — 请先在设置中下载。', // SenseVoice model not found — download it in Settings first.
+  'error.senseVoiceRuntimeNotFound': '未找到 SenseVoice 运行时 — 请先在设置中下载。', // SenseVoice runtime not found — download it in Settings first.
   'error.whisperCrashed': 'Whisper 二进制文件崩溃 — 请尝试仅 CPU 版本，或重新安装 VC++ 可再发行组件。', // Whisper binary crashed — try a CPU-only build or reinstall VC++ Redistributable.
   'error.invalidApiKey': 'API 密钥无效 — 请检查设置并重试。', // Invalid API key — check Settings and try again.
   'error.apiKeyMissing': '缺少 API 密钥 — 请先在设置中添加。', // API key missing — add it in Settings first.

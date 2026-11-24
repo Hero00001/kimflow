@@ -26,3 +26,7 @@ Add the black-and-white light token set as a `[data-theme="light"]` block in `sr
 - Full suite green (578 tests), build green.
 
 ## Comments
+
+### Fix (2026-11-24)
+
+- The light theme's designed black accent (#171717) was unreachable: backend/settings.cjs normalizes accentColor to a valid hex (default #8b5cf6), so `applyAccentColor` always set the three inline custom properties over the theme block. Fix: `DEFAULT_ACCENT` constant exported from theme.ts (must match DEFAULT_SETTINGS.accentColor); when the color equals it, the inline `--accent`/`--accent-hover`/`--accent-subtle` are REMOVED so the active theme block supplies its defaults — also clears stale inline props when a user returns to the default. Intentional, documented consequence: explicitly picking #8b5cf6 yields the theme's default accent. Coverage: `test/theme-accent.test.cjs`. Call sites (loadSettingsIntoUi/runPersist) unchanged.

@@ -60,9 +60,11 @@ test('the locale set is exactly en/ar/zh with 206 keys each (unchanged by the re
   //     (settings regroup + vocab chips, retheme #03/#09).
   //   + settings.model.senseVoice + settings.localEngine.label
   //   + settings.localEngine.whisperCpp/sherpaOnnx/fallbackNote (sensevoice #05).
-  assert.equal(Object.keys(EN).length, 206);
-  assert.equal(Object.keys(AR).length, 206);
-  assert.equal(Object.keys(ZH).length, 206);
+  //   + error.senseVoiceModelNotFound + error.senseVoiceRuntimeNotFound
+  //     (SenseVoice friendly-error mirrors, QA fix 2026-11-24).
+  assert.equal(Object.keys(EN).length, 208);
+  assert.equal(Object.keys(AR).length, 208);
+  assert.equal(Object.keys(ZH).length, 208);
 });
 
 test('every i18n key the placeholder mirroring can reference exists in all three locales', () => {

@@ -14,6 +14,15 @@ Full regression pass for the slice: resolver routing unit tests (already from 02
 
 ## Comments
 
+### Fix (2026-11-24)
+
+Adversarial-QA fixes touching this slice (full suite 618/618 green, build clean):
+
+- **Download concurrency guard (main.cjs):** registry ids ('sense-voice-int8', 'sherpa-runtime-win-x64') were unguarded in 'download-model' — a second concurrent call raced another full download. Now guarded via the same `engineDownloadState` Set as the engine flavors ('That model is already downloading'), cleared in a `finally`.
+- **Atomic re-extraction (backend/model-download.cjs):** `extractTarBz2` used to `rmSync(targetDir)` FIRST, so a failed re-extraction destroyed a good install. Now stages into a unique `.extract-<uuid>` sibling, then replaces (rm + rename); on failure the staging dir is cleaned and the previous install is untouched. Exported for tests; `test/sherpa-registry.test.cjs` proves a failed extraction leaves the previous install intact and a successful one replaces it cleanly.
+- **sherpa-status semantics (main.cjs):** `runtime` was `resolveSherpaBinary() && registryDownloaded(RUNTIME_ENTRY_ID)` while the router routes on `resolveSherpaBinary()` alone — a bundled/env-override sidecar showed "not ready" while actually being used. Now `runtime: resolveSherpaBinary() !== null` (model check unchanged). New `test/sherpa-status.test.cjs` pins the semantics via the main harness.
+- Also fixed in the same pass (owned elsewhere): friendly-errors misroutes for the two sherpa error strings + en/ar/zh mirrors (ui-retheme #08), vocab chip ghost-removal (ui-retheme #09), light-theme accent default (ui-retheme #01), parity test includes EN (ui-retheme #07).
+
 ## REAL smoke test (this machine, 2026-11-24)
 
 - Setup: runtime + model archives downloaded from the GitHub release URLs into `%TEMP%/kimflow-sherpa/` (OUTSIDE the repo), verified sha256 (see ticket 03), extracted. sherpa-onnx-offline.exe ran WITHOUT any VC++ runtime install (MT build confirmed working on this box).

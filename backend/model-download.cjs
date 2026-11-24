@@ -96,17 +96,34 @@ function registryDownloaded(id) {
 
 /**
  * Extract a .tar.bz2 with the OS bsdtar (Windows ships one; no new npm
- * dependency). The target dir is wiped first so a re-download never mixes
- * old and new files.
+ * dependency).
+ *
+ * Atomic (QA fix 2026-11-24): the archive is unpacked into a UNIQUE sibling
+ * staging dir first, and only a COMPLETE extraction replaces the target
+ * (rmSync target + renameSync staging → target). The old wipe-first order
+ * destroyed a good install whenever a re-extraction failed, contradicting
+ * downloadRegistryEntry's "leaves the previous extraction untouched" promise.
+ * On any failure the staging dir is cleaned up and the previous extraction
+ * is left exactly as it was.
  */
 async function extractTarBz2(archivePath, targetDir) {
-  fs.rmSync(targetDir, { recursive: true, force: true });
-  fs.mkdirSync(targetDir, { recursive: true });
-  const result = await execFileAsync('tar', ['-xjf', archivePath, '-C', targetDir], {
-    timeout: 300000,
-    windowsHide: true,
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  const stagingDir = `${targetDir}.extract-${crypto.randomUUID()}`;
+  let result;
+  try {
+    fs.mkdirSync(stagingDir, { recursive: true });
+    result = await execFileAsync('tar', ['-xjf', archivePath, '-C', stagingDir], {
+      timeout: 300000,
+      windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    // Replace only after a complete extraction: the failure window is now a
+    // rename, not a re-extraction.
+    fs.rmSync(targetDir, { recursive: true, force: true });
+    fs.renameSync(stagingDir, targetDir);
+  } catch (error) {
+    try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* best-effort cleanup */ }
+    throw error;
+  }
   return result;
 }
 
@@ -262,5 +279,6 @@ module.exports = {
   registryModelDir,
   registryDownloaded,
   downloadRegistryEntry,
+  extractTarBz2,
   findFileRecursive,
 };
