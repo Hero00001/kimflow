@@ -36,6 +36,10 @@ import {
   modeGroup,
   polishGroup,
   vocabInput,
+  vocabChips,
+  vocabCount,
+  vocabLimitNote,
+  settingsNav,
   translationGroup,
   aiPolishGroup,
   geminiRow,
@@ -70,6 +74,13 @@ let persistTimer: number | undefined;
 
 /** Deepgram models the model select offers; anything else resolves to 'auto'. */
 const DEEPGRAM_MODEL_VALUES: ReadonlySet<string> = new Set(['auto', 'nova-3', 'nova-2']);
+
+/**
+ * Maximum custom vocabulary terms. backend/vocabulary.cjs owns MAX_TERMS
+ * (and slices the stored list server-side); it is not exposed over IPC, so
+ * the renderer mirrors the constant here for the count UI. Keep in sync.
+ */
+const MAX_VOCAB_TERMS = 100;
 
 /**
  * The custom Whisper binary currently selected.
@@ -150,6 +161,58 @@ function applyEmptyStateText() {
   root.style.setProperty('--i18n-empty-translation', cssContentValue(t('translation.empty')));
 }
 
+/** Parse the textarea's raw value into terms (mirrors persist() semantics). */
+function parseVocabTerms(): string[] {
+  return vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean);
+}
+
+/**
+ * Render one removable chip per parsed term above the textarea (retheme #09).
+ * The textarea stays the editing surface, so multi-line paste and every
+ * existing listener keep working; chips are a view over its value. Removing
+ * a chip deletes that line from the textarea and persists immediately.
+ */
+function renderVocabChips(): void {
+  const terms = parseVocabTerms();
+  const chips: Array<HTMLElement> = [];
+  terms.forEach((term, index) => {
+    const chip = document.createElement('span');
+    chip.className = 'vocab-chip';
+    const label = document.createElement('span');
+    label.className = 'vocab-chip-term';
+    label.textContent = term;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'vocab-chip-remove';
+    remove.textContent = '✕';
+    remove.setAttribute('aria-label', t('settings.output.removeTerm'));
+    remove.addEventListener('click', () => {
+      const lines = vocabInput.value.split('\n');
+      lines.splice(index, 1);
+      vocabInput.value = lines.join('\n');
+      renderVocabChips();
+      updateVocabCount();
+      void persist();
+    });
+    chip.append(label, remove);
+    chips.push(chip);
+  });
+  vocabChips.replaceChildren(...chips);
+}
+
+/** `n / MAX_TERMS` count plus the visible over-limit note (retheme #09). */
+function updateVocabCount(): void {
+  const count = parseVocabTerms().length;
+  vocabCount.textContent = t('settings.output.vocabCount', { count, max: MAX_VOCAB_TERMS });
+  vocabLimitNote.classList.toggle('hidden', count <= MAX_VOCAB_TERMS);
+}
+
+/** Refresh the vocab affordances after any textarea/language change. */
+function refreshVocabUi(): void {
+  renderVocabChips();
+  updateVocabCount();
+}
+
 /**
  * Apply the UI language and re-render every piece of dynamic text that is not
  * covered by a `data-i18n` attribute (status row, history list, ...).
@@ -160,6 +223,7 @@ function applyLanguageToUi(language: string): void {
   applyEmptyStateText();
   refreshStatusText();
   renderHistory();
+  refreshVocabUi();
   // renderStatic re-applies every `data-i18n` attribute, which resets the
   // key-status spans to their "No key saved" placeholder — even when a key
   // IS stored. Re-derive them from the OS keychain after each re-render.
@@ -302,6 +366,7 @@ export async function loadSettingsIntoUi(settings: Settings): Promise<void> {
   setModeActive(settings.recordingMode);
   setPolishActive(settings.polishMode || 'light');
   vocabInput.value = (settings.customVocabulary || []).join('\n');
+  refreshVocabUi();
   setAiPolishActive(settings.aiPolish === true);
   // The translation toggle's active class is owned by this form (the
   // translation module must not re-derive it from a possibly stale snapshot),
@@ -383,7 +448,7 @@ async function runPersist(): Promise<void> {
   settings.translationTarget = translateToSelect.value || 'en';
   settings.geminiApiKey = geminiKey.value.trim();
   settings.geminiModel = geminiModel.value.trim();
-  settings.customVocabulary = vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, 100);
+  settings.customVocabulary = vocabInput.value.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, MAX_VOCAB_TERMS);
   settings.hotkey = hotkeyInput.value.trim() || settings.hotkey;
   // The pause hotkey has NO empty-fallback: clearing the field is how the
   // hotkey is disabled, so '' must reach the backend as-is.
@@ -744,8 +809,20 @@ export function wireSettingsControls() {
   geminiModel.addEventListener('blur', () => { void validateModelField(); });
 
   micSelect.addEventListener('change', () => { void persist(); });
+  // The chips are a live view of the textarea; re-render on every keystroke.
   vocabInput.addEventListener('change', () => { void persist(); });
-  vocabInput.addEventListener('input', schedulePersist);
+  vocabInput.addEventListener('input', () => { refreshVocabUi(); schedulePersist(); });
+
+  // Chip-style section nav (retheme #03): open the target <details> (it may
+  // be collapsed) and scroll it into view. Details mechanics are kept.
+  settingsNav.querySelectorAll<HTMLButtonElement>('.settings-nav-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const target = document.getElementById(chip.dataset.section || '');
+      if (!target) return;
+      if (target instanceof HTMLDetailsElement) target.open = true;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
   modelSelect.addEventListener('change', () => { void checkModelStatus(); void persist(); });
   deepgramKey.addEventListener('change', () => { void persist(); });
   deepgramKey.addEventListener('input', schedulePersist);

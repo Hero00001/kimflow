@@ -79,10 +79,10 @@ export const en = {
 
   // ── Settings — headings and section titles ───────────────────────────
   'settings.heading': 'Settings',
-  'settings.section.input': 'Input',
-  'settings.section.engine': 'Transcription engine',
+  'settings.navAria': 'Settings sections',
+  'settings.section.speech': 'Speech',
   'settings.section.language': 'Language & translation',
-  'settings.section.cleanup': 'Text cleanup',
+  'settings.section.output': 'Output',
   'settings.section.appearance': 'Appearance',
 
   // ── Settings — Input section ─────────────────────────────────────────
@@ -173,6 +173,13 @@ export const en = {
   'settings.cleanup.vocabAria': 'Custom vocabulary, one term per line',
   'settings.cleanup.vocabHint': 'Names & terms you say often — sent to the engine so it hears them right.',
   'settings.cleanup.aiPolish': 'AI polish',
+
+  // ── Settings — Output section (vocabulary chips, retheme #09) ─────────
+  // Row labels stay under settings.cleanup.* (only the SECTION was renamed;
+  // renaming every row key would churn ar/zh review comments for no gain).
+  'settings.output.vocabCount': '{count} / {max} terms',
+  'settings.output.vocabLimit': 'Limit reached — only the first {max} terms are kept.',
+  'settings.output.removeTerm': 'Remove term',
 
   // ── Settings — Language & translation section ────────────────────────
   'settings.translation.label': 'Translation',

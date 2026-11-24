@@ -80,10 +80,10 @@ export const ar: Record<LocaleKey, string> = {
 
   // ── Settings — headings and section titles ───────────────────────────
   'settings.heading': 'الإعدادات', // Settings
-  'settings.section.input': 'الإدخال', // Input
-  'settings.section.engine': 'محرّك النسخ', // Transcription engine
+  'settings.navAria': 'أقسام الإعدادات', // Settings sections
+  'settings.section.speech': 'الكلام', // Speech
   'settings.section.language': 'اللغة والترجمة', // Language & translation
-  'settings.section.cleanup': 'تنقية النص', // Text cleanup
+  'settings.section.output': 'الإخراج', // Output
   'settings.section.appearance': 'المظهر', // Appearance
 
   // ── Settings — Input section ─────────────────────────────────────────
@@ -174,6 +174,11 @@ export const ar: Record<LocaleKey, string> = {
   'settings.cleanup.vocabAria': 'مفردات مخصّصة، مصطلح واحد في كل سطر', // Custom vocabulary, one term per line
   'settings.cleanup.vocabHint': 'الأسماء والمصطلحات التي تقولها كثيرًا — تُرسل إلى المحرّك ليتعرّف عليها بشكل صحيح.', // Names & terms you say often — sent to the engine so it hears them right.
   'settings.cleanup.aiPolish': 'تحسين بالذكاء الاصطناعي', // AI polish
+
+  // ── Settings — Output section (vocabulary chips) ─────────────────────
+  'settings.output.vocabCount': '{count} / {max} مصطلح', // {count} / {max} terms
+  'settings.output.vocabLimit': 'تم بلوغ الحد — سيُحتفظ بأول {max} مصطلح فقط.', // Limit reached — only the first {max} terms are kept.
+  'settings.output.removeTerm': 'إزالة مصطلح', // Remove term
 
   // ── Settings — Language & translation section ────────────────────────
   'settings.translation.label': 'الترجمة', // Translation

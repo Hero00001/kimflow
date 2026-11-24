@@ -80,11 +80,14 @@ test('every element id resolved by dom.ts still exists in index.html', () => {
   assert.deepEqual(missing, [], `dom.ts ids missing from index.html: ${missing.join(', ')}`);
 });
 
-test('the five settings sections and the UI-language control are present', () => {
+test('the four settings sections and the UI-language control are present', () => {
   const indexHtml = MARKUP['index.html'];
+  // Four sections since the retheme regroup (#03): Speech (Input+Engine
+  // merged), Language & translation, Output, Appearance.
   const sections = indexHtml.match(/<details class="settings-section"/g) || [];
-  assert.equal(sections.length, 5, 'expected five settings sections');
-  assert.match(indexHtml, /<details class="settings-section" open>/, 'first section must default open');
+  assert.equal(sections.length, 4, 'expected four settings sections');
+  assert.match(indexHtml, /<details class="settings-section" open /, 'first section must default open');
+  assert.ok(indexHtml.includes('id="settings-nav"'), 'chip-style section nav missing');
   assert.ok(indexHtml.includes('id="ui-language-select"'), 'UI-language select missing');
   for (const value of ['en', 'ar', 'zh']) {
     assert.ok(indexHtml.includes(`<option value="${value}"`), `missing UI-language option ${value}`);

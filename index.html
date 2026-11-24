@@ -137,11 +137,19 @@
 
           <section id="page-settings" class="page hidden">
             <div id="settings-heading" data-i18n="settings.heading"></div>
+            <!-- Chip-style section nav (retheme #03): each chip opens its
+                 section (it may be collapsed) and scrolls to it. -->
+            <nav id="settings-nav" data-i18n-aria-label="settings.navAria">
+              <button type="button" class="settings-nav-chip" data-section="section-speech" data-i18n="settings.section.speech"></button>
+              <button type="button" class="settings-nav-chip" data-section="section-language" data-i18n="settings.section.language"></button>
+              <button type="button" class="settings-nav-chip" data-section="section-output" data-i18n="settings.section.output"></button>
+              <button type="button" class="settings-nav-chip" data-section="section-appearance" data-i18n="settings.section.appearance"></button>
+            </nav>
             <div class="settings-panel">
 
-              <!-- ── Section: Input ─────────────────────────────────── -->
-              <details class="settings-section" open>
-                <summary class="settings-section-summary"><span data-i18n="settings.section.input"></span></summary>
+              <!-- ── Section: Speech (Input + Engine merged) ─────────── -->
+              <details class="settings-section" open id="section-speech">
+                <summary class="settings-section-summary"><span data-i18n="settings.section.speech"></span></summary>
                 <div class="settings-section-content">
                   <div class="s-row" id="mic-row">
                     <span class="s-label" data-i18n="settings.input.microphone"></span>
@@ -171,13 +179,7 @@
                       <button id="pause-hotkey-record" class="text-btn" type="button" data-i18n="settings.hotkey.record"></button>
                     </div>
                   </div>
-                </div>
-              </details>
 
-              <!-- ── Section: Transcription engine ──────────────────── -->
-              <details class="settings-section">
-                <summary class="settings-section-summary"><span data-i18n="settings.section.engine"></span></summary>
-                <div class="settings-section-content">
                   <div class="s-row" id="engine-row">
                     <span class="s-label" data-i18n="settings.engine.label"></span>
                     <div class="toggle-group" id="engine-group">
@@ -289,7 +291,7 @@
               </details>
 
               <!-- ── Section: Language & translation ────────────────── -->
-              <details class="settings-section">
+              <details class="settings-section" id="section-language">
                 <summary class="settings-section-summary"><span data-i18n="settings.section.language"></span></summary>
                 <div class="settings-section-content">
                   <div class="s-row" id="input-language-row">
@@ -344,9 +346,9 @@
                 </div>
               </details>
 
-              <!-- ── Section: Text cleanup ──────────────────────────── -->
-              <details class="settings-section">
-                <summary class="settings-section-summary"><span data-i18n="settings.section.cleanup"></span></summary>
+              <!-- ── Section: Output ────────────────────────────────── -->
+              <details class="settings-section" id="section-output">
+                <summary class="settings-section-summary"><span data-i18n="settings.section.output"></span></summary>
                 <div class="settings-section-content">
                   <div class="s-row" id="polish-row">
                     <span class="s-label" data-i18n="settings.cleanup.speechCleanup"></span>
@@ -368,15 +370,22 @@
                   <div class="s-row" id="vocab-row">
                     <span class="s-label" data-i18n="settings.cleanup.myWords"></span>
                     <div class="model-field">
+                      <!-- Chip preview (retheme #09): one chip per parsed term,
+                           rendered from the textarea's value. The textarea stays
+                           the editing surface so multi-line paste keeps working,
+                           and the persisted format is unchanged. -->
+                      <div id="vocab-chips" class="vocab-chips"></div>
                       <textarea id="vocab-input" rows="3" data-i18n-placeholder="settings.cleanup.vocabPlaceholder" data-i18n-aria-label="settings.cleanup.vocabAria"></textarea>
+                      <div class="api-key-notice" id="vocab-count"></div>
                       <div class="api-key-notice" data-i18n="settings.cleanup.vocabHint"></div>
+                      <div class="api-key-notice hidden" id="vocab-limit-note" data-i18n="settings.output.vocabLimit"></div>
                     </div>
                   </div>
                 </div>
               </details>
 
               <!-- ── Section: Appearance ────────────────────────────── -->
-              <details class="settings-section">
+              <details class="settings-section" id="section-appearance">
                 <summary class="settings-section-summary"><span data-i18n="settings.section.appearance"></span></summary>
                 <div class="settings-section-content">
                   <div class="s-row" id="ui-language-row">

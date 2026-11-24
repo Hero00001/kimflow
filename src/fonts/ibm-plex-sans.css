@@ -1,5 +1,8 @@
-/* IBM Plex Sans — vendored locally (Fontsource build, OFL-licensed).
-   Replaces the Google Fonts CDN link so the app works offline. */
+/* Vendored webfonts (all OFL-licensed, Fontsource builds). Replaces the
+   Google Fonts CDN link so the app works offline — CSP is font-src 'self'.
+   Subsets are per-script on purpose: the --font stack lists IBM Plex Sans
+   (Latin) first, so Latin glyphs always come from the bundled Latin face and
+   the Arabic/SC faces below only need to carry their own scripts. */
 @font-face {
   font-family: 'IBM Plex Sans';
   font-style: normal;
@@ -20,4 +23,38 @@
   font-display: swap;
   font-weight: 600;
   src: url('./ibm-plex-sans-latin-600-normal.woff2') format('woff2');
+}
+/* IBM Plex Sans Arabic (retheme #06): bundled so Arabic UI text no longer
+   depends on which Arabic fonts the user's Windows happens to ship. */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('./ibm-plex-sans-arabic-arabic-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('./ibm-plex-sans-arabic-arabic-500-normal.woff2') format('woff2');
+}
+/* Noto Sans SC (retheme #06): same rationale for Simplified Chinese. The
+   full CJK face ships as one ~1.1 MB woff2 per weight — under the 4 MB
+   budget from the ticket, so the Google Fonts unicode-range split (100+
+   chunks per weight) is NOT used. */
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('./noto-sans-sc-chinese-simplified-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('./noto-sans-sc-chinese-simplified-500-normal.woff2') format('woff2');
 }

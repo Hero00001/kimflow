@@ -20,9 +20,13 @@
   --border:         rgba(255, 255, 255, 0.06);
   --border-strong:  rgba(255, 255, 255, 0.12);
   --radius:         12px;
-  /* Latin keeps the bundled IBM Plex face; Arabic and Chinese borrow system
-     fonts via per-glyph fallback (no webfonts are bundled — see spec §8). */
-  --font:           'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI",
+  /* Latin keeps the bundled IBM Plex face first so Latin glyphs never fall
+     through to the CJK/Arabic faces. The bundled Arabic (IBM Plex Sans
+     Arabic) and SC (Noto Sans SC) faces then precede the per-OS system
+     fallbacks, which stay as a last resort for glyphs the subsets miss
+     (retheme #06). */
+  --font:           'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Noto Sans SC',
+                    -apple-system, BlinkMacSystemFont, "Segoe UI",
                     "Noto Sans Arabic", "Segoe UI Arabic", "Microsoft YaHei",
                     "PingFang SC", "Noto Sans SC", sans-serif;
   --transition:     160ms ease;
@@ -1092,3 +1096,72 @@ input[type="color"] {
 }
 
 #copy-toast.show { opacity: 1; }
+
+/* ── Settings section nav chips (retheme #03) ─────────── */
+
+#settings-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0 14px;
+}
+
+.settings-nav-chip {
+  background: none;
+  border: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.settings-nav-chip:hover { color: var(--text); border-color: var(--accent); }
+
+/* ── Vocabulary chips (retheme #09) ───────────────────── */
+
+.vocab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vocab-chips:empty { display: none; }
+
+.vocab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--accent-subtle);
+  border-radius: 999px;
+  padding-left: 10px;
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.vocab-chip-term {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vocab-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.vocab-chip-remove:hover { color: var(--danger-text); }
+
+#vocab-limit-note { color: var(--danger-text); }

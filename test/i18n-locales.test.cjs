@@ -50,7 +50,7 @@ test('no locale value is an empty string', () => {
   }
 });
 
-test('the locale set is exactly en/ar/zh with 198 keys each', () => {
+test('the locale set is exactly en/ar/zh with 201 keys each', () => {
   assert.deepEqual(Object.keys(LOCALES).sort(), ['ar', 'en', 'zh']);
   // 189 keys (188 + settings.key.geminiRemoved, B9/#23)
   //   + settings.input.pauseHotkey + settings.input.pauseHotkeyAria
@@ -59,7 +59,13 @@ test('the locale set is exactly en/ar/zh with 198 keys each', () => {
   //     (history confirm safety + copy affordance, retheme #05).
   //   + settings.appearance.theme + themeSystem/themeLight/themeDark
   //     (theme setting, retheme #02).
-  assert.equal(Object.keys(EN).length, 198);
+  //   - settings.section.input - settings.section.engine
+  //     - settings.section.cleanup
+  //   + settings.section.speech + settings.section.output
+  //   + settings.navAria + settings.output.vocabCount
+  //   + settings.output.vocabLimit + settings.output.removeTerm
+  //     (settings regroup + vocab chips, retheme #03/#09).
+  assert.equal(Object.keys(EN).length, 201);
 });
 
 // ── Category 2: placeholder parity ──────────────────────────────────────────

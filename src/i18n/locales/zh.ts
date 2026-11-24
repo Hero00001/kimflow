@@ -88,10 +88,10 @@ export const zh: Record<LocaleKey, string> = {
 
   // ── Settings — headings and section titles ───────────────────────────
   'settings.heading': '设置', // Settings
-  'settings.section.input': '输入', // Input
-  'settings.section.engine': '转录引擎', // Transcription engine
+  'settings.navAria': '设置分区', // Settings sections
+  'settings.section.speech': '语音', // Speech
   'settings.section.language': '语言与翻译', // Language & translation
-  'settings.section.cleanup': '文本整理', // Text cleanup
+  'settings.section.output': '输出', // Output
   'settings.section.appearance': '外观', // Appearance
 
   // ── Settings — Input section ─────────────────────────────────────────
@@ -182,6 +182,11 @@ export const zh: Record<LocaleKey, string> = {
   'settings.cleanup.vocabAria': '自定义词汇，每行一个术语', // Custom vocabulary, one term per line
   'settings.cleanup.vocabHint': '您经常说出的名称和术语 — 会发送给引擎，以便正确识别。', // Names & terms you say often — sent to the engine so it hears them right.
   'settings.cleanup.aiPolish': 'AI 润色', // AI polish
+
+  // ── Settings — Output section（词汇标签，retheme #09）─────────────────
+  'settings.output.vocabCount': '{count} / {max} 个词汇', // {count} / {max} terms
+  'settings.output.vocabLimit': '已达上限 — 仅保留前 {max} 个词汇。', // Limit reached — only the first {max} terms are kept.
+  'settings.output.removeTerm': '移除词汇', // Remove term
 
   // ── Settings — Language & translation section ────────────────────────
   'settings.translation.label': '翻译', // Translation
